@@ -4,7 +4,7 @@ import { ClientRouter } from 'astro:transitions';
 import { SidebarTree } from '../components/SidebarTree';
 import { getSidebarTree } from '../lib/server/api';
 
-const { title = 'Vessel Markdown Manager', authPage = false } = Astro.props;
+const { title = 'Carbon Markdown Manager', authPage = false } = Astro.props;
 const user = Astro.locals.user;
 const userNavLabel = user ? 'Account' : 'Login';
 const userNavHref = user ? '/me' : '/login';
@@ -1107,8 +1107,8 @@ const sidebarTree = !authPage && user ? await getSidebarTree(Astro.locals.db, us
       <div class="auth-page">
         <div class="auth-card">
           <a class="auth-brand" href="/">
-            <span class="brand-icon">V</span>
-            Vessel
+            <span class="brand-icon">C</span>
+            Carbon
           </a>
           <slot />
         </div>
@@ -1127,8 +1127,8 @@ const sidebarTree = !authPage && user ? await getSidebarTree(Astro.locals.db, us
             <div class="sidebar-inner" transition:persist>
               <div class="sidebar-brand">
                 <a class="brand" href="/">
-                  <span class="brand-icon">V</span>
-                  <span>Vessel</span>
+                  <span class="brand-icon">C</span>
+                  <span>Carbon</span>
                 </a>
               </div>
               {user && sidebarTree ? (

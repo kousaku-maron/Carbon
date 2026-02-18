@@ -1,5 +1,5 @@
 {
-  "name": "@vessel/frontend",
+  "name": "@carbon/frontend",
   "private": true,
   "type": "module",
   "scripts": {

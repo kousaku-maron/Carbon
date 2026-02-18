@@ -1,10 +1,10 @@
-name = "vessel"
+name = "carbon"
 main = "./dist/_worker.js/index.js"
 compatibility_date = "2026-02-16"
 compatibility_flags = ["nodejs_compat"]
 
 [vars]
-BETTER_AUTH_URL = "https://vessel.kousaku-maron.workers.dev"
+BETTER_AUTH_URL = "https://carbon.kousaku-maron.workers.dev"
 
 [assets]
 binding = "ASSETS"

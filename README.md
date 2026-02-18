@@ -1,4 +1,4 @@
-# Vessel Markdown Manager (Turborepo)
+# Carbon Markdown Manager (Turborepo)
 
 Astro 単体のフルスタック構成で、Cloudflare Workers + Neon(PostgreSQL) + better-auth を使う最小マークダウン管理ツールです。  
 フロントエンドは `@astrojs/preact` と `tailwindcss` に対応しています。  

@@ -47,7 +47,7 @@ type SidebarContextMenuState = {
   target: ContextMenuTarget;
 };
 
-const EXPANDED_FOLDERS_STORAGE_KEY = 'vessel.sidebar.expandedFolderIds';
+const EXPANDED_FOLDERS_STORAGE_KEY = 'carbon.sidebar.expandedFolderIds';
 
 function FolderBranch({
   folder,
