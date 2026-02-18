@@ -1056,6 +1056,241 @@ const sidebarTree = !authPage && user ? await getSidebarTree(Astro.locals.db, us
         margin-bottom: 4px;
       }
 
+      /* ── Sync Settings ── */
+      .sync-settings {
+        display: grid;
+        gap: 12px;
+      }
+      .sync-message {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 8px 12px;
+        border-radius: var(--radius-sm);
+        font-size: 0.8125rem;
+      }
+      .sync-message--success {
+        background: rgba(15, 123, 108, 0.08);
+        color: var(--success);
+      }
+      .sync-message--error {
+        background: rgba(235, 87, 87, 0.08);
+        color: var(--danger);
+      }
+      .sync-message-close {
+        all: unset;
+        cursor: pointer;
+        font-size: 1rem;
+        line-height: 1;
+        padding: 0 4px;
+        opacity: 0.6;
+      }
+      .sync-message-close:hover { opacity: 1; }
+
+      .sync-connections {
+        display: grid;
+        gap: 12px;
+      }
+      .sync-connection-card {
+        background: var(--bg);
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        padding: 14px 16px;
+        display: grid;
+        gap: 10px;
+      }
+      .sync-connection-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+      }
+      .sync-repo-name {
+        font-weight: 600;
+        font-size: 0.875rem;
+        color: var(--text);
+      }
+      .sync-branch {
+        font-size: 0.75rem;
+        color: var(--muted);
+        background: var(--bg-subtle);
+        padding: 2px 6px;
+        border-radius: 4px;
+        margin-left: 6px;
+      }
+      .sync-path {
+        font-size: 0.75rem;
+        color: var(--muted);
+        margin-left: 4px;
+      }
+      .sync-status {
+        font-size: 0.6875rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        padding: 2px 8px;
+        border-radius: 4px;
+      }
+      .sync-status--active {
+        color: var(--success);
+        background: rgba(15, 123, 108, 0.08);
+      }
+      .sync-status--paused {
+        color: var(--muted);
+        background: var(--bg-subtle);
+      }
+      .sync-actions {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+      }
+      .btn-primary {
+        background: var(--accent);
+        color: #fff;
+        border: none;
+        padding: 6px 14px;
+        border-radius: var(--radius-sm);
+        font-size: 0.8125rem;
+        font-weight: 500;
+        cursor: pointer;
+        transition: background var(--transition);
+      }
+      .btn-primary:hover { background: var(--accent-hover); }
+      .btn-primary:disabled { opacity: 0.6; cursor: not-allowed; }
+      .btn-primary.btn-sm { padding: 4px 10px; font-size: 0.75rem; }
+
+      .btn-danger {
+        background: none;
+        color: var(--danger);
+        border: 1px solid rgba(235, 87, 87, 0.3);
+        padding: 6px 14px;
+        border-radius: var(--radius-sm);
+        font-size: 0.8125rem;
+        cursor: pointer;
+        transition: all var(--transition);
+      }
+      .btn-danger:hover {
+        background: rgba(235, 87, 87, 0.06);
+        border-color: var(--danger);
+      }
+
+      .sync-repo-list {
+        display: grid;
+        gap: 4px;
+        max-height: 320px;
+        overflow-y: auto;
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        padding: 8px;
+      }
+      .sync-repo-item {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 8px 10px;
+        border-radius: var(--radius-sm);
+        transition: background var(--transition);
+      }
+      .sync-repo-item:hover { background: var(--bg-subtle); }
+
+      .sync-badge {
+        font-size: 0.6875rem;
+        color: var(--muted);
+        background: var(--bg-subtle);
+        padding: 1px 6px;
+        border-radius: 4px;
+        margin-left: 6px;
+      }
+
+      .sync-details {
+        font-size: 0.8125rem;
+      }
+      .sync-details summary {
+        cursor: pointer;
+        color: var(--text-secondary);
+        padding: 4px 0;
+      }
+      .sync-detail-list {
+        list-style: none;
+        padding: 0;
+        margin: 6px 0 0;
+        display: grid;
+        gap: 4px;
+        max-height: 240px;
+        overflow-y: auto;
+      }
+      .sync-detail-item {
+        display: flex;
+        align-items: baseline;
+        gap: 8px;
+        font-size: 0.75rem;
+        padding: 4px 8px;
+        border-radius: 4px;
+        background: var(--bg-subtle);
+      }
+      .sync-detail-action {
+        font-weight: 600;
+        flex-shrink: 0;
+      }
+      .sync-detail--created .sync-detail-action,
+      .sync-detail--done .sync-detail-action { color: var(--success); }
+      .sync-detail--updated .sync-detail-action { color: var(--accent); }
+      .sync-detail--skip .sync-detail-action,
+      .sync-detail--skipped .sync-detail-action { color: var(--muted); }
+      .sync-detail--error .sync-detail-action { color: var(--danger); }
+      .sync-detail--deleted_from_repo .sync-detail-action { color: var(--text-secondary); }
+
+      .sync-detail-path {
+        color: var(--text-secondary);
+        word-break: break-all;
+        font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+      }
+      .sync-detail-error {
+        color: var(--danger);
+        font-size: 0.6875rem;
+      }
+
+      .sync-detail-direction {
+        font-size: 0.625rem;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: var(--muted);
+        flex-shrink: 0;
+        min-width: 32px;
+      }
+
+      .sync-strategy-select {
+        font-size: 0.75rem;
+        padding: 4px 8px;
+        border: 1px solid var(--line);
+        border-radius: var(--radius-sm);
+        background: var(--bg);
+        color: var(--text-secondary);
+        cursor: pointer;
+      }
+
+      .sync-result-summary {
+        display: grid;
+        gap: 6px;
+        padding: 10px 12px;
+        background: var(--bg-subtle);
+        border-radius: var(--radius-sm);
+      }
+      .sync-result-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 0.8125rem;
+      }
+      .sync-result-label {
+        font-weight: 600;
+        font-size: 0.6875rem;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: var(--muted);
+        min-width: 52px;
+      }
+
       /* ── Responsive ── */
       @media (max-width: 860px) {
         .app-shell {

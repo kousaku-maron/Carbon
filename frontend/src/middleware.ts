@@ -30,7 +30,7 @@ export const onRequest = defineMiddleware(async ({ locals, request }, next) => {
   locals.session = isAuthed?.session || null;
 
   const pathname = new URL(request.url).pathname;
-  const isPrivateApi = pathname.startsWith('/api/notes') || pathname.startsWith('/api/folders');
+  const isPrivateApi = pathname.startsWith('/api/notes') || pathname.startsWith('/api/folders') || pathname.startsWith('/api/sync');
   const isPrivatePage = pathname === '/' || pathname.startsWith('/notes');
 
   if (!locals.user) {

@@ -63,6 +63,7 @@ export function createAuth(config: AuthConfig, db: Database) {
             github: {
               clientId: githubClientId,
               clientSecret: githubClientSecret,
+              scope: ["repo", "read:user", "user:email"],
             },
           },
         }

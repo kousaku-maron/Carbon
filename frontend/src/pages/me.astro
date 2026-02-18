@@ -2,6 +2,7 @@
 import BaseLayout from '../layouts/BaseLayout.astro';
 import { Avatar } from '../components/Avatar';
 import { SignOutButton } from '../components/SignOutButton';
+import { SyncSettings } from '../components/SyncSettings';
 
 const user = Astro.locals.user;
 const session = Astro.locals.session;
@@ -41,6 +42,12 @@ if (!user || !session) {
           <span class="info-value">{session.id}</span>
         </div>
       </div>
+    </section>
+
+    <section class="card stack">
+      <h2 class="settings-section-title">GitHub Sync</h2>
+      <p class="muted text-sm" style="margin-bottom: 16px;">Connect a GitHub repository to sync markdown files.</p>
+      <SyncSettings client:load />
     </section>
 
     <section class="card">

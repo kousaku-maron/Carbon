@@ -1,7 +1,7 @@
 import type { APIRoute } from 'astro';
 import { and, eq, sql } from 'drizzle-orm';
 import { z } from 'zod';
-import { notes } from '../../../../db/schema/app';
+import { notes, noteSyncState } from '../../../../db/schema/app';
 import { getNoteById, toNoteResponse } from '../../../lib/server/api';
 
 const updateNoteSchema = z
@@ -87,6 +87,14 @@ export const DELETE: APIRoute = async ({ params, locals }) => {
   if (!user) {
     return jsonError(401, 'Unauthorized');
   }
+
+  // Mark sync state as soft-deleted before removing the note.
+  // The FK on noteSyncState.noteId uses SET NULL, so the row survives
+  // and the sync engine can push the deletion to GitHub.
+  await locals.db
+    .update(noteSyncState)
+    .set({ deletedAt: new Date() })
+    .where(eq(noteSyncState.noteId, id));
 
   const rows = await locals.db
     .delete(notes)
