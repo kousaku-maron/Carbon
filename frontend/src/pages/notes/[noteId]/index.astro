@@ -1,0 +1,49 @@
+---
+import BaseLayout from '../../../layouts/BaseLayout.astro';
+import { PostForm } from '../../../components/PostForm';
+import { getNoteById } from '../../../lib/server/api';
+
+const noteId = Astro.params.noteId || '';
+const user = Astro.locals.user;
+
+if (!user) {
+  return Astro.redirect('/login');
+}
+
+const note = noteId ? await getNoteById(Astro.locals.db, noteId, user.id) : null;
+if (!note) {
+  return Astro.redirect('/');
+}
+
+function formatDateYmd(value: Date): string {
+  const year = value.getFullYear();
+  const month = String(value.getMonth() + 1).padStart(2, '0');
+  const day = String(value.getDate()).padStart(2, '0');
+  return `${year}/${month}/${day}`;
+}
+
+const createdDate = formatDateYmd(new Date(note.created_at));
+const updatedDate = formatDateYmd(new Date(note.updated_at));
+---
+
+<BaseLayout title={`${note.title} | Vessel`}>
+  <article class="note-editor-page">
+    <PostForm
+      mode="edit"
+      noteId={noteId}
+      initialTitle={note.title}
+      initialContent={note.content}
+      createdAtLabel={createdDate}
+      updatedAtLabel={updatedDate}
+      seamless
+      client:load
+    />
+  </article>
+</BaseLayout>
+
+<style>
+  .note-editor-page {
+    padding: 0 0 24px;
+  }
+
+</style>

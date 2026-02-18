@@ -1,0 +1,6 @@
+DATABASE_URL=postgresql://user:password@ep-xxxx.us-east-2.aws.neon.tech/neondb?sslmode=require
+BETTER_AUTH_SECRET=replace-with-random-string-at-least-32-characters
+BETTER_AUTH_URL=http://127.0.0.1:4321
+BETTER_AUTH_TRUSTED_ORIGINS=http://localhost:4321,http://127.0.0.1:4321
+GITHUB_CLIENT_ID=replace-with-github-oauth-client-id
+GITHUB_CLIENT_SECRET=replace-with-github-oauth-client-secret

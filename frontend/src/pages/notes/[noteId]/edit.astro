@@ -1,0 +1,9 @@
+---
+const noteId = Astro.params.noteId || '';
+
+if (!noteId) {
+  return Astro.redirect('/');
+}
+
+return Astro.redirect(`/notes/${noteId}`);
+---

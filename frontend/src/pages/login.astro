@@ -1,0 +1,18 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import { SignInForm } from '../components/SignInForm';
+
+const env = Astro.locals.runtime.env;
+const showGithub = Boolean(env.GITHUB_CLIENT_ID && env.GITHUB_CLIENT_SECRET);
+const returnTo = Astro.url.searchParams.get('returnTo') ?? undefined;
+---
+
+<BaseLayout title="Sign in | Vessel" authPage>
+  <div class="card stack">
+    <div>
+      <h1 class="auth-heading">Welcome back</h1>
+      <p class="auth-sub">Sign in with GitHub</p>
+    </div>
+    <SignInForm client:load showGithub={showGithub} returnTo={returnTo} />
+  </div>
+</BaseLayout>
