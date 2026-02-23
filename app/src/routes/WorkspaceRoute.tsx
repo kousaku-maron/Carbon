@@ -11,7 +11,9 @@ import {
   getBaseName,
   getParentPath,
   hasInvalidNodeName,
+  isPathInside,
   joinPath,
+  pathsEqual,
   toVaultRelative,
 } from "../lib/pathUtils";
 import type { NoteContent, TreeNode } from "../lib/types";
@@ -33,6 +35,14 @@ export function WorkspaceRoute() {
   const [message, setMessage] = useState("");
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const unwatchRef = useRef<(() => void) | null>(null);
+  const flushActiveNoteRef = useRef<(() => Promise<void>) | null>(null);
+  const docKeyCounter = useRef(0);
+  const handleRegisterFlush = useCallback(
+    (flush: (() => Promise<void>) | null) => {
+      flushActiveNoteRef.current = flush;
+    },
+    [],
+  );
 
   function validateNodeName(raw: string): string {
     const name = raw.trim();
@@ -145,23 +155,29 @@ export function WorkspaceRoute() {
     setVaultHistory(await getVaultHistory());
   }
 
-  const handleSelectNote = useCallback(async (node: TreeNode) => {
-    if (node.kind !== "file") return;
-    try {
-      const body = await readNote(node.path);
-      setActiveNote({
-        id: node.id,
-        path: node.path,
-        name: node.name,
-        body,
-      });
-      setMessage("");
-    } catch (err) {
-      setMessage(
-        err instanceof Error ? err.message : "Failed to read note",
-      );
-    }
-  }, []);
+  const handleSelectNote = useCallback(
+    async (node: TreeNode) => {
+      if (node.kind !== "file") return;
+      if (activeNote && pathsEqual(activeNote.path, node.path)) return;
+      try {
+        const body = await readNote(node.path);
+        docKeyCounter.current += 1;
+        setActiveNote({
+          id: node.id,
+          path: node.path,
+          name: node.name,
+          body,
+          docKey: docKeyCounter.current,
+        });
+        setMessage("");
+      } catch (err) {
+        setMessage(
+          err instanceof Error ? err.message : "Failed to read note",
+        );
+      }
+    },
+    [activeNote],
+  );
 
   const handleSaveNote = useCallback(
     async (path: string, content: string) => {
@@ -230,14 +246,19 @@ export function WorkspaceRoute() {
         return;
       }
       try {
+        if (activeNote && isPathInside(activeNote.path, oldPath)) {
+          await flushActiveNoteRef.current?.();
+        }
         const newPath = joinPath(parentDir, `${stripped}${isMarkdown ? ".md" : ""}`);
         await rename(oldPath, newPath);
-        if (activeNote && activeNote.path === oldPath) {
+        if (activeNote && isPathInside(activeNote.path, oldPath)) {
+          const suffix = activeNote.path.substring(oldPath.length);
+          const updatedPath = newPath + suffix;
           setActiveNote({
             ...activeNote,
-            path: newPath,
-            name: stripped,
-            id: vaultPath ? toVaultRelative(newPath, vaultPath) : activeNote.id,
+            path: updatedPath,
+            name: pathsEqual(activeNote.path, oldPath) ? stripped : activeNote.name,
+            id: vaultPath ? toVaultRelative(updatedPath, vaultPath) : activeNote.id,
           });
         }
         if (vaultPath) await refreshTree(vaultPath);
@@ -272,11 +293,14 @@ export function WorkspaceRoute() {
   const handleMove = useCallback(
     async (sourcePath: string, targetFolderPath: string) => {
       try {
+        if (activeNote && isPathInside(activeNote.path, sourcePath)) {
+          await flushActiveNoteRef.current?.();
+        }
         const fileName = getBaseName(sourcePath);
         const newPath = joinPath(targetFolderPath, fileName);
         if (sourcePath === newPath) return;
         await rename(sourcePath, newPath);
-        if (activeNote && activeNote.path.startsWith(sourcePath)) {
+        if (activeNote && isPathInside(activeNote.path, sourcePath)) {
           const suffix = activeNote.path.substring(sourcePath.length);
           const updatedPath = newPath + suffix;
           setActiveNote({
@@ -396,7 +420,12 @@ export function WorkspaceRoute() {
           </button>
         )}
         {activeNote ? (
-          <NoteEditor note={activeNote} onSave={handleSaveNote} />
+          <NoteEditor
+            key={activeNote.docKey}
+            note={activeNote}
+            onSave={handleSaveNote}
+            registerFlush={handleRegisterFlush}
+          />
         ) : (
           <div className="workspace-empty">
             <p>

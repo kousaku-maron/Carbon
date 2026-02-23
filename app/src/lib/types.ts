@@ -21,4 +21,6 @@ export type NoteContent = {
   name: string;
   /** Raw Markdown content. */
   body: string;
+  /** Stable identity key. Changes only when a different note is selected, NOT on move/rename. */
+  docKey: number;
 };

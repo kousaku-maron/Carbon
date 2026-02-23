@@ -4,19 +4,10 @@ import TaskList from "@tiptap/extension-task-list";
 import { EditorContent, useEditor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import { useCallback, useEffect, useRef, useState } from "react";
-import {
-  cacheUrl,
-  resolveAndCache,
-  uploadAsset,
-} from "../lib/assetApi";
+import { cacheUrl, resolveAndCache, uploadAsset } from "../lib/assetApi";
 import { AssetImage } from "../lib/assetImageExtension";
 import { compressImage, isImageFile } from "../lib/imageCompression";
-import {
-  extractAssetIds,
-  htmlToMarkdown,
-  markdownToHtml,
-  parseAssetUri,
-} from "../lib/markdown";
+import { htmlToMarkdown, markdownToHtml, parseAssetUri } from "../lib/markdown";
 import type { NoteContent } from "../lib/types";
 
 type SaveStatus = "saved" | "saving" | "unsaved" | "error";
@@ -46,11 +37,12 @@ function sanitizeEditorHtmlForPersistence(html: string): string {
 export function NoteEditor(props: {
   note: NoteContent;
   onSave: (path: string, content: string) => Promise<void>;
+  registerFlush?: (flush: (() => Promise<void>) | null) => void;
 }) {
-  const { note, onSave } = props;
-  const noteIdRef = useRef(note.id);
+  const { note, onSave, registerFlush } = props;
   const notePathRef = useRef(note.path);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const saveQueueRef = useRef<Promise<void>>(Promise.resolve());
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("saved");
   const [uploading, setUploading] = useState<UploadingImage[]>([]);
 
@@ -73,6 +65,19 @@ export function NoteEditor(props: {
     [onSave],
   );
 
+  const enqueueSave = useCallback(
+    (path: string, md: string): Promise<void> => {
+      const queued = saveQueueRef.current.then(
+        () => doSave(path, md),
+        () => doSave(path, md),
+      );
+      // Keep queue chain alive even if a save fails.
+      saveQueueRef.current = queued.catch(() => {});
+      return queued;
+    },
+    [doSave],
+  );
+
   const editor = useEditor({
     extensions: [
       StarterKit.configure({
@@ -86,17 +91,18 @@ export function NoteEditor(props: {
       }),
       AssetImage.configure({ inline: false }),
     ],
-    content: "",
+    content: markdownToHtml(note.body),
     onUpdate: ({ editor: ed, transaction }) => {
-      if (transaction.getMeta("skipPersistence")) {
-        return;
-      }
+      if (transaction.getMeta("skipPersistence")) return;
+
       setSaveStatus("unsaved");
       if (timerRef.current) clearTimeout(timerRef.current);
       timerRef.current = setTimeout(() => {
         const html = ed.getHTML();
         const md = buildPersistedMarkdown(html);
-        void doSave(notePathRef.current, md);
+        void enqueueSave(notePathRef.current, md).catch(() => {
+          // Save status is already reflected in doSave.
+        });
       }, 500);
     },
     editorProps: {
@@ -197,7 +203,9 @@ export function NoteEditor(props: {
         timerRef.current = setTimeout(() => {
           const html = editor.getHTML();
           const md = buildPersistedMarkdown(html);
-          void doSave(notePathRef.current, md);
+          void enqueueSave(notePathRef.current, md).catch(() => {
+            // Save status is already reflected in doSave.
+          });
         }, 300);
       } catch (err) {
         console.error("Image upload failed:", err);
@@ -223,72 +231,107 @@ export function NoteEditor(props: {
         }, 2000);
       }
     },
-    [editor, doSave],
+    [editor, enqueueSave, buildPersistedMarkdown],
   );
 
-  // Resolve carbon://asset URIs to signed URLs when loading a note
-  const resolveAssetUris = useCallback(
-    async (html: string): Promise<string> => {
-      // Extract all carbon://asset/* from the generated HTML src attributes
-      const re = /src="carbon:\/\/asset\/([a-zA-Z0-9_]+)"/g;
-      const assetIds: string[] = [];
-      let match: RegExpExecArray | null;
-      while ((match = re.exec(html)) !== null) {
-        assetIds.push(match[1]);
+  const resolveEditorAssetImages = useCallback(async (): Promise<void> => {
+    if (!editor) return;
+
+    const targets: Array<{
+      pos: number;
+      attrs: Record<string, unknown>;
+      assetId: string;
+      assetUri: string;
+    }> = [];
+
+    editor.state.doc.descendants((node, pos) => {
+      if (node.type.name !== "image") return;
+
+      const attrs = node.attrs as Record<string, unknown>;
+      const src = typeof attrs.src === "string" ? attrs.src : "";
+      const dataAssetUri =
+        typeof attrs["data-asset-uri"] === "string" ? (attrs["data-asset-uri"] as string) : "";
+
+      const idFromData = dataAssetUri ? parseAssetUri(dataAssetUri) : null;
+      const idFromSrc = src ? parseAssetUri(src) : null;
+      const assetId = idFromData ?? idFromSrc;
+      if (!assetId) return;
+
+      targets.push({
+        pos,
+        attrs,
+        assetId,
+        assetUri: idFromData ? dataAssetUri : `carbon://asset/${assetId}`,
+      });
+    });
+
+    if (targets.length === 0) return;
+
+    try {
+      const uniqueAssetIds = Array.from(new Set(targets.map((t) => t.assetId)));
+      const urlMap = await resolveAndCache(uniqueAssetIds);
+
+      const tr = editor.state.tr;
+      let changed = false;
+      for (const target of targets) {
+        const newUrl = urlMap.get(target.assetId);
+        if (!newUrl) continue;
+
+        const nextAttrs = {
+          ...target.attrs,
+          src: newUrl,
+          "data-asset-uri": target.assetUri,
+        };
+
+        if (
+          nextAttrs.src !== target.attrs.src ||
+          nextAttrs["data-asset-uri"] !== target.attrs["data-asset-uri"]
+        ) {
+          tr.setNodeMarkup(target.pos, undefined, nextAttrs);
+          changed = true;
+        }
       }
 
-      if (assetIds.length === 0) return html;
+      if (changed) {
+        tr.setMeta("addToHistory", false);
+        tr.setMeta("skipPersistence", true);
+        editor.view.dispatch(tr);
+      }
+    } catch {
+      // Silently ignore resolve failures.
+    }
+  }, [editor]);
 
-      const urlMap = await resolveAndCache(assetIds);
+  // Track current save destination for same-note move/rename.
+  useEffect(() => {
+    notePathRef.current = note.path;
+  }, [note.path]);
 
-      // Replace carbon:// URLs with signed URLs, adding data-asset-uri
-      return html.replace(
-        /(<img[^>]*?)src="(carbon:\/\/asset\/[a-zA-Z0-9_]+)"([^>]*?>)/g,
-        (_full, before: string, uri: string, after: string) => {
-          const assetId = parseAssetUri(uri);
-          if (!assetId) return _full;
-          const signedUrl = urlMap.get(assetId);
-          if (!signedUrl) return _full;
-          // Add data-asset-uri if not already present
-          const hasDataAttr = before.includes("data-asset-uri") || after.includes("data-asset-uri");
-          const dataAttr = hasDataAttr ? "" : ` data-asset-uri="${uri}"`;
-          return `${before}src="${signedUrl}"${dataAttr}${after}`;
-        },
-      );
-    },
-    [],
-  );
-
-  // Load note content and resolve asset URIs
+  // Resolve carbon://asset images after initial content mount.
   useEffect(() => {
     if (!editor) return;
-    if (note.id === noteIdRef.current && editor.getHTML() !== "") return;
+    void resolveEditorAssetImages();
+  }, [editor, resolveEditorAssetImages]);
 
-    // Flush pending save for previous note
-    if (timerRef.current && note.id !== noteIdRef.current) {
+  const flushPendingSaves = useCallback(async (): Promise<void> => {
+    if (!editor) return;
+
+    if (timerRef.current) {
       clearTimeout(timerRef.current);
       timerRef.current = null;
       const html = editor.getHTML();
       const md = buildPersistedMarkdown(html);
-      void onSave(notePathRef.current, md);
+      await enqueueSave(notePathRef.current, md);
     }
 
-    noteIdRef.current = note.id;
-    notePathRef.current = note.path;
-    setSaveStatus("saved");
+    await saveQueueRef.current;
+  }, [editor, buildPersistedMarkdown, enqueueSave]);
 
-    const rawHtml = markdownToHtml(note.body);
-
-    // Check if we need to resolve asset URIs
-    const assetIds = extractAssetIds(note.body);
-    if (assetIds.length > 0) {
-      void resolveAssetUris(rawHtml).then((resolvedHtml) => {
-        editor.commands.setContent(resolvedHtml, false);
-      });
-    } else {
-      editor.commands.setContent(rawHtml, false);
-    }
-  }, [editor, note.id, note.path, note.body, onSave, resolveAssetUris, buildPersistedMarkdown]);
+  useEffect(() => {
+    if (!registerFlush) return;
+    registerFlush(flushPendingSaves);
+    return () => registerFlush(null);
+  }, [registerFlush, flushPendingSaves]);
 
   // Cleanup timer on unmount
   useEffect(() => {
@@ -297,53 +340,16 @@ export function NoteEditor(props: {
     };
   }, []);
 
-  // Phase 2: Periodic re-resolve for expired signed URLs
+  // Periodic re-resolve for expired signed URLs.
   useEffect(() => {
     if (!editor) return;
 
-    const interval = setInterval(async () => {
-      const { doc } = editor.state;
-      const assetIds: string[] = [];
-      doc.descendants((node) => {
-        if (node.type.name === "image" && node.attrs["data-asset-uri"]) {
-          const id = parseAssetUri(node.attrs["data-asset-uri"]);
-          if (id) assetIds.push(id);
-        }
-      });
-
-      if (assetIds.length === 0) return;
-
-      try {
-        const uniqueAssetIds = Array.from(new Set(assetIds));
-        const urlMap = await resolveAndCache(uniqueAssetIds);
-
-        const tr = editor.state.tr;
-        let changed = false;
-
-        editor.state.doc.descendants((node, pos) => {
-          if (node.type.name === "image" && node.attrs["data-asset-uri"]) {
-            const id = parseAssetUri(node.attrs["data-asset-uri"]);
-            if (!id) return;
-            const newUrl = urlMap.get(id);
-            if (newUrl && newUrl !== node.attrs.src) {
-              tr.setNodeMarkup(pos, undefined, { ...node.attrs, src: newUrl });
-              changed = true;
-            }
-          }
-        });
-
-        if (changed) {
-          tr.setMeta("addToHistory", false);
-          tr.setMeta("skipPersistence", true);
-          editor.view.dispatch(tr);
-        }
-      } catch {
-        // Silently ignore resolve failures in periodic refresh
-      }
-    }, 4 * 60 * 1000); // Every 4 minutes (before 5min TTL expires)
+    const interval = setInterval(() => {
+      void resolveEditorAssetImages();
+    }, 4 * 60 * 1000);
 
     return () => clearInterval(interval);
-  }, [editor]);
+  }, [editor, resolveEditorAssetImages]);
 
   return (
     <div className="note-editor">
@@ -356,7 +362,7 @@ export function NoteEditor(props: {
               ? "Unsaved"
               : saveStatus === "error"
                 ? "Save failed"
-              : ""}
+                : ""}
         </span>
       </header>
       <div className="note-editor-content">
