@@ -1,6 +1,7 @@
 import { neon } from "@neondatabase/serverless";
 import { drizzle } from "drizzle-orm/neon-http";
 import * as authSchema from "../db/schema/auth";
+import * as appSchema from "../db/schema/app";
 
 function normalizeDatabaseUrl(databaseUrl: string): string {
   try {
@@ -18,6 +19,7 @@ export function createDb(databaseUrl: string) {
   return drizzle(sql, {
     schema: {
       ...authSchema,
+      ...appSchema,
     },
   });
 }

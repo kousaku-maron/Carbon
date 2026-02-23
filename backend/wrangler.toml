@@ -6,3 +6,8 @@ compatibility_flags = ["nodejs_compat"]
 [vars]
 BETTER_AUTH_URL = "https://tauri-cloudflare-todo-backend.kousaku-maron.workers.dev"
 CORS_ORIGINS = "http://localhost:1420,tauri://localhost"
+ASSET_MAX_IMAGE_BYTES = "5242880"
+
+[[r2_buckets]]
+binding = "ASSET_BUCKET"
+bucket_name = "carbon-assets-private"

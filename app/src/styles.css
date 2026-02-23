@@ -871,6 +871,69 @@ button:disabled {
   pointer-events: none;
 }
 
+/* Image styles */
+.note-editor-content .tiptap img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 6px;
+  margin: 0.5rem 0;
+  display: block;
+}
+
+.note-editor-content .tiptap img.ProseMirror-selectednode {
+  outline: 2px solid #6366f1;
+  outline-offset: 2px;
+}
+
+/* Upload indicator */
+.upload-indicator {
+  position: absolute;
+  bottom: 0.75rem;
+  right: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  z-index: 50;
+}
+
+.upload-indicator-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: #ffffff;
+  border: 1px solid #e3e2e0;
+  border-radius: 7px;
+  padding: 0.35rem 0.65rem;
+  box-shadow: 0 2px 8px rgba(15, 15, 15, 0.08);
+  font-size: 0.75rem;
+  color: #787774;
+  min-width: 180px;
+}
+
+.upload-indicator-bar {
+  flex: 1;
+  height: 4px;
+  background: #e8e7e4;
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.upload-indicator-fill {
+  height: 100%;
+  background: #6366f1;
+  border-radius: 2px;
+  transition: width 0.3s ease;
+}
+
+.upload-indicator-fill--error {
+  background: #eb5757;
+}
+
+.upload-indicator-text {
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
 /* ===== Workspace Empty ===== */
 
 .workspace-empty {

@@ -2,12 +2,16 @@ import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { createAuth } from "./auth";
 import { createDb } from "./db";
+import { assetsApp } from "./assets";
 
 type Bindings = {
   DATABASE_URL: string;
   BETTER_AUTH_SECRET: string;
   BETTER_AUTH_URL: string;
   CORS_ORIGINS: string;
+  ASSET_BUCKET: R2Bucket;
+  ASSET_SIGNING_SECRET: string;
+  ASSET_MAX_IMAGE_BYTES: string;
 };
 
 type Env = { Bindings: Bindings };
@@ -33,7 +37,7 @@ app.use("*", async (c, next) => {
         ? origin
         : allowedOrigins[0] || c.env.BETTER_AUTH_URL;
     },
-    allowMethods: ["GET", "POST", "OPTIONS"],
+    allowMethods: ["GET", "POST", "DELETE", "OPTIONS"],
     allowHeaders: ["Content-Type", "Authorization"],
     credentials: true,
   })(c, next);
@@ -64,6 +68,8 @@ app.get("/api/me", async (c) => {
     },
   });
 });
+
+app.route("/api/assets", assetsApp);
 
 app.notFound((c) => c.json({ error: "Not found" }, 404));
 

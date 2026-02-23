@@ -5,6 +5,8 @@
     "dev": "node ./scripts/dev.mjs",
     "dev:backend": "pnpm --filter backend dev",
     "dev:app": "pnpm --filter app tauri:dev",
+    "db:generate": "pnpm --filter backend db:generate",
+    "db:migrate": "pnpm --filter backend db:migrate",
     "build": "pnpm -r build"
   }
 }

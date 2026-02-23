@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "disallowedTools": [
+      "Write(*.env)",
+      "Edit(*.env)",
+      "Write(*.dev.vars)",
+      "Edit(*.dev.vars)",
+      "Write(backend/db/migrations/*)",
+      "Edit(backend/db/migrations/*)"
+    ]
+  }
+}

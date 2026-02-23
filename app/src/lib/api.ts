@@ -23,12 +23,18 @@ export async function setSessionToken(token: string | null): Promise<void> {
   }
 }
 
-export async function request<T>(path: string, init?: RequestInit): Promise<T> {
+export async function request<T>(
+  path: string,
+  init?: RequestInit & { timeout?: number },
+): Promise<T> {
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 10_000);
+  const timeoutMs = init?.timeout ?? 10_000;
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+
+  const isFormData = init?.body instanceof FormData;
 
   const headers: Record<string, string> = {
-    "Content-Type": "application/json",
+    ...(isFormData ? {} : { "Content-Type": "application/json" }),
     ...(init?.headers as Record<string, string> || {}),
   };
 
