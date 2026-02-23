@@ -7,7 +7,12 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { cacheUrl, resolveAndCache, uploadAsset } from "../lib/assetApi";
 import { AssetImage } from "../lib/assetImageExtension";
 import { compressImage, isImageFile } from "../lib/imageCompression";
-import { htmlToMarkdown, markdownToHtml, parseAssetUri } from "../lib/markdown";
+import {
+  formatMarkdownForCopy,
+  htmlToMarkdown,
+  markdownToHtml,
+  parseAssetUri,
+} from "../lib/markdown";
 import type { NoteContent } from "../lib/types";
 
 type SaveStatus = "saved" | "saving" | "unsaved" | "error";
@@ -44,6 +49,11 @@ export function NoteEditor(props: {
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const saveQueueRef = useRef<Promise<void>>(Promise.resolve());
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("saved");
+  const [copied, setCopied] = useState(false);
+  const [mode, setMode] = useState<"rich" | "plain">("rich");
+  const [plainText, setPlainText] = useState(note.body);
+  const plainTextRef = useRef(note.body);
+  const modeRef = useRef<"rich" | "plain">("rich");
   const [uploading, setUploading] = useState<UploadingImage[]>([]);
 
   const buildPersistedMarkdown = useCallback((html: string): string => {
@@ -314,14 +324,17 @@ export function NoteEditor(props: {
   }, [editor, resolveEditorAssetImages]);
 
   const flushPendingSaves = useCallback(async (): Promise<void> => {
-    if (!editor) return;
-
     if (timerRef.current) {
       clearTimeout(timerRef.current);
       timerRef.current = null;
-      const html = editor.getHTML();
-      const md = buildPersistedMarkdown(html);
-      await enqueueSave(notePathRef.current, md);
+
+      if (modeRef.current === "plain") {
+        await enqueueSave(notePathRef.current, plainTextRef.current);
+      } else if (editor) {
+        const html = editor.getHTML();
+        const md = buildPersistedMarkdown(html);
+        await enqueueSave(notePathRef.current, md);
+      }
     }
 
     await saveQueueRef.current;
@@ -340,6 +353,68 @@ export function NoteEditor(props: {
     };
   }, []);
 
+  const handleCopyMarkdown = useCallback(() => {
+    if (modeRef.current === "plain") {
+      const formatted = formatMarkdownForCopy(plainTextRef.current);
+      navigator.clipboard.writeText(formatted).then(() => {
+        setCopied(true);
+        setTimeout(() => setCopied(false), 1500);
+      });
+      return;
+    }
+    if (!editor) return;
+    const html = editor.getHTML();
+    const md = htmlToMarkdown(html);
+    const formatted = formatMarkdownForCopy(md);
+    navigator.clipboard.writeText(formatted).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    });
+  }, [editor]);
+
+  const handleToggleMode = useCallback(() => {
+    // Flush pending timer before switching
+    if (timerRef.current) {
+      clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
+
+    if (modeRef.current === "rich") {
+      // Rich → Plain: extract current markdown from TipTap
+      if (editor) {
+        const html = editor.getHTML();
+        const md = buildPersistedMarkdown(html);
+        setPlainText(md);
+        plainTextRef.current = md;
+      }
+      modeRef.current = "plain";
+      setMode("plain");
+    } else {
+      // Plain → Rich: push markdown into TipTap
+      if (editor) {
+        const html = markdownToHtml(plainTextRef.current);
+        editor.commands.setContent(html);
+      }
+      modeRef.current = "rich";
+      setMode("rich");
+    }
+  }, [editor, buildPersistedMarkdown]);
+
+  const handlePlainTextChange = useCallback(
+    (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+      const value = e.target.value;
+      setPlainText(value);
+      plainTextRef.current = value;
+
+      setSaveStatus("unsaved");
+      if (timerRef.current) clearTimeout(timerRef.current);
+      timerRef.current = setTimeout(() => {
+        void enqueueSave(notePathRef.current, value).catch(() => {});
+      }, 500);
+    },
+    [enqueueSave],
+  );
+
   // Periodic re-resolve for expired signed URLs.
   useEffect(() => {
     if (!editor) return;
@@ -354,7 +429,16 @@ export function NoteEditor(props: {
   return (
     <div className="note-editor">
       <header className="note-editor-header">
-        <h1 className="note-editor-title">{note.name}</h1>
+        <nav className="note-editor-breadcrumbs">
+          {note.id.replace(/\.md$/i, "").split("/").map((segment, i, arr) => (
+            <span key={i} className="note-editor-breadcrumb-item">
+              {i > 0 && <span className="note-editor-breadcrumb-sep">/</span>}
+              <span className={i === arr.length - 1 ? "note-editor-breadcrumb-current" : "note-editor-breadcrumb-folder"}>
+                {segment}
+              </span>
+            </span>
+          ))}
+        </nav>
         <span className="note-editor-status">
           {saveStatus === "saving"
             ? "Saving..."
@@ -364,9 +448,46 @@ export function NoteEditor(props: {
                 ? "Save failed"
                 : ""}
         </span>
+        <button
+          type="button"
+          className={`note-editor-mode-switch ${mode === "plain" ? "active" : ""}`}
+          onClick={handleToggleMode}
+          title={mode === "rich" ? "Switch to Markdown" : "Switch to Rich Editor"}
+          role="switch"
+          aria-checked={mode === "plain"}
+        >
+          <span className="note-editor-mode-switch-thumb" />
+        </button>
+        <span className="note-editor-mode-label">Plain Text</span>
+        <button
+          type="button"
+          className="note-editor-copy-btn"
+          onClick={handleCopyMarkdown}
+          title="Copy as Markdown"
+        >
+          {copied ? (
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+              <path d="M3.5 8.5L6.5 11.5L12.5 4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+          ) : (
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+              <rect x="5.5" y="5.5" width="7" height="8" rx="1.5" stroke="currentColor" strokeWidth="1.3"/>
+              <path d="M10.5 5.5V3.5C10.5 2.67 9.83 2 9 2H4.5C3.67 2 3 2.67 3 3.5V10C3 10.83 3.67 11.5 4.5 11.5H5.5" stroke="currentColor" strokeWidth="1.3"/>
+            </svg>
+          )}
+        </button>
       </header>
       <div className="note-editor-content">
-        <EditorContent editor={editor} />
+        {mode === "rich" ? (
+          <EditorContent editor={editor} />
+        ) : (
+          <textarea
+            className="note-editor-plain-textarea"
+            value={plainText}
+            onChange={handlePlainTextChange}
+            spellCheck={false}
+          />
+        )}
       </div>
       {uploading.length > 0 && (
         <div className="upload-indicator">
@@ -388,6 +509,9 @@ export function NoteEditor(props: {
             </div>
           ))}
         </div>
+      )}
+      {copied && (
+        <div className="note-editor-toast">Copied to clipboard</div>
       )}
     </div>
   );

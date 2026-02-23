@@ -734,11 +734,41 @@ button:disabled {
   flex-shrink: 0;
 }
 
-.note-editor-title {
+.note-editor-breadcrumbs {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.note-editor-breadcrumb-item {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  flex-shrink: 0;
+}
+
+.note-editor-breadcrumb-item:last-child {
+  flex-shrink: 1;
+}
+
+.note-editor-breadcrumb-sep {
+  margin: 0 0.35rem;
+  color: #c8c7c5;
+  font-size: 0.8rem;
+  flex-shrink: 0;
+}
+
+.note-editor-breadcrumb-folder,
+.note-editor-breadcrumb-current {
   font-size: 0.85rem;
-  font-weight: 600;
-  margin: 0;
   color: #37352f;
+  white-space: nowrap;
+}
+
+.note-editor-breadcrumb-current {
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .note-editor-status {
@@ -747,10 +777,117 @@ button:disabled {
   margin-left: auto;
 }
 
+.note-editor-mode-switch {
+  position: relative;
+  width: 28px;
+  height: 16px;
+  margin-left: 0.5rem;
+  padding: 0;
+  border: none;
+  border-radius: 8px;
+  background: #d8d7d5;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.2s;
+}
+
+.note-editor-mode-switch.active {
+  background: #6366f1;
+}
+
+.note-editor-mode-switch-thumb {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #ffffff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+  transition: transform 0.2s;
+}
+
+.note-editor-mode-switch.active .note-editor-mode-switch-thumb {
+  transform: translateX(12px);
+}
+
+.note-editor-mode-label {
+  font-size: 0.7rem;
+  color: #9b9a97;
+  margin-left: 0.3rem;
+  flex-shrink: 0;
+  user-select: none;
+}
+
+.note-editor-copy-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  margin-left: 0.5rem;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: #b4b4b0;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: color 0.12s, background 0.12s;
+}
+
+.note-editor-copy-btn:hover {
+  background: #f1f1ef;
+  color: #37352f;
+}
+
+.note-editor-toast {
+  position: absolute;
+  bottom: 1rem;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #37352f;
+  color: #ffffff;
+  border-radius: 8px;
+  padding: 0.45rem 0.9rem;
+  font-size: 0.8rem;
+  z-index: 50;
+  pointer-events: none;
+  animation: note-editor-toast-in 0.15s ease-out;
+}
+
+@keyframes note-editor-toast-in {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
+
 .note-editor-content {
   flex: 1;
   overflow-y: auto;
   padding: 1.25rem;
+}
+
+.note-editor-plain-textarea {
+  width: 100%;
+  height: 100%;
+  max-width: 720px;
+  margin: 0 auto;
+  display: block;
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 0.9rem;
+  line-height: 1.75;
+  color: #37352f;
+  background: transparent;
+  border: none;
+  outline: none;
+  resize: none;
+  padding: 0;
 }
 
 /* ===== TipTap Editor Styles ===== */
@@ -761,6 +898,8 @@ button:disabled {
   font-size: 0.95rem;
   line-height: 1.75;
   min-height: 100%;
+  max-width: 720px;
+  margin: 0 auto;
 }
 
 .note-editor-content .tiptap > *:first-child {
