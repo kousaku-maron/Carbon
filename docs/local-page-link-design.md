@@ -1,268 +1,194 @@
-# Carbon ローカルページリンク設計書（TipTapベストプラクティス調査）
+# Carbon ローカルページリンク設計書（相対パスMarkdown方針）
 
 ## 1. 目的
 
-Carbon のノート編集体験に「ローカルページリンク（ノート間リンク）」を追加する。
+Carbon のローカルページリンク機能を、Markdown ファイルの可読性と互換性を優先して設計する。
 
-- `[[...]]` からノート候補を選択してリンク挿入できる
-- ノートの rename/move 後もリンクが壊れにくい
-- Markdown 保存との往復（Rich/Plain 切替、再読み込み）で情報欠落しない
-- 既存の TipTap + `marked` + `turndown` 構成に段階導入できる
+- 保存形式は標準 Markdown リンクのみを使う
+- `frontmatter` や専用 ID への依存を避ける
+- `[[...]]` は入力補助として提供し、保存時は通常リンクへ正規化する
+- rename/move によるリンク破損は許容する
 
 ---
 
 ## 2. 前提（現行実装）
 
-- フロントエディタ: TipTap 2.x（`@tiptap/react`, `@tiptap/starter-kit`）
-- `StarterKit` には Link 拡張が含まれていないため、内部リンク機能は別途追加が必要
+- エディタ: TipTap 2.x（`@tiptap/react`, `@tiptap/starter-kit`）
 - Markdown I/O: `marked`（MD -> HTML） + `turndown`（HTML -> MD）
-- ノート識別子は現在「vault 相対パス」（`NoteContent.id`）中心
+- `StarterKit` には Link 拡張が含まれていないため、リンク挙動は別途構成が必要
+- ノートはローカル `*.md` ファイルとして保存される
 
 ---
 
-## 3. 調査結果（一次情報）
+## 3. 設計方針
 
-### 3.1 Link 拡張で押さえる点
+### 3.1 保存形式は相対パスリンク
 
-- Link 拡張は `openOnClick`, `enableClickSelection`, `autolink`, `linkOnPaste`, `protocols` などを持つ
-- 編集中の誤遷移防止には `openOnClick: false` が有効
-- カスタム scheme を扱う場合は `protocols`（および URL 検証ロジック）を明示する
+保存するリンクは Markdown の標準形式に統一する。
 
-示唆:
-- 外部リンクとローカルリンクを同じ `href` 検証に流すと事故りやすい。責務分離が安全。
+- 例: `[テスト](../Private/test.md)`
+- 例: `[仕様](./specs/link-design.md#保存形式)`
 
-### 3.2 Suggestion ユーティリティで押さえる点
+これにより、以下を満たす。
 
-- `@tiptap/suggestion` は `char`, `pluginKey`, `findSuggestionMatch`, `allow`, `command` 等を持つ
-- `char` は単一トリガー前提だが、`findSuggestionMatch` を使って `[[query` のような独自マッチに拡張できる
+- Markdown 単体で意味が通る
+- 他エディタ/他ツールでも読める
+- アプリ固有スキーム（`carbon://...`）に依存しない
 
-示唆:
-- `[[` を実現するなら、`char: "["` + 独自 `findSuggestionMatch` が実装しやすい。
+### 3.2 `[[...]]` は UI 機能、永続仕様ではない
 
-### 3.3 Mark 拡張で押さえる点
+- 入力中に `[[` で候補検索を開く
+- 選択時は「現在ノートからの相対パス」を計算してリンク挿入する
+- 保存データには `[[...]]` を残さない
 
-- カスタム Mark は `addAttributes`, `parseHTML`, `renderHTML` で永続属性を管理できる
-- ProseMirror の `MarkSpec.inclusive` はリンク系で `false` が推奨（カーソル拡張を抑えるため）
+### 3.3 壊れたリンクは許容する
 
-示唆:
-- ローカルリンクは Link 拡張の使い回しより、専用 Mark (`localPageLink`) の方が挙動を制御しやすい。
+- rename/move でリンクが壊れるのは仕様として受け入れる
+- 自動追従は MVP では行わない
+- 必要であれば将来「任意実行のリンク再解決ツール」を追加する
 
-### 3.4 システム更新と Undo/保存
+### 3.4 本文メタデータは増やさない
 
-- ProseMirror は transaction metadata を持てる
-- `addToHistory: false` を付けた transaction は undo 履歴から除外できる
-- TipTap には `setMeta` コマンドがあり、transaction metadata 制御が可能
-
-示唆:
-- リンクの「解決状態更新」「表示用属性更新」は `addToHistory: false` + `skipPersistence` 系メタで反映する。
-
-### 3.5 Markdown 拡張（将来）
-
-- TipTap の Markdown 機能では、拡張側に `parseMarkdown`/`renderMarkdown` を持たせる設計が可能
-
-示唆:
-- 将来 Markdown パイプラインを TipTap 純正に寄せる場合、`localPageLink` の Markdown 変換を拡張内へ寄せられる。
+- frontmatter は追加しない
+- コメントベースの ID も追加しない
+- 追加管理情報は本文外（メモリ or アプリ内部キャッシュ）に限定する
 
 ---
 
-## 4. Carbon 向け推奨方針
+## 4. TipTap 実装方針
 
-本節は 3章の一次情報を踏まえた設計判断（推奨）である。
+### 4.1 リンク拡張
 
-### 4.1 永続識別子は `noteId`（パスは参照情報）
+- `@tiptap/extension-link` を導入
+- `openOnClick: false` を設定し、ブラウザ既定遷移には任せない
+- 内部リンク（相対パス）はクリックでアプリ側のノート遷移を実行する
+- 外部リンク（`http(s)`）は内部リンク遷移の対象外とする
 
-- リンクの本体は不変 ID（`noteId`）を使う
-- パス rename/move は頻発するため、パス直参照を主キーにしない
+### 4.2 Suggestion（`[[...]]`）
 
-推奨実装:
-- 各 Markdown に frontmatter `id` を持たせる（未設定時は初回スキャン時に採番）
-- インデックスは `noteId -> { path, title }` で解決する
+- `@tiptap/suggestion` を導入
+- `findSuggestionMatch` を使って `[[query` を検出
+- 候補選択時に挿入するのは通常リンク（`[title](relative/path.md)`）
 
-### 4.2 Markdown 永続形式は標準リンク + カスタム scheme
+### 4.3 マークは標準 Link を使う
 
-- 推奨保存形式: `[表示テキスト](carbon://note/<noteId>)`
-- 章リンクは必要時のみ: `[表示テキスト](carbon://note/<noteId>#<heading-slug>)`
-
-理由:
-- 既存 `marked/turndown` と相性が良い
-- `[[...]]` 専用構文より相互変換コストが低い
-- 既存の `carbon://asset/...` 設計と整合する
-
-### 4.3 TipTap 上は専用 Mark `localPageLink` を使う
-
-- 外部 URL は通常 Link 拡張（必要なら追加）
-- ローカルページリンクは `localPageLink` で独立管理
-
-推奨 attributes:
-- `noteId: string`（永続）
-- `href: string`（`carbon://note/<noteId>`、永続）
-- `resolved: boolean`（描画時のみ。非永続でも可）
-- `titleSnapshot?: string`（任意。UI用途）
-
-### 4.4 編集体験
-
-- 入力トリガーは `[[`（Suggestion）
-- 編集中の誤遷移を防ぐ（通常 click では遷移しない）
-- `Cmd/Ctrl + Click` のみ遷移
-- 未解決リンクは視覚的に区別（点線/警告色）
+- カスタム Mark（`localPageLink`）は作らない
+- HTML 上は通常の `<a href="...">` として扱う
+- `href` が相対パスなら内部リンク、`http(s)` なら外部リンクとして判定する
 
 ---
 
-## 5. 詳細設計
+## 5. 相対パス解決ルール
 
-### 5.1 データモデル
+### 5.1 挿入時
 
-追加候補:
+`source = 現在のノート`, `target = 選択されたノート` として相対パスを計算する。
 
-```ts
-type NoteMeta = {
-  noteId: string;     // frontmatter id
-  path: string;       // absolute path
-  relativePath: string;
-  title: string;      // ファイル名ベース
-};
-```
+1. source の親ディレクトリを基準にする  
+2. target までの相対経路を求める  
+3. 区切りは `/` に正規化する  
+4. 拡張子 `.md` は保持する  
 
-運用:
-- スキャン時に frontmatter `id` を読む
-- `id` がないファイルは採番し、frontmatter を追記
-- インメモリ辞書を維持:
-  - `byId: Map<string, NoteMeta>`
-  - `byPath: Map<string, NoteMeta>`
+### 5.2 遷移時
 
-### 5.2 TipTap 拡張
+1. リンククリック時に `href` が相対パスなら、現在ノート基準で絶対パスに解決  
+2. vault 配下かを検証（パストラバーサル防止）  
+3. `.md` ファイルが存在すれば開く  
+4. 見つからなければ「リンク先が見つからない」を通知  
 
-`localPageLink` Mark の仕様:
+### 5.3 セキュリティ
 
-- `inclusive: false`
-- `exitable: true`（必要に応じて）
-- `parseHTML`: `a[href^="carbon://note/"]` を拾う
-- `renderHTML`: `<a data-note-id="..." href="carbon://note/...">...</a>`
-- コマンド:
-  - `setLocalPageLink({ noteId, href })`
-  - `unsetLocalPageLink()`
-  - `updateLocalPageLinkAttrs(...)`
-
-### 5.3 Suggestion (`[[...]]`)
-
-- `@tiptap/suggestion` を追加依存として導入
-- `findSuggestionMatch` を上書きし、`[[query` を検知
-- `command` で選択中の query 範囲をリンク付きテキストに置換
-
-候補表示:
-- title 前方一致 + 部分一致
-- 最近開いたノートを上位表示（任意）
-- Enter で確定、Esc でキャンセル
-
-### 5.4 保存/履歴ポリシー
-
-- ユーザー操作（挿入/削除/編集）は通常履歴に積む
-- 自動再解決や見た目属性更新は:
-  - `tr.setMeta("addToHistory", false)`
-  - `tr.setMeta("skipPersistence", true)`（既存方針に合わせる）
-
-### 5.5 Markdown 変換
-
-`app/src/lib/markdown.ts` 拡張方針:
-
-- HTML -> MD
-  - `<a href="carbon://note/...">text</a>` を `[text](carbon://note/...)` として保持
-  - `data-note-id` があれば `href` 生成を補助
-- MD -> HTML
-  - `marked` で通常リンクとして HTML 化
-  - エディタロード後に `localPageLink` として解釈
-
-### 5.6 リンク解決フロー
-
-1. ノートスキャンで `noteId -> path/title` を構築  
-2. エディタ表示中に `localPageLink.noteId` を辞書で解決  
-3. 解決できれば `resolved=true`、できなければ `resolved=false`  
-4. `Cmd/Ctrl + Click` で `noteId` からノートを開く  
-
-rename/move 時:
-- `noteId` は不変のため本文書換え不要
-- インデックス更新だけでリンクは追従
+- `javascript:` `data:` は無効化
+- vault 外を指す `../` 解決結果は拒否
 
 ---
 
-## 6. 実装ステップ（推奨）
+## 6. Markdown 変換ポリシー
 
-### Phase 1: 基盤
+### 6.1 保存（HTML -> Markdown）
 
-1. `noteId` 導入（frontmatter 読み書き）
-2. ノートインデックスに `byId` を追加
-3. `localPageLink` Mark 拡張の最小実装
-4. Markdown 変換ルール追加（`carbon://note/` 保持）
+- `turndown` の標準リンク変換を利用
+- `<a href="../Private/test.md">test</a>` は `[test](../Private/test.md)` へ変換
+- 追加属性（`data-*`）には依存しない
 
-### Phase 2: UX
+### 6.2 読み込み（Markdown -> HTML）
+
+- `marked` の標準リンク変換を利用
+- 相対リンクを特別なスキームへ変換しない
+
+---
+
+## 7. UX 方針
+
+- 表示テキストはデフォルトでノート名（拡張子なし）
+- Shift+Enter などのショートカットで挿入確定（任意）
+- 内部リンクはクリックでページを開く
+- リンク切れは薄い警告スタイル（例: 点線下線）で表現してもよい
+- ただし「自動修復」は行わない
+
+---
+
+## 8. 実装ステップ（推奨）
+
+### Phase 1: 基本リンク
+
+1. Link 拡張導入（`openOnClick: false`）
+2. クリックで相対リンク遷移
+3. vault 外参照を拒否するガード実装
+
+### Phase 2: `[[...]]` 入力補助
 
 1. `@tiptap/suggestion` 導入
-2. `[[...]]` サジェスト UI
-3. `Cmd/Ctrl + Click` 遷移
-4. 未解決リンクのスタイル実装
+2. ノート候補検索 UI
+3. 選択時に相対パス Markdown リンクを挿入
 
-### Phase 3: 運用改善
+### Phase 3: 任意改善
 
-1. リンク整合性チェック（dangling link 検出）
-2. 削除時の警告（参照元件数表示）
-3. 章リンク（`#slug`）対応
+1. リンク切れ検出（表示時チェック）
+2. 参照一覧表示（被リンク/発リンク）
+3. 手動リンク再解決コマンド（必要なら）
 
 ---
 
-## 7. テスト観点
-
-最小必須:
+## 9. テスト観点
 
 1. Round-trip  
-`[A](carbon://note/id1)` -> TipTap -> Markdown で不変
+`[A](../B.md)` が Rich/Plain 切替後も不変
 
-2. rename/move 耐性  
-リンク先ファイル rename/move 後も `noteId` 解決で遷移できる
+2. 相対パス解決  
+異なる階層間リンクが正しく計算される
 
-3. 未解決リンク  
-リンク先削除時に `resolved=false` になる
+3. 遷移ガード  
+vault 外パスは開けない
 
-4. Suggestion 挿入  
-`[[` 入力 -> 候補選択 -> 正しい mark/href が挿入される
+4. リンク切れ  
+存在しない相対パスでエラー通知される
 
-5. 履歴汚染防止  
-自動解決 transaction が undo stack に積まれない
+5. Suggestion 挿入  
+`[[` から選択後、標準 Markdown リンクとして保存される
 
 ---
 
-## 8. 影響ファイル（実装時の目安）
+## 10. 影響ファイル（実装時の目安）
 
 - `app/src/components/NoteEditor.tsx`
 - `app/src/lib/markdown.ts`
+- `app/src/lib/pathUtils.ts`
 - `app/src/lib/types.ts`
-- `app/src/lib/noteIndex.ts`
 - `app/src/routes/WorkspaceRoute.tsx`
-- （新規）`app/src/lib/localPageLinkExtension.ts`
-- （新規）`app/src/lib/noteFrontmatter.ts`
+- （新規）`app/src/lib/linkNavigation.ts`（相対リンク解決/検証を分離する場合）
 
 ---
 
-## 9. 参考（調査ソース）
+## 11. 参考（調査ソース）
 
-一次情報:
-
-- TipTap Link 拡張（ソース）  
-  [https://github.com/ueberdosis/tiptap/blob/main/packages/extension-link/src/link.ts](https://github.com/ueberdosis/tiptap/blob/main/packages/extension-link/src/link.ts)
-- TipTap Suggestion（ソース）  
-  [https://github.com/ueberdosis/tiptap/blob/main/packages/suggestion/src/suggestion.ts](https://github.com/ueberdosis/tiptap/blob/main/packages/suggestion/src/suggestion.ts)
-- TipTap Mark API  
+- TipTap Link 拡張  
+  [https://tiptap.dev/docs/editor/extensions/marks/link](https://tiptap.dev/docs/editor/extensions/marks/link)
+- TipTap Suggestion ユーティリティ  
+  [https://tiptap.dev/docs/editor/api/utilities/suggestion](https://tiptap.dev/docs/editor/api/utilities/suggestion)
+- TipTap Mark 拡張 API  
   [https://tiptap.dev/docs/editor/extensions/custom-extensions/create-new/mark](https://tiptap.dev/docs/editor/extensions/custom-extensions/create-new/mark)
 - TipTap `setMeta` command  
   [https://tiptap.dev/docs/editor/api/commands/set-meta](https://tiptap.dev/docs/editor/api/commands/set-meta)
-- ProseMirror Guide（transaction metadata / addToHistory）  
+- ProseMirror Guide  
   [https://prosemirror.net/docs/guide/](https://prosemirror.net/docs/guide/)
-- ProseMirror MarkSpec `inclusive`  
-  [https://prosemirror.net/docs/ref/#model.MarkSpec.inclusive](https://prosemirror.net/docs/ref/#model.MarkSpec.inclusive)
-- TipTap Markdown 拡張ガイド（将来導入検討）  
-  [https://tiptap.dev/docs/editor/markdown/guides/integrate-markdown-in-your-extension](https://tiptap.dev/docs/editor/markdown/guides/integrate-markdown-in-your-extension)
-
-補足（ローカル実装確認）:
-
-- StarterKit 2.27.2 ソース（Link 非同梱確認）  
-  `/Users/kurinokousaku/Workspace/maron/Carbon/node_modules/.pnpm/@tiptap+starter-kit@2.27.2/node_modules/@tiptap/starter-kit/src/starter-kit.ts`
-
