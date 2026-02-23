@@ -1,19 +1,40 @@
+import Link from "@tiptap/extension-link";
 import Placeholder from "@tiptap/extension-placeholder";
 import TaskItem from "@tiptap/extension-task-item";
 import TaskList from "@tiptap/extension-task-list";
-import { EditorContent, useEditor } from "@tiptap/react";
+import { EditorContent, ReactRenderer, useEditor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { cacheUrl, resolveAndCache, uploadAsset } from "../lib/assetApi";
 import { AssetImage } from "../lib/assetImageExtension";
 import { compressImage, isImageFile } from "../lib/imageCompression";
 import {
+  flattenTreeNodes,
+  getRelativePath,
+  isDangerousHref,
+  isInternalLink,
+  resolveRelativePath,
+  validateLinkTarget,
+} from "../lib/linkUtils";
+import type {
+  SuggestionKeyDownProps,
+  SuggestionProps,
+} from "@tiptap/suggestion";
+import {
+  NoteLinkSuggestion,
+  type NoteLinkSuggestionItem,
+} from "../lib/noteLinkSuggestion";
+import {
+  NoteLinkSuggestionList,
+  type NoteLinkSuggestionListRef,
+} from "./NoteLinkSuggestionList";
+import {
   formatMarkdownForCopy,
   htmlToMarkdown,
   markdownToHtml,
   parseAssetUri,
 } from "../lib/markdown";
-import type { NoteContent } from "../lib/types";
+import type { NoteContent, TreeNode } from "../lib/types";
 
 type SaveStatus = "saved" | "saving" | "unsaved" | "error";
 
@@ -43,9 +64,17 @@ export function NoteEditor(props: {
   note: NoteContent;
   onSave: (path: string, content: string) => Promise<void>;
   registerFlush?: (flush: (() => Promise<void>) | null) => void;
+  vaultPath: string;
+  tree: TreeNode[];
+  onNavigateToNote?: (absolutePath: string) => void;
+  onLinkError?: (message: string) => void;
 }) {
-  const { note, onSave, registerFlush } = props;
+  const { note, onSave, registerFlush, vaultPath, tree, onNavigateToNote, onLinkError } = props;
   const notePathRef = useRef(note.path);
+  const treeRef = useRef(tree);
+  const vaultPathRef = useRef(vaultPath);
+  const onNavigateToNoteRef = useRef(onNavigateToNote);
+  const onLinkErrorRef = useRef(onLinkError);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const saveQueueRef = useRef<Promise<void>>(Promise.resolve());
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("saved");
@@ -100,6 +129,111 @@ export function NoteEditor(props: {
         placeholder: "Start writing...",
       }),
       AssetImage.configure({ inline: false }),
+      Link.configure({
+        openOnClick: false,
+        autolink: true,
+        linkOnPaste: true,
+        HTMLAttributes: {
+          target: null,
+          rel: null,
+        },
+      }),
+      NoteLinkSuggestion.configure({
+        suggestion: {
+          items: ({ query }: { query: string }): NoteLinkSuggestionItem[] => {
+            const allFiles = flattenTreeNodes(treeRef.current);
+            const currentPath = notePathRef.current;
+            const lower = query.toLowerCase();
+            return allFiles
+              .filter((f) => f.path !== currentPath)
+              .filter(
+                (f) =>
+                  !query ||
+                  f.name.toLowerCase().includes(lower) ||
+                  f.id.toLowerCase().includes(lower),
+              )
+              .slice(0, 20)
+              .map((f) => ({
+                id: f.id,
+                name: f.name,
+                path: f.path,
+                relativePath: getRelativePath(currentPath, f.path),
+              }));
+          },
+          render: () => {
+            let renderer: ReactRenderer<NoteLinkSuggestionListRef> | null =
+              null;
+            let popup: HTMLElement | null = null;
+
+            const POPUP_MAX_WIDTH = 360;
+            const POPUP_MAX_HEIGHT = 240;
+            const GAP = 4;
+
+            function positionPopup(
+              clientRect: (() => DOMRect | null) | null | undefined,
+              el: HTMLElement,
+            ) {
+              const rect = clientRect?.();
+              if (!rect) return;
+              // Clamp left to keep popup within viewport
+              const left = Math.max(
+                0,
+                Math.min(rect.left, window.innerWidth - POPUP_MAX_WIDTH - 8),
+              );
+              // Show above if not enough space below
+              const fitsBelow =
+                rect.bottom + GAP + POPUP_MAX_HEIGHT <= window.innerHeight;
+              const top = fitsBelow
+                ? rect.bottom + GAP
+                : rect.top - POPUP_MAX_HEIGHT - GAP;
+              el.style.left = `${left}px`;
+              el.style.top = `${Math.max(0, top)}px`;
+            }
+
+            return {
+              onStart(onStartProps: SuggestionProps<NoteLinkSuggestionItem>) {
+                popup = document.createElement("div");
+                popup.style.position = "fixed";
+                popup.style.zIndex = "200";
+                document.body.appendChild(popup);
+
+                renderer = new ReactRenderer(NoteLinkSuggestionList, {
+                  props: {
+                    items: onStartProps.items,
+                    command: onStartProps.command,
+                  },
+                  editor: onStartProps.editor,
+                });
+                popup.appendChild(renderer.element);
+                positionPopup(onStartProps.clientRect, popup);
+              },
+              onUpdate(onUpdateProps: SuggestionProps<NoteLinkSuggestionItem>) {
+                renderer?.updateProps({
+                  items: onUpdateProps.items,
+                  command: onUpdateProps.command,
+                });
+                if (popup) positionPopup(onUpdateProps.clientRect, popup);
+              },
+              onKeyDown(onKeyDownProps: SuggestionKeyDownProps) {
+                if (onKeyDownProps.event.key === "Escape") {
+                  popup?.remove();
+                  renderer?.destroy();
+                  popup = null;
+                  renderer = null;
+                  return true;
+                }
+                return renderer?.ref?.onKeyDown(onKeyDownProps.event) ?? false;
+              },
+              onExit() {
+                renderer?.destroy();
+                popup?.remove();
+                popup = null;
+                renderer = null;
+              },
+            };
+          },
+        },
+      }),
     ],
     content: markdownToHtml(note.body),
     onUpdate: ({ editor: ed, transaction }) => {
@@ -116,6 +250,37 @@ export function NoteEditor(props: {
       }, 500);
     },
     editorProps: {
+      handleClick: (view, pos, event) => {
+        // Only navigate on Cmd+Click (macOS) or Ctrl+Click (other platforms).
+        // Normal clicks place the cursor for editing.
+        if (!event.metaKey && !event.ctrlKey) return false;
+
+        const { doc } = view.state;
+        const $pos = doc.resolve(pos);
+        const linkMark = $pos.marks().find((m) => m.type.name === "link");
+        if (!linkMark) return false;
+
+        const href = linkMark.attrs.href as string | undefined;
+        if (!href) return false;
+
+        if (isDangerousHref(href)) return true;
+
+        if (!isInternalLink(href)) {
+          // External links: ignore for now (no browser navigation in Tauri)
+          return false;
+        }
+
+        event.preventDefault();
+        const resolved = resolveRelativePath(notePathRef.current, href);
+        const validation = validateLinkTarget(resolved, vaultPathRef.current);
+        if (!validation.valid) {
+          onLinkErrorRef.current?.(validation.reason ?? "Invalid link");
+          return true;
+        }
+
+        onNavigateToNoteRef.current?.(resolved);
+        return true;
+      },
       handleDrop: (view, event, _slice, moved) => {
         if (moved) return false;
         const files = event.dataTransfer?.files;
@@ -316,6 +481,20 @@ export function NoteEditor(props: {
   useEffect(() => {
     notePathRef.current = note.path;
   }, [note.path]);
+
+  // Keep refs in sync for callbacks captured by useEditor closures.
+  useEffect(() => {
+    treeRef.current = tree;
+  }, [tree]);
+  useEffect(() => {
+    vaultPathRef.current = vaultPath;
+  }, [vaultPath]);
+  useEffect(() => {
+    onNavigateToNoteRef.current = onNavigateToNote;
+  }, [onNavigateToNote]);
+  useEffect(() => {
+    onLinkErrorRef.current = onLinkError;
+  }, [onLinkError]);
 
   // Resolve carbon://asset images after initial content mount.
   useEffect(() => {

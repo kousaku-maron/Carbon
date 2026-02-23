@@ -104,3 +104,4 @@ pnpm build
 
 - `docs/local-markdown-pivot-design.md`: ワイヤーフレーム設計
 - `docs/image-dnd-r2-design.md`: 画像D&D / R2 設計
+- `docs/tiptap-markdown-unification-policy.md`: TipTap Markdown 統一方針（v3 最新化）

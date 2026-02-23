@@ -7,6 +7,7 @@ import { VaultSelector } from "../components/VaultSelector";
 import { request, setSessionToken } from "../lib/api";
 import { scanVault } from "../lib/noteIndex";
 import { readNote, writeNote } from "../lib/notePersistence";
+import { findNodeByPath } from "../lib/linkUtils";
 import {
   getBaseName,
   getParentPath,
@@ -319,6 +320,18 @@ export function WorkspaceRoute() {
     [activeNote, vaultPath, refreshTree],
   );
 
+  const handleNavigateToNote = useCallback(
+    async (absolutePath: string) => {
+      const node = findNodeByPath(tree, absolutePath);
+      if (!node) {
+        setMessage("Link target not found");
+        return;
+      }
+      await handleSelectNote(node);
+    },
+    [tree, handleSelectNote],
+  );
+
   async function handleSignOut(): Promise<void> {
     try {
       await request("/api/auth/sign-out", { method: "POST", body: "{}" });
@@ -419,12 +432,16 @@ export function WorkspaceRoute() {
             </svg>
           </button>
         )}
-        {activeNote ? (
+        {activeNote && vaultPath ? (
           <NoteEditor
             key={activeNote.docKey}
             note={activeNote}
             onSave={handleSaveNote}
             registerFlush={handleRegisterFlush}
+            vaultPath={vaultPath}
+            tree={tree}
+            onNavigateToNote={handleNavigateToNote}
+            onLinkError={(msg) => setMessage(msg)}
           />
         ) : (
           <div className="workspace-empty">
