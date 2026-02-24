@@ -171,7 +171,62 @@
 
 ---
 
-## 10. 補足
+## 10. 実施記録
+
+### Phase 1〜4 完了（2026-02-23）
+
+すべてのフェーズを一括実施し、完了した。
+
+#### 実施内容
+
+| Phase | 内容 | 状態 |
+|-------|------|------|
+| Phase 1 | 回帰フィクスチャ追加（`__tests__/markdown-fixtures.ts`） | 完了 |
+| Phase 2 | TipTap v2 → v3.20.0 移行、`@tiptap/markdown` 導入 | 完了 |
+| Phase 3 | `marked`/`turndown` 呼び出しを全廃、カスタムルール移植 | 完了 |
+| Phase 4 | 不要依存削除、ビルド確認 | 完了 |
+
+#### パッケージ変更
+
+**追加:**
+- `@tiptap/markdown` ^3.20.0
+- `@tiptap/extension-list` ^3.20.0（TaskList/TaskItem 統合先）
+- `@tiptap/extensions` ^3.20.0（Placeholder 統合先）
+
+**削除:**
+- `marked` ^15.0.0
+- `turndown` ^7.2.0
+- `@types/turndown` ^5.0.5
+- `@tiptap/extension-link` ^2.11.0（StarterKit v3 に統合）
+- `@tiptap/extension-placeholder` ^2.11.0（`@tiptap/extensions` に統合）
+- `@tiptap/extension-task-list` ^2.11.0（`@tiptap/extension-list` に統合）
+- `@tiptap/extension-task-item` ^2.11.0（`@tiptap/extension-list` に統合）
+
+**更新（v2 → v3）:**
+- `@tiptap/react`, `@tiptap/starter-kit`, `@tiptap/pm`, `@tiptap/suggestion`, `@tiptap/extension-image`
+
+#### ファイル変更
+
+- **`app/package.json`** — 依存更新
+- **`app/src/components/NoteEditor.tsx`** — v3 API 対応。`markdownToHtml()` / `htmlToMarkdown()` → `editor.getMarkdown()` / `setContent(md, { contentType: 'markdown' })`。`sanitizeEditorHtmlForPersistence` 削除（HTML 中間変換が不要に）。
+- **`app/src/lib/markdown.ts`** — `marked`/`turndown` 依存を完全削除。ユーティリティ関数のみ残存。
+- **`app/src/lib/assetImageExtension.ts`** — `parseMarkdown` / `renderMarkdown` ハンドラを追加（`carbon://asset/...` の往復保持）。
+
+#### 新規 Canonical Data Flow
+
+```
+Markdown File
+    ↓ editor.setContent(md, { contentType: 'markdown' })
+TipTap Editor (with @tiptap/markdown)
+    ↓ editor.getMarkdown()
+Markdown File (saved)
+```
+
+HTML 中間変換は完全に廃止され、TipTap 内部 JSON を直接 Markdown に変換する。
+
+---
+
+## 11. 補足
 
 本方針は、以下のプロダクト要件を維持したまま技術基盤を整理するためのものである。
 

@@ -4,7 +4,7 @@ const QUALITY_STEPS = [0.85, 0.7, 0.5, 0.3];
 const PREFERRED_TYPE = "image/webp";
 const FALLBACK_TYPE = "image/jpeg";
 
-export type CompressedImage = {
+type CompressedImage = {
   blob: Blob;
   width: number;
   height: number;
@@ -71,8 +71,4 @@ export async function compressImage(file: File): Promise<CompressedImage> {
   } finally {
     URL.revokeObjectURL(url);
   }
-}
-
-export function isImageFile(file: File): boolean {
-  return ["image/png", "image/jpeg", "image/webp"].includes(file.type);
 }

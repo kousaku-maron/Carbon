@@ -1,0 +1,101 @@
+/* External links */
+.note-editor-content .tiptap .carbon-link {
+  color: #6f6e69;
+  text-decoration: underline;
+  text-decoration-color: rgba(111, 110, 105, 0.42);
+  text-underline-offset: 2px;
+  cursor: pointer;
+  transition: text-decoration-color 0.15s, color 0.12s;
+}
+
+.note-editor-content .tiptap .carbon-link:hover {
+  color: #5f5e5a;
+  text-decoration-color: rgba(95, 94, 90, 0.6);
+}
+
+/* Internal page links (Notion-like style) */
+.note-editor-content .tiptap .carbon-link.carbon-link--internal {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.32em;
+  padding: 0.08em 0.38em 0.08em 0.26em;
+  margin: 0 0.05em;
+  border-radius: 0.34em;
+  color: #37352f;
+  font-weight: 600;
+  line-height: 1.35;
+  text-decoration-color: rgba(55, 53, 47, 0.45);
+}
+
+.note-editor-content .tiptap .carbon-link.carbon-link--internal:hover {
+  color: #2f2e2b;
+  text-decoration-color: rgba(47, 46, 43, 0.65);
+}
+
+.note-editor-content .tiptap .carbon-link.carbon-link--internal::before {
+  content: "";
+  display: inline-block;
+  width: 0.95em;
+  height: 0.95em;
+  flex-shrink: 0;
+  background-repeat: no-repeat;
+  background-size: contain;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none'%3E%3Cpath d='M3 1.5h6.5L13.5 5v9.5a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1v-12a1 1 0 0 1 1-1Z' stroke='%238f8f8b' stroke-width='1.2' stroke-linejoin='round'/%3E%3Cpath d='M9.5 1.5V5H13' stroke='%238f8f8b' stroke-width='1.2' stroke-linecap='round' stroke-linejoin='round'/%3E%3Cpath d='M5.2 10.2l1.6 1.6 3-3' stroke='%238f8f8b' stroke-width='1.2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+}
+
+/* Note link suggestion popup */
+.note-link-suggestion {
+  min-width: 240px;
+  max-width: 360px;
+  max-height: 240px;
+  overflow-y: auto;
+  background: #ffffff;
+  border: 1px solid #e3e2e0;
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(15, 15, 15, 0.1), 0 0 0 1px rgba(15, 15, 15, 0.04);
+  padding: 0.3rem;
+  display: flex;
+  flex-direction: column;
+}
+
+.note-link-suggestion-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  width: 100%;
+  padding: 0.4rem 0.65rem;
+  border: none;
+  border-radius: 5px;
+  background: transparent;
+  color: #37352f;
+  font-size: 0.8rem;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+
+.note-link-suggestion-item:hover,
+.note-link-suggestion-item.active {
+  background: #f1f1ef;
+}
+
+.note-link-suggestion-name {
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.note-link-suggestion-path {
+  font-size: 0.68rem;
+  color: #9b9a97;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.note-link-suggestion-empty {
+  padding: 0.5rem 0.65rem;
+  color: #b4b4b0;
+  font-size: 0.8rem;
+}

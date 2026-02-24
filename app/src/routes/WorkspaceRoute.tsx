@@ -36,14 +36,8 @@ export function WorkspaceRoute() {
   const [message, setMessage] = useState("");
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const unwatchRef = useRef<(() => void) | null>(null);
-  const flushActiveNoteRef = useRef<(() => Promise<void>) | null>(null);
+  const activeNoteRef = useRef<NoteContent | null>(null);
   const docKeyCounter = useRef(0);
-  const handleRegisterFlush = useCallback(
-    (flush: (() => Promise<void>) | null) => {
-      flushActiveNoteRef.current = flush;
-    },
-    [],
-  );
 
   function validateNodeName(raw: string): string {
     const name = raw.trim();
@@ -54,15 +48,38 @@ export function WorkspaceRoute() {
     return "";
   }
 
+  const refreshActiveNoteFromDisk = useCallback(async () => {
+    const current = activeNoteRef.current;
+    if (!current) return;
+
+    try {
+      const latestBody = await readNote(current.path);
+      setActiveNote((prev) => {
+        if (!prev || !pathsEqual(prev.path, current.path)) return prev;
+        if (prev.body === latestBody) return prev;
+
+        docKeyCounter.current += 1;
+        return {
+          ...prev,
+          body: latestBody,
+          docKey: docKeyCounter.current,
+        };
+      });
+    } catch {
+      // Ignore transient read errors while watcher events settle.
+    }
+  }, []);
+
   // Rescan vault and update tree
   const refreshTree = useCallback(async (path: string) => {
     try {
       const nodes = await scanVault(path);
       setTree(nodes);
+      await refreshActiveNoteFromDisk();
     } catch {
       // Silently ignore refresh errors from file watcher
     }
-  }, []);
+  }, [refreshActiveNoteFromDisk]);
 
   // Start watching a vault directory for changes
   const startWatching = useCallback(
@@ -159,9 +176,16 @@ export function WorkspaceRoute() {
   const handleSelectNote = useCallback(
     async (node: TreeNode) => {
       if (node.kind !== "file") return;
-      if (activeNote && pathsEqual(activeNote.path, node.path)) return;
+
+      const isSameNote = !!(activeNote && pathsEqual(activeNote.path, node.path));
       try {
         const body = await readNote(node.path);
+
+        if (isSameNote && activeNote && activeNote.body === body) {
+          setMessage("");
+          return;
+        }
+
         docKeyCounter.current += 1;
         setActiveNote({
           id: node.id,
@@ -179,6 +203,10 @@ export function WorkspaceRoute() {
     },
     [activeNote],
   );
+
+  useEffect(() => {
+    activeNoteRef.current = activeNote;
+  }, [activeNote]);
 
   const handleSaveNote = useCallback(
     async (path: string, content: string) => {
@@ -247,9 +275,6 @@ export function WorkspaceRoute() {
         return;
       }
       try {
-        if (activeNote && isPathInside(activeNote.path, oldPath)) {
-          await flushActiveNoteRef.current?.();
-        }
         const newPath = joinPath(parentDir, `${stripped}${isMarkdown ? ".md" : ""}`);
         await rename(oldPath, newPath);
         if (activeNote && isPathInside(activeNote.path, oldPath)) {
@@ -294,9 +319,6 @@ export function WorkspaceRoute() {
   const handleMove = useCallback(
     async (sourcePath: string, targetFolderPath: string) => {
       try {
-        if (activeNote && isPathInside(activeNote.path, sourcePath)) {
-          await flushActiveNoteRef.current?.();
-        }
         const fileName = getBaseName(sourcePath);
         const newPath = joinPath(targetFolderPath, fileName);
         if (sourcePath === newPath) return;
@@ -437,7 +459,6 @@ export function WorkspaceRoute() {
             key={activeNote.docKey}
             note={activeNote}
             onSave={handleSaveNote}
-            registerFlush={handleRegisterFlush}
             vaultPath={vaultPath}
             tree={tree}
             onNavigateToNote={handleNavigateToNote}

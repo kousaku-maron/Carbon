@@ -24,7 +24,7 @@ export function isPathInside(path: string, parent: string): boolean {
   );
 }
 
-export function getPathSeparator(path: string): "/" | "\\" {
+function getPathSeparator(path: string): "/" | "\\" {
   return path.includes("\\") ? "\\" : "/";
 }
 

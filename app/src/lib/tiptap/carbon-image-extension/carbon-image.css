@@ -1,0 +1,35 @@
+/* Image styles */
+.note-editor-content .tiptap img {
+  width: 100%;
+  height: auto;
+  border-radius: 6px;
+  margin: 0.5rem 0;
+  display: block;
+}
+
+.note-editor-content .tiptap img[data-asset-loading="true"] {
+  border: 1px dashed #d7d5d1;
+  background: #f7f6f3;
+  opacity: 0.6;
+  animation: carbon-image-pulse 1.5s ease-in-out infinite;
+}
+
+.note-editor-content .tiptap img[data-asset-error="true"] {
+  border: 1px dashed #d7d5d1;
+  background: #f7f6f3;
+}
+
+.note-editor-content .tiptap img.ProseMirror-selectednode {
+  outline: 2px solid #6366f1;
+  outline-offset: 2px;
+}
+
+.note-editor-content .tiptap img.carbon-image-uploading {
+  opacity: 0.6;
+  animation: carbon-image-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes carbon-image-pulse {
+  0%, 100% { opacity: 0.6; }
+  50% { opacity: 0.35; }
+}

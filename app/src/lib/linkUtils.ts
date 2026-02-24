@@ -1,9 +1,4 @@
-import {
-  getParentPath,
-  isPathInside,
-  pathsEqual,
-  toPosix,
-} from "./pathUtils";
+import { getParentPath, isPathInside, pathsEqual, toPosix } from "./pathUtils";
 import type { TreeNode } from "./types";
 
 function splitHashFromHref(href: string): { pathPart: string; hash: string } {
@@ -17,9 +12,10 @@ function splitHashFromHref(href: string): { pathPart: string; hash: string } {
   };
 }
 
-function splitAbsolutePath(
-  absolutePath: string,
-): { root: string; segments: string[] } {
+function splitAbsolutePath(absolutePath: string): {
+  root: string;
+  segments: string[];
+} {
   const normalized = toPosix(absolutePath);
 
   // Unix absolute path: /vault/notes/a.md
@@ -119,25 +115,6 @@ export function resolveRelativePath(
   }
 
   return buildAbsolutePath(root, segments);
-}
-
-/**
- * Returns true if the href is a relative path (internal link).
- * Returns false for http(s), javascript, data, mailto, or fragment-only links.
- */
-export function isInternalLink(href: string): boolean {
-  if (!href) return false;
-  if (href.startsWith("#")) return false;
-  if (/^\w+:/.test(href)) return false;
-  return true;
-}
-
-/**
- * Returns true if the href uses a dangerous scheme (javascript:, data:).
- */
-export function isDangerousHref(href: string): boolean {
-  const lower = href.trim().toLowerCase();
-  return lower.startsWith("javascript:") || lower.startsWith("data:");
 }
 
 /**
