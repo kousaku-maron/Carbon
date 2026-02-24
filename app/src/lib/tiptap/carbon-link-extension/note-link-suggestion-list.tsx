@@ -5,7 +5,7 @@ import {
   useRef,
   useState,
 } from "react";
-import type { NoteLinkSuggestionItem } from "./noteLinkSuggestion";
+import type { NoteLinkSuggestionItem } from "./note-link-suggestion";
 
 export interface NoteLinkSuggestionListRef {
   onKeyDown: (event: KeyboardEvent) => boolean;

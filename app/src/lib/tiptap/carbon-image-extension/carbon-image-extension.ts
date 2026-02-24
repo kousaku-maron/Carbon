@@ -2,9 +2,9 @@ import Image from "@tiptap/extension-image";
 import type { ImageOptions } from "@tiptap/extension-image";
 import { Plugin, PluginKey } from "@tiptap/pm/state";
 import { Decoration, DecorationSet } from "@tiptap/pm/view";
-import { compressImage } from "./imageCompression";
-import { parseAssetUri, buildAssetLoadingImage, buildAssetResolveErrorImage } from "./assetUtils";
-import { uploadAsset, cacheUrl, resolveAndCache } from "./assetClient";
+import { compressImage } from "./image-compression";
+import { parseAssetUri, buildAssetLoadingImage, buildAssetResolveErrorImage } from "./asset-utils";
+import { uploadAsset, cacheUrl, resolveAndCache } from "./asset-client";
 
 export interface CarbonImageOptions extends ImageOptions {
   /** Enable built-in image compression before upload. */

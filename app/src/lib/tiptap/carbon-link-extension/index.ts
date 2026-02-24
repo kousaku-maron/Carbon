@@ -1,5 +1,5 @@
-export { CarbonLink, isRelativePath } from "./carbonLinkExtension";
-export type { CarbonLinkOptions } from "./carbonLinkExtension";
-export type { NoteLinkSuggestionItem } from "./noteLinkSuggestion";
+export { CarbonLink, isRelativePath } from "./carbon-link-extension";
+export type { CarbonLinkOptions } from "./carbon-link-extension";
+export type { NoteLinkSuggestionItem } from "./note-link-suggestion";
 
 import "./carbon-link.css";

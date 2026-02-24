@@ -9,7 +9,7 @@ import type {
 import {
   NoteLinkSuggestionList,
   type NoteLinkSuggestionListRef,
-} from "./NoteLinkSuggestionList";
+} from "./note-link-suggestion-list";
 
 export type NoteLinkSuggestionItem = {
   id: string;

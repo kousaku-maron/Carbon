@@ -5,7 +5,7 @@ import Suggestion from "@tiptap/suggestion";
 import {
   buildSuggestionConfig,
   type CarbonLinkSuggestionConfig,
-} from "./noteLinkSuggestion";
+} from "./note-link-suggestion";
 
 /** Default isInternal: treat scheme-less hrefs as internal (i.e. relative paths). */
 export function isRelativePath(href: string): boolean {
