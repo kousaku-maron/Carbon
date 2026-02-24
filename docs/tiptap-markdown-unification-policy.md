@@ -160,14 +160,15 @@
 
 ---
 
-## 9. 影響ファイル（想定）
+## 9. 影響ファイル（実績）
 
 - `app/package.json`
 - `app/src/components/NoteEditor.tsx`
-- `app/src/lib/markdown.ts`（再編または置換）
-- `app/src/lib/assetImageExtension.ts`
-- `docs/local-page-link-design.md`
-- `docs/image-dnd-r2-design.md`
+- `app/src/lib/markdown.ts`（クリップボードユーティリティのみ残存）
+- `app/src/lib/debounce.ts`（新規）
+- `app/src/lib/tiptap/carbon-image-extension/`（新規: 画像拡張モジュール）
+- `app/src/lib/tiptap/carbon-link-extension/`（新規: リンク＋Suggestion拡張モジュール）
+- `app/src/lib/__tests__/`（新規: Markdown ラウンドトリップテスト）
 
 ---
 
@@ -207,22 +208,27 @@
 
 #### ファイル変更
 
-- **`app/package.json`** — 依存更新
-- **`app/src/components/NoteEditor.tsx`** — v3 API 対応。`markdownToHtml()` / `htmlToMarkdown()` → `editor.getMarkdown()` / `setContent(md, { contentType: 'markdown' })`。`sanitizeEditorHtmlForPersistence` 削除（HTML 中間変換が不要に）。
-- **`app/src/lib/markdown.ts`** — `marked`/`turndown` 依存を完全削除。ユーティリティ関数のみ残存。
-- **`app/src/lib/assetImageExtension.ts`** — `parseMarkdown` / `renderMarkdown` ハンドラを追加（`carbon://asset/...` の往復保持）。
+- **`app/package.json`** — 依存更新（`marked`/`turndown` 削除、TipTap v3 + `@tiptap/markdown` 追加）
+- **`app/src/components/NoteEditor.tsx`** — 大幅リファクタリング。拡張を外部モジュールに分離し、`useEditor({ content, contentType: 'markdown' })` + `editor.getMarkdown()` で I/O を完結。`debounce` による自動保存。
+- **`app/src/lib/markdown.ts`** — `marked`/`turndown` 依存を完全削除。`formatMarkdownForCopy()` のみ残存。
+- **`app/src/lib/tiptap/carbon-image-extension/`** — 画像拡張を独立モジュール化（DnD/Paste、圧縮、`carbon://asset/...` 往復保持）
+- **`app/src/lib/tiptap/carbon-link-extension/`** — リンク拡張＋`[[` Suggestion を独立モジュール化
+- **`app/src/lib/debounce.ts`** — 汎用 debounce ユーティリティ（新規）
+- **`app/src/lib/__tests__/`** — Markdown ラウンドトリップテスト（新規）
+- 削除: `app/src/lib/assetApi.ts`, `app/src/lib/assetImageExtension.ts`, `app/src/lib/imageCompression.ts`, `app/src/lib/noteLinkSuggestion.ts`, `app/src/components/NoteLinkSuggestionList.tsx`
 
 #### 新規 Canonical Data Flow
 
 ```
 Markdown File
-    ↓ editor.setContent(md, { contentType: 'markdown' })
-TipTap Editor (with @tiptap/markdown)
-    ↓ editor.getMarkdown()
+    ↓ useEditor({ content: md, contentType: 'markdown' })
+TipTap Editor (with @tiptap/markdown + CarbonImage + CarbonLink)
+    ↓ editor.getMarkdown()  (debounced auto-save)
 Markdown File (saved)
 ```
 
 HTML 中間変換は完全に廃止され、TipTap 内部 JSON を直接 Markdown に変換する。
+拡張はモジュール化され `app/src/lib/tiptap/` 配下に集約されている。
 
 ---
 

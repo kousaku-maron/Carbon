@@ -21,8 +21,8 @@
 - 既存の認証（sign-up / sign-in / sign-out / session確認）を維持
 - 認証済みユーザーのみが Workspace（Markdown 管理 UI）に遷移可能
 - Vault（ローカルフォルダ）選択、ドキュメントツリー表示、ノート編集、保存
-- TipTap ベースのリッチエディタ
-- Markdown との相互変換（入出力）
+- TipTap v3 ベースのリッチエディタ
+- `@tiptap/markdown` による Markdown 直接パース/シリアライズ
 
 ### 2.2 非対象（明示的に除外）
 
@@ -47,7 +47,7 @@
   ├─ Auth Screen（Login / SignUp）
   ├─ Workspace Shell（2ペイン）
   ├─ Sidebar（フォルダ選択 + ドキュメントツリー）
-  └─ TipTap Editor（編集）
+  └─ TipTap v3 Editor + @tiptap/markdown（編集・MD変換）
         │
         ▼
 [Application Service]
@@ -183,9 +183,9 @@
 
 ### M2: TipTap 編集体験
 
-- Markdown 入出力
+- `@tiptap/markdown` による Markdown 入出力（`marked`/`turndown` は廃止済み）
 - 基本ブロック編集
-- 自動保存
+- debounce 自動保存
 
 ### M3: 使い勝手向上
 
@@ -203,7 +203,7 @@
 
 ## 12. 今後の拡張候補（任意）
 
-- ノート間リンク
+- ノート間リンク（実装済み: `CarbonLink` 拡張 + `[[` Suggestion）
+- 画像Storage機能（実装済み: `CarbonImage` 拡張 + Cloudflare R2）
 - GitHubレポジトリ連携
 - ページ公開機能
-- 画像Storage機能
