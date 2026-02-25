@@ -1,12 +1,8 @@
-export type User = {
-  id: string;
-  name: string;
-  email: string;
-};
-
 import { LazyStore } from "@tauri-apps/plugin-store";
 
-export const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || "http://localhost:8787").replace(/\/$/, "");
+export const API_BASE_URL = (
+  import.meta.env.VITE_API_BASE_URL || "http://localhost:8787"
+).replace(/\/$/, "");
 
 const TOKEN_KEY = "session_token";
 const store = new LazyStore("auth.json");
@@ -35,7 +31,7 @@ export async function request<T>(
 
   const headers: Record<string, string> = {
     ...(isFormData ? {} : { "Content-Type": "application/json" }),
-    ...(init?.headers as Record<string, string> || {}),
+    ...((init?.headers as Record<string, string>) || {}),
   };
 
   const token = await getSessionToken();
@@ -71,9 +67,4 @@ export async function request<T>(
   }
 
   return (await res.text()) as T;
-}
-
-export async function fetchMe(): Promise<User | null> {
-  const result = await request<{ user: User | null }>("/api/me", { method: "GET" });
-  return result.user;
 }

@@ -6,9 +6,9 @@ import {
   redirect,
 } from "@tanstack/react-router";
 import { fetchMe } from "./lib/api";
-import { LoginRoute } from "./routes/LoginRoute";
-import { SignUpRoute } from "./routes/SignUpRoute";
-import { WorkspaceRoute } from "./routes/WorkspaceRoute";
+import { LoginRoute } from "./routes/login-route";
+import { SignUpRoute } from "./routes/sign-up-route";
+import { WorkspaceRoute } from "./routes/workspace-route";
 
 const rootRoute = createRootRoute({
   component: () => <Outlet />,

@@ -1,4 +1,4 @@
-import { getParentPath, isPathInside, pathsEqual, toPosix } from "./pathUtils";
+import { getParentPath, isPathInside, pathsEqual, toPosix } from "./path-utils";
 import type { TreeNode } from "./types";
 
 function splitHashFromHref(href: string): { pathPart: string; hash: string } {

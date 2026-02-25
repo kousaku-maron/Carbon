@@ -6,7 +6,7 @@ import { CarbonImage } from "../lib/tiptap/carbon-image-extension";
 import { CarbonLink, type NoteLinkSuggestionItem } from "../lib/tiptap/carbon-link-extension";
 import { API_BASE_URL } from "../lib/api";
 import { debounce } from "../lib/debounce";
-import { flattenTreeNodes, getRelativePath, resolveRelativePath, validateLinkTarget } from "../lib/linkUtils";
+import { flattenTreeNodes, getRelativePath, resolveRelativePath, validateLinkTarget } from "../lib/link-utils";
 import { formatMarkdownForCopy } from "../lib/markdown";
 import type { NoteContent, TreeNode } from "../lib/types";
 

@@ -31,7 +31,7 @@
 - 結果として移動元ファイルが再作成され、移動元/移動先の二重状態が起きる
 
 関連箇所:
-- `app/src/routes/WorkspaceRoute.tsx`
+- `app/src/lib/vault/hooks/use-file-ops.ts`（旧 `app/src/routes/WorkspaceRoute.tsx`）
 - `app/src/components/NoteEditor.tsx`
 - `app/src/lib/notePersistence.ts`
 
@@ -93,7 +93,7 @@
 - `NoteContent` に `docKey: number` を追加
 
 2. ノート選択/移動時の状態更新（完了）
-- `app/src/routes/WorkspaceRoute.tsx`
+- `app/src/lib/vault/hooks/use-file-ops.ts`（旧 `app/src/routes/WorkspaceRoute.tsx`）
 - ノート選択時に `docKey` 採番
 - 同一ノート再選択時は no-op（不要な `docKey` 更新を防止）
 - `handleMove` / `handleRename` で `docKey` 維持
