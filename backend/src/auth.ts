@@ -7,6 +7,8 @@ type AuthEnv = {
   BETTER_AUTH_SECRET: string;
   BETTER_AUTH_URL: string;
   CORS_ORIGINS: string;
+  GOOGLE_CLIENT_ID: string;
+  GOOGLE_CLIENT_SECRET: string;
 };
 
 function parseOrigins(input: string): string[] {
@@ -24,11 +26,20 @@ export function createAuth(env: AuthEnv, db: Database) {
     secret: env.BETTER_AUTH_SECRET,
     baseURL: env.BETTER_AUTH_URL,
     trustedOrigins: parseOrigins(env.CORS_ORIGINS),
-    emailAndPassword: {
-      enabled: true,
-      minPasswordLength: 8,
-      autoSignIn: true,
+    account: {
+      // Desktop app: sign-in (internal request) and callback (browser) run in
+      // different cookie contexts, so the state cookie can't be verified.
+      // State is still validated via the database verification table.
+      skipStateCookieCheck: true,
     },
-    plugins: [bearer()],
+    socialProviders: {
+      google: {
+        clientId: env.GOOGLE_CLIENT_ID,
+        clientSecret: env.GOOGLE_CLIENT_SECRET,
+      },
+    },
+    plugins: [
+      bearer(),
+    ],
   });
 }

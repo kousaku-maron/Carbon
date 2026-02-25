@@ -16,6 +16,10 @@
     {
       "identifier": "fs:scope",
       "allow": ["**"]
-    }
+    },
+    "deep-link:default",
+    "http:default",
+    "os:default",
+    "opener:default"
   ]
 }

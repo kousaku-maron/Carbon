@@ -319,6 +319,31 @@ select {
   font-size: 0.9rem;
 }
 
+.auth-google-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+  border-radius: 10px;
+  border: 1px solid #e3e2e0;
+  background: #ffffff;
+  color: #37352f;
+  padding: 0.7rem 0.85rem;
+  font-size: 0.95rem;
+  cursor: pointer;
+  transition: background 0.15s;
+  width: 100%;
+}
+
+.auth-google-btn:hover {
+  background: #f7f6f3;
+}
+
+.auth-google-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
 /* ===== Form Controls ===== */
 
 label {

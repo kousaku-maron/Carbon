@@ -3,15 +3,19 @@ import { cors } from "hono/cors";
 import { createAuth } from "./auth";
 import { createDb } from "./db";
 import { assetsApp } from "./assets";
+import { desktopAuthApp } from "./desktop-auth";
 
 type Bindings = {
   DATABASE_URL: string;
   BETTER_AUTH_SECRET: string;
   BETTER_AUTH_URL: string;
   CORS_ORIGINS: string;
+  GOOGLE_CLIENT_ID: string;
+  GOOGLE_CLIENT_SECRET: string;
   ASSET_BUCKET: R2Bucket;
   ASSET_SIGNING_SECRET: string;
   ASSET_MAX_IMAGE_BYTES: string;
+  AUTH_EXCHANGE_ENABLED?: string;
 };
 
 type Env = { Bindings: Bindings };
@@ -44,6 +48,8 @@ app.use("*", async (c, next) => {
 });
 
 app.get("/api/health", (c) => c.json({ ok: true }));
+
+app.route("/api/desktop-auth", desktopAuthApp);
 
 app.all("/api/auth/*", async (c) => {
   const db = createDb(c.env.DATABASE_URL);

@@ -20,6 +20,13 @@
       }
     ]
   },
+  "plugins": {
+    "deep-link": {
+      "desktop": {
+        "schemes": ["carbon"]
+      }
+    }
+  },
   "bundle": {
     "active": true,
     "icon": [

@@ -1,209 +1,122 @@
-# 認証アーキテクチャ移行計画（Email → Google OAuth）
+# 認証アーキテクチャ（Google OAuth）
 
-## 1. 背景
+## 1. 概要
 
-現在の認証は email/password ベースで、app 側が `fetch` + 手動トークン管理で実装している。
-次のステップとして Google OAuth に切り替える予定があるため、認証フロー全体を `better-auth/client` に移行する。
+デスクトップアプリ（Tauri v2 + macOS）向けの Google OAuth 認証。
+システムブラウザで Google 認証を行い、deep link またはポーリングでトークンをアプリに渡す。
 
-## 2. 現状の構成
+## 2. 構成
 
-### Backend（`backend/src/auth.ts`）
+### Backend（Cloudflare Workers + Hono）
 
-- `better-auth` + `drizzleAdapter`（PostgreSQL）
-- `emailAndPassword: { enabled: true }` で email/password 認証
-- `bearer()` plugin でトークンベース認証
-- Hono の `app.all("/api/auth/*")` で better-auth にルーティング
-- `auth.api.getSession({ headers })` でセッション検証
+| ファイル | 役割 |
+|---------|------|
+| `backend/src/auth.ts` | better-auth 設定（Google provider, bearer plugin） |
+| `backend/src/desktop-auth.ts` | デスクトップ向け OAuth フロー（サブアプリ） |
+| `backend/src/index.ts` | Hono ルーティング、`/api/desktop-auth` にマウント |
 
-### App（`app/src/lib/api.ts`）
+### App（Tauri v2 + React）
 
-- `request<T>(path, init)` — 汎用 HTTP クライアント（`Authorization: Bearer` ヘッダを自動付与）
-- `getSessionToken()` / `setSessionToken()` — Tauri `LazyStore("auth.json")` でトークン永続化
-- `fetchMe()` — `GET /api/me` でセッション検証
-- 各ルートが `request()` を直接呼び出し、エンドポイントパス・ボディ構造を知っている
+| ファイル | 役割 |
+|---------|------|
+| `app/src/lib/api/auth.ts` | 認証ロジック（signInWithGoogle, signOut, fetchMe, トークン管理） |
+| `app/src/lib/api/client.ts` | 汎用 HTTP クライアント（Bearer ヘッダ自動付与） |
+| `app/src/lib/api/index.ts` | barrel exports |
+| `app/src/router.tsx` | ルーティング + deep link ハンドラ + 認証ガード |
+| `app/src/routes/login-route.tsx` | ログイン UI（Google ボタンのみ） |
 
-### 消費元
+## 3. 認証フロー
 
-| ファイル | 使用する export |
-|---------|---------------|
-| `LoginRoute.tsx` | `request`, `setSessionToken` |
-| `SignUpRoute.tsx` | `request`, `setSessionToken` |
-| `WorkspaceRoute.tsx` | `request`, `setSessionToken` |
-| `NoteEditor.tsx` | `API_BASE_URL` |
-| `router.tsx` | `fetchMe` |
+### PROD モード（deep link）
 
-## 3. 移行方針
-
-### Phase 1: `lib/api/` 分割（現リファクタリング）
-
-認証フローには触れず、汎用 HTTP クライアントのみ切り出す。
+ビルド済み .app で利用。`VITE_AUTH_EXCHANGE` 未設定時のデフォルト。
 
 ```
-lib/api/
-  client.ts    # request(), API_BASE_URL, getSessionToken(), setSessionToken()
-  index.ts     # barrel exports
+1. アプリ: openUrl("http://.../api/desktop-auth/google")
+2. ブラウザ: Google OAuth 認証
+3. Backend: /api/desktop-auth/callback でセッション取得
+4. ブラウザ: carbon://callback?token=xxx にリダイレクト
+5. macOS: deep link でアプリを起動/フォーカス
+6. アプリ: router.tsx の RootComponent が token を受け取り、persistToken → /workspace
 ```
 
-- `api.ts` の `User` 型、`fetchMe()`、各ルートの `request()` 呼び出しはそのまま
-- 認証ロジックの書き換えは Phase 2 で行う
+### DEV モード（ポーリング）
 
-### Phase 2: Google OAuth 導入 + `createAuthClient` 移行
+`tauri dev` では deep link が動作しないため、ポーリング方式を使用。
+`VITE_AUTH_EXCHANGE=true` + `AUTH_EXCHANGE_ENABLED=true` で有効化。
 
-#### 2-1. Backend 変更
+```
+1. アプリ: exchange コード（UUID）を生成
+2. アプリ: openUrl("http://.../api/desktop-auth/google?exchange=xxx")
+3. ブラウザ: Google OAuth 認証
+4. Backend: /api/desktop-auth/callback で token を verification テーブルに保存
+5. アプリ: /api/desktop-auth/exchange?code=xxx を 2 秒間隔でポーリング
+6. token 取得 → persistToken → /workspace に遷移
+```
 
-`backend/src/auth.ts` に Google provider を追加:
+タイムアウト: 1 分（AbortController で制御）
+
+## 4. トークン管理
+
+```
+[起動] → restoreToken() → LazyStore("auth.json") → cachedToken (メモリ)
+[ログイン] → persistToken(token) → cachedToken + LazyStore 同時書き込み
+[API リクエスト] → getCachedToken() → Authorization: Bearer ヘッダ付与
+[ログアウト] → signOut() → POST /api/auth/sign-out + persistToken(null)
+```
+
+- `LazyStore`（@tauri-apps/plugin-store）は非同期のため、メモリキャッシュ `cachedToken` を介して同期的に読み出し
+- `request()` が全 API リクエストに Bearer ヘッダを自動付与
+
+## 5. ルーティング（認証ガード）
+
+`rootRoute.beforeLoad` で一元管理:
 
 ```ts
-import { betterAuth } from "better-auth";
-import { bearer } from "better-auth/plugins";
-
-export function createAuth(env: AuthEnv, db: Database) {
-  return betterAuth({
-    // ...existing config
-    socialProviders: {
-      google: {
-        clientId: env.GOOGLE_CLIENT_ID,
-        clientSecret: env.GOOGLE_CLIENT_SECRET,
-      },
-    },
-    emailAndPassword: {
-      enabled: false, // 無効化（または移行期間中は併用）
-    },
-    plugins: [bearer()],
-  });
-}
+const user = await fetchMe();
+if (user && isLoginPage) → redirect /workspace
+if (!user && !isLoginPage) → redirect /login
 ```
 
-#### 2-2. App 側: `createAuthClient` 導入
+- `fetchMe()` が 1 回で認証チェック完了
+- 個別ルートに `beforeLoad` は不要
 
-`app/src/lib/api/auth.ts` を新設:
+## 6. Backend エンドポイント
 
-```ts
-import { createAuthClient } from "better-auth/client";
-import { LazyStore } from "@tauri-apps/plugin-store";
+| エンドポイント | 説明 |
+|-------------|------|
+| `GET /api/desktop-auth/google` | Google OAuth 開始（exchange パラメータはオプション） |
+| `GET /api/desktop-auth/callback` | OAuth コールバック → deep link ページ表示 |
+| `GET /api/desktop-auth/exchange` | ポーリング用トークン取得（DEV モードのみ） |
+| `ALL /api/auth/*` | better-auth 内部ルート（直接呼ばない） |
+| `GET /api/me` | 現在のユーザー情報取得 |
 
-const store = new LazyStore("auth.json");
-let cachedToken: string | null = null;
+### 注意事項
 
-// 起動時に LazyStore → メモリキャッシュへ復元
-export async function restoreToken(): Promise<void> {
-  cachedToken = (await store.get<string>("session_token")) ?? null;
-}
+- `callbackURL` は **絶対 URL** にすること（`${BETTER_AUTH_URL}/api/desktop-auth/callback`）
+  - 内部リクエストには `Origin` ヘッダがないため、相対パスだと better-auth が正しい origin を解決できない
+- `skipStateCookieCheck: true` が必要（内部リクエストとブラウザで cookie コンテキストが異なるため）
+- Cookie の値と bearer token は異なる → `auth.api.getSession({ headers })` で正しい `session.token` を取得
 
-async function persistToken(token: string | null): Promise<void> {
-  cachedToken = token;
-  if (token) {
-    await store.set("session_token", token);
-  } else {
-    await store.delete("session_token");
-  }
-}
+## 7. 環境変数
 
-export const authClient = createAuthClient({
-  baseURL: import.meta.env.VITE_API_BASE_URL || "http://localhost:8787",
-  fetchOptions: {
-    onSuccess: (ctx) => {
-      const token = ctx.response.headers.get("set-auth-token");
-      if (token) persistToken(token);
-    },
-    auth: {
-      type: "Bearer",
-      token: () => cachedToken ?? "",  // 同期コールバック — メモリキャッシュから読む
-    },
-  },
-});
-```
+### Frontend（`app/.env`）
 
-#### 2-3. トークン永続化のブリッジ
+| 変数 | 説明 | 例 |
+|-----|------|-----|
+| `VITE_API_BASE_URL` | Backend の URL | `http://localhost:8787` |
+| `VITE_AUTH_EXCHANGE` | ポーリング有効化 | `true`（DEV のみ） |
 
-better-auth client の `fetchOptions.auth.token` は**同期コールバック**だが、Tauri の `LazyStore` は非同期。
-これを解決するためにインメモリキャッシュを挟む:
+### Backend（`backend/.dev.vars`）
 
-```
-[アプリ起動] → restoreToken() → LazyStore → cachedToken (メモリ)
-[ログイン成功] → onSuccess → persistToken() → cachedToken + LazyStore 同時書き込み
-[API リクエスト] → token() → cachedToken から同期的に読み出し
-[ログアウト] → signOut() → persistToken(null) → cachedToken + LazyStore 同時クリア
-```
+| 変数 | 説明 |
+|-----|------|
+| `GOOGLE_CLIENT_ID` | Google OAuth Client ID |
+| `GOOGLE_CLIENT_SECRET` | Google OAuth Client Secret |
+| `AUTH_EXCHANGE_ENABLED` | ポーリング用 exchange エンドポイント有効化（`true` で有効） |
 
-#### 2-4. OAuth リダイレクト処理
+## 8. Tauri 設定
 
-Tauri のネイティブアプリでは OAuth コールバックにブラウザリダイレクトが使えないため、
-`@daveyplate/better-auth-tauri` でディープリンク経由のリダイレクトを処理する。
-
-必要な Tauri plugin:
-- `tauri-plugin-deep-link` — カスタム URL スキームの登録
-- `tauri-plugin-http`（必要に応じて）
-
-```ts
-// backend
-import { tauri } from "@daveyplate/better-auth-tauri/plugin";
-
-plugins: [
-  bearer(),
-  tauri({ scheme: "carbon", callbackURL: "/", successURL: "/auth/success" }),
-]
-
-// app (React)
-import { useBetterAuthTauri } from "@daveyplate/better-auth-tauri/react";
-
-useBetterAuthTauri({
-  authClient,
-  scheme: "carbon",
-  onSuccess: (callbackURL) => navigate({ to: "/workspace" }),
-});
-```
-
-#### 2-5. UI 変更
-
-- `LoginRoute.tsx` / `SignUpRoute.tsx` → Google ログインボタンのみの画面に置き換え
-- `router.tsx` の `fetchMe()` → `authClient.getSession()` に置き換え
-- `WorkspaceRoute.tsx` の `handleSignOut` → `authClient.signOut()` に置き換え
-
-#### 2-6. `client.ts` の auth ヘッダ
-
-`request()` の `Authorization` ヘッダ付与も `cachedToken` を参照するように統一:
-
-```ts
-// client.ts
-import { cachedToken } from "./auth";
-
-// request() 内
-if (cachedToken) {
-  headers["Authorization"] = `Bearer ${cachedToken}`;
-}
-```
-
-これにより asset API 等の非認証系リクエストも同じトークンソースを使う。
-
-## 4. 移行チェックリスト
-
-### Phase 1（現リファクタリング）
-
-- [ ] `lib/api/client.ts` に `request()`, `API_BASE_URL`, トークン管理を切り出す
-- [ ] `lib/api/index.ts` で barrel export
-- [ ] 消費元のインポートパスを更新
-- [ ] 旧 `api.ts` を削除
-- [ ] 型チェック通過
-
-### Phase 2（Google OAuth）
-
-- [ ] Backend: `socialProviders.google` を追加
-- [ ] Backend: `@daveyplate/better-auth-tauri` plugin を追加
-- [ ] Backend: 環境変数 `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` を設定
-- [ ] App: `better-auth` を `app/package.json` に追加
-- [ ] App: `@daveyplate/better-auth-tauri` を追加
-- [ ] App: `lib/api/auth.ts` に `createAuthClient` + トークンブリッジを実装
-- [ ] App: `restoreToken()` をアプリ起動時に呼び出し
-- [ ] App: Tauri deep-link plugin を設定（`carbon://` スキーム）
-- [ ] App: `LoginRoute` / `SignUpRoute` を Google ログイン UI に置き換え
-- [ ] App: `router.tsx` の `fetchMe()` → `authClient.getSession()` に置き換え
-- [ ] App: `WorkspaceRoute` の `handleSignOut` → `authClient.signOut()` に置き換え
-- [ ] App: `client.ts` の auth ヘッダを `cachedToken` 参照に統一
-- [ ] `emailAndPassword` を無効化（移行完了後）
-
-## 5. 注意事項
-
-- `@daveyplate/better-auth-tauri` はまだ若いライブラリのため、導入時に最新の API を確認すること
-- `better-auth` のバージョンは backend と app で揃えること
-- `LazyStore` ↔ メモリキャッシュの同期は `restoreToken()` 呼び出し前の API リクエストで token が空になるため、起動フローの早い段階で呼ぶこと
+- **Deep link**: `tauri.conf.json` → `plugins.deep-link.desktop.schemes: ["carbon"]`
+- **Capabilities**: `deep-link:default`, `opener:default`, `store:default`
+- **Plugins（Rust）**: `tauri-plugin-deep-link`, `tauri-plugin-opener`, `tauri-plugin-store`

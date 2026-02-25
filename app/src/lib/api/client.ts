@@ -1,23 +1,8 @@
-import { LazyStore } from "@tauri-apps/plugin-store";
+import { getCachedToken } from "./auth";
 
 export const API_BASE_URL = (
   import.meta.env.VITE_API_BASE_URL || "http://localhost:8787"
 ).replace(/\/$/, "");
-
-const TOKEN_KEY = "session_token";
-const store = new LazyStore("auth.json");
-
-export async function getSessionToken(): Promise<string | null> {
-  return (await store.get<string>(TOKEN_KEY)) ?? null;
-}
-
-export async function setSessionToken(token: string | null): Promise<void> {
-  if (token) {
-    await store.set(TOKEN_KEY, token);
-  } else {
-    await store.delete(TOKEN_KEY);
-  }
-}
 
 export async function request<T>(
   path: string,
@@ -34,9 +19,8 @@ export async function request<T>(
     ...((init?.headers as Record<string, string>) || {}),
   };
 
-  const token = await getSessionToken();
-  if (token) {
-    headers["Authorization"] = `Bearer ${token}`;
+  if (getCachedToken()) {
+    headers["Authorization"] = `Bearer ${getCachedToken()}`;
   }
 
   const res = await (async () => {
