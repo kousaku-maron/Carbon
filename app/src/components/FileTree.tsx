@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { getParentPath, isPathInside, pathsEqual } from "../lib/pathUtils";
+import { getParentPath, isPathInside, pathsEqual } from "../lib/path-utils";
 import type { TreeNode } from "../lib/types";
 import { ContextMenu, type ContextMenuItem } from "./ContextMenu";
 

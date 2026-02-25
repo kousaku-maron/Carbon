@@ -160,18 +160,79 @@
 
 ---
 
-## 9. 影響ファイル（想定）
+## 9. 影響ファイル（実績）
 
 - `app/package.json`
 - `app/src/components/NoteEditor.tsx`
-- `app/src/lib/markdown.ts`（再編または置換）
-- `app/src/lib/assetImageExtension.ts`
-- `docs/local-page-link-design.md`
-- `docs/image-dnd-r2-design.md`
+- `app/src/lib/markdown.ts`（クリップボードユーティリティのみ残存）
+- `app/src/lib/debounce.ts`（新規）
+- `app/src/lib/tiptap/carbon-image-extension/`（新規: 画像拡張モジュール）
+- `app/src/lib/tiptap/carbon-link-extension/`（新規: リンク＋Suggestion拡張モジュール）
+- `app/src/lib/__tests__/`（新規: Markdown ラウンドトリップテスト）
 
 ---
 
-## 10. 補足
+## 10. 実施記録
+
+### Phase 1〜4 完了（2026-02-23）
+
+すべてのフェーズを一括実施し、完了した。
+
+#### 実施内容
+
+| Phase | 内容 | 状態 |
+|-------|------|------|
+| Phase 1 | 回帰フィクスチャ追加（`__tests__/markdown-fixtures.ts`） | 完了 |
+| Phase 2 | TipTap v2 → v3.20.0 移行、`@tiptap/markdown` 導入 | 完了 |
+| Phase 3 | `marked`/`turndown` 呼び出しを全廃、カスタムルール移植 | 完了 |
+| Phase 4 | 不要依存削除、ビルド確認 | 完了 |
+
+#### パッケージ変更
+
+**追加:**
+- `@tiptap/markdown` ^3.20.0
+- `@tiptap/extension-list` ^3.20.0（TaskList/TaskItem 統合先）
+- `@tiptap/extensions` ^3.20.0（Placeholder 統合先）
+
+**削除:**
+- `marked` ^15.0.0
+- `turndown` ^7.2.0
+- `@types/turndown` ^5.0.5
+- `@tiptap/extension-link` ^2.11.0（StarterKit v3 に統合）
+- `@tiptap/extension-placeholder` ^2.11.0（`@tiptap/extensions` に統合）
+- `@tiptap/extension-task-list` ^2.11.0（`@tiptap/extension-list` に統合）
+- `@tiptap/extension-task-item` ^2.11.0（`@tiptap/extension-list` に統合）
+
+**更新（v2 → v3）:**
+- `@tiptap/react`, `@tiptap/starter-kit`, `@tiptap/pm`, `@tiptap/suggestion`, `@tiptap/extension-image`
+
+#### ファイル変更
+
+- **`app/package.json`** — 依存更新（`marked`/`turndown` 削除、TipTap v3 + `@tiptap/markdown` 追加）
+- **`app/src/components/NoteEditor.tsx`** — 大幅リファクタリング。拡張を外部モジュールに分離し、`useEditor({ content, contentType: 'markdown' })` + `editor.getMarkdown()` で I/O を完結。`debounce` による自動保存。
+- **`app/src/lib/markdown.ts`** — `marked`/`turndown` 依存を完全削除。`formatMarkdownForCopy()` のみ残存。
+- **`app/src/lib/tiptap/carbon-image-extension/`** — 画像拡張を独立モジュール化（DnD/Paste、圧縮、`carbon://asset/...` 往復保持）
+- **`app/src/lib/tiptap/carbon-link-extension/`** — リンク拡張＋`[[` Suggestion を独立モジュール化
+- **`app/src/lib/debounce.ts`** — 汎用 debounce ユーティリティ（新規）
+- **`app/src/lib/__tests__/`** — Markdown ラウンドトリップテスト（新規）
+- 削除: `app/src/lib/assetApi.ts`, `app/src/lib/assetImageExtension.ts`, `app/src/lib/imageCompression.ts`, `app/src/lib/noteLinkSuggestion.ts`, `app/src/components/NoteLinkSuggestionList.tsx`
+
+#### 新規 Canonical Data Flow
+
+```
+Markdown File
+    ↓ useEditor({ content: md, contentType: 'markdown' })
+TipTap Editor (with @tiptap/markdown + CarbonImage + CarbonLink)
+    ↓ editor.getMarkdown()  (debounced auto-save)
+Markdown File (saved)
+```
+
+HTML 中間変換は完全に廃止され、TipTap 内部 JSON を直接 Markdown に変換する。
+拡張はモジュール化され `app/src/lib/tiptap/` 配下に集約されている。
+
+---
+
+## 11. 補足
 
 本方針は、以下のプロダクト要件を維持したまま技術基盤を整理するためのものである。
 

@@ -1,29 +1,26 @@
 import { Link, useNavigate } from "@tanstack/react-router";
 import { FormEvent, useState } from "react";
-import { request, setSessionToken } from "../lib/api";
+import { signUp } from "../lib/api";
 
-export function LoginRoute() {
+export function SignUpRoute() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
 
+  const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
   async function handleSubmit(event: FormEvent): Promise<void> {
     event.preventDefault();
     setLoading(true);
-    setMessage("Signing in...");
+    setMessage("Creating account...");
 
     try {
-      const result = await request<{ token: string }>("/api/auth/sign-in/email", {
-        method: "POST",
-        body: JSON.stringify({ email, password }),
-      });
-      await setSessionToken(result.token);
+      await signUp(name, email, password);
       await navigate({ to: "/workspace" });
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Sign in failed");
+      setMessage(error instanceof Error ? error.message : "Sign up failed");
       setLoading(false);
     }
   }
@@ -34,8 +31,17 @@ export function LoginRoute() {
         <div className="auth-logo">
           <img src="/icon.png" alt="App logo" />
         </div>
-        <h1>Log in to your account</h1>
+        <h1>Create your account</h1>
         <form onSubmit={handleSubmit} className="auth-form">
+          <label>
+            <span>Name</span>
+            <input
+              placeholder="Enter your name..."
+              value={name}
+              onChange={(event) => setName(event.target.value)}
+              required
+            />
+          </label>
           <label>
             <span>Email</span>
             <input
@@ -50,7 +56,7 @@ export function LoginRoute() {
             <span>Password</span>
             <input
               type="password"
-              placeholder="Enter your password..."
+              placeholder="Create a password..."
               minLength={8}
               value={password}
               onChange={(event) => setPassword(event.target.value)}
@@ -58,11 +64,11 @@ export function LoginRoute() {
             />
           </label>
           <button type="submit" disabled={loading}>
-            Continue
+            Create account
           </button>
         </form>
         <p className="auth-link">
-          Don&apos;t have an account? <Link to="/signup">Sign up</Link>
+          Already have an account? <Link to="/login">Sign in</Link>
         </p>
         {message && <p className="auth-message">{message}</p>}
       </section>

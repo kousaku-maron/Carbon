@@ -31,7 +31,7 @@
 - 結果として移動元ファイルが再作成され、移動元/移動先の二重状態が起きる
 
 関連箇所:
-- `app/src/routes/WorkspaceRoute.tsx`
+- `app/src/lib/vault/hooks/use-file-ops.ts`（旧 `app/src/routes/WorkspaceRoute.tsx`）
 - `app/src/components/NoteEditor.tsx`
 - `app/src/lib/notePersistence.ts`
 
@@ -49,7 +49,7 @@
 
 関連箇所:
 - `app/src/components/NoteEditor.tsx`
-- `app/src/lib/assetApi.ts`
+- `app/src/lib/tiptap/carbon-image-extension/asset-client.ts`
 
 ## 4. 修正方針
 
@@ -93,7 +93,7 @@
 - `NoteContent` に `docKey: number` を追加
 
 2. ノート選択/移動時の状態更新（完了）
-- `app/src/routes/WorkspaceRoute.tsx`
+- `app/src/lib/vault/hooks/use-file-ops.ts`（旧 `app/src/routes/WorkspaceRoute.tsx`）
 - ノート選択時に `docKey` 採番
 - 同一ノート再選択時は no-op（不要な `docKey` 更新を防止）
 - `handleMove` / `handleRename` で `docKey` 維持
@@ -101,11 +101,9 @@
 
 3. 保存フロー改修（完了）
 - `app/src/components/NoteEditor.tsx`
-- `notePathRef` で保存先パスを追従（move/rename 対応）
-- `registerFlush` により親から明示 flush 可能化
-- 保存を直列キュー化（`saveQueueRef` + `enqueueSave`）し、flush で進行中/待機中保存をすべて待機
+- `debounce` による自動保存（`app/src/lib/debounce.ts`）
 - ノート切替は `key={docKey}` で `NoteEditor` を再生成し、初期表示/切替の分岐を削減
-- `useEditor({ content: markdownToHtml(note.body) })` で初期本文を直接ロード
+- `useEditor({ content: note.body, contentType: 'markdown' })` で初期本文を直接ロード（`@tiptap/markdown` による直接パース）
 
 4. 型整合性確認（完了）
 - `pnpm -C app exec tsc --noEmit` を通過
@@ -175,10 +173,9 @@
 ### 10.3 対応
 
 - ノート切替時は `NoteEditor` を `key={docKey}` で再生成する
-- `useEditor` 初期 `content` に `markdownToHtml(note.body)` を与え、起動直後/切替直後の空表示レースを回避する
-- move/rename 追従は `notePathRef` の更新だけに限定し、本文ロードと分離する
-- 画像の `resolve` は「本文全体再セット」ではなく、既存画像ノード属性（`src`, `data-asset-uri`）のみ更新する
-- 保存は直列キューで統一し、ノート切替時の flush は親コンポーネントから明示実行する
+- `useEditor({ content: note.body, contentType: 'markdown' })` で初期本文を直接ロードし、起動直後/切替直後の空表示レースを回避する
+- 画像の `resolve` は `CarbonImage` 拡張内で画像ノード属性のみ更新する（本文全体の再セットは行わない）
+- 保存は `debounce` で統一し、`debouncedSave.cancel()` でノート切替時のクリーンアップを行う
 
 ### 10.4 検証結果
 

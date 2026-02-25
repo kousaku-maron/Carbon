@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { getBaseName } from "../lib/pathUtils";
+import { getBaseName } from "../lib/path-utils";
 
 export function VaultSelector(props: {
   currentPath: string | null;
