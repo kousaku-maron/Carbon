@@ -10,6 +10,8 @@ type Bindings = {
   BETTER_AUTH_SECRET: string;
   BETTER_AUTH_URL: string;
   CORS_ORIGINS: string;
+  GOOGLE_CLIENT_ID: string;
+  GOOGLE_CLIENT_SECRET: string;
   ASSET_BUCKET: R2Bucket;
   ASSET_SIGNING_SECRET: string;
   ASSET_MAX_IMAGE_BYTES: string;

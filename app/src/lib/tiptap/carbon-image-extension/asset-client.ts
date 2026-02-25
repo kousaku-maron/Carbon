@@ -1,4 +1,4 @@
-import { getSessionToken } from "../../api";
+import { getCachedToken } from "../../api/auth";
 
 // ── Types ──────────────────────────────────────────────────────
 
@@ -31,8 +31,7 @@ async function assetFetch<T>(
     ...(isFormData ? {} : { "Content-Type": "application/json" }),
   };
 
-  const token = await getSessionToken();
-  if (token) headers.Authorization = `Bearer ${token}`;
+  if (getCachedToken()) headers.Authorization = `Bearer ${getCachedToken()}`;
 
   try {
     const res = await fetch(`${apiUrl}${path}`, {
