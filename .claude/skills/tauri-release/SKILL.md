@@ -1,5 +1,5 @@
 ---
-name: release
+name: tauri-release
 description: デスクトップアプリのリリース。バージョンタグの作成とプッシュを実行する。
 disable-model-invocation: true
 allowed-tools: Bash(git *), Read
