@@ -18,10 +18,10 @@ jobs:
     strategy:
       matrix:
         include:
-          - arch: aarch64
+          - arch: arm64
             runner: macos-latest
-          - arch: x86_64
-            runner: macos-13
+          - arch: x64
+            runner: macos-15-intel
 
     steps:
       - name: Checkout code
@@ -112,13 +112,13 @@ jobs:
             ### Downloads
 
             #### macOS
-            - **Apple Silicon (M1/M2/M3/M4)**: Download the `aarch64.dmg`
-            - **Intel**: Download the `x86_64.dmg`
+            - **Apple Silicon (M1/M2/M3/M4)**: Download the `arm64.dmg`
+            - **Intel**: Download the `x64.dmg`
 
             ### Installation
             Download and open the DMG file, then drag Carbon to your Applications folder.
           files: |
-            artifacts/macos-aarch64/**/*.dmg
-            artifacts/macos-x86_64/**/*.dmg
+            artifacts/macos-arm64/**/*.dmg
+            artifacts/macos-x64/**/*.dmg
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
