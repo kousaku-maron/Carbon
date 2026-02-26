@@ -1,5 +1,6 @@
 import { EditorContent, useEditor } from "@tiptap/react";
 import { Markdown } from "@tiptap/markdown";
+import { openUrl } from "@tauri-apps/plugin-opener";
 import StarterKit from "@tiptap/starter-kit";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CarbonImage } from "../lib/tiptap/carbon-image-extension";
@@ -65,7 +66,23 @@ export function NoteEditor(props: NoteEditorProps) {
             latestRef.current.onNavigateToNote?.(resolved);
           },
           onOpenExternal: (href) => {
-            console.log(`TODO: implement later... [${href}]`);
+            try {
+              const protocol = new URL(href).protocol;
+              if (!["http:", "https:", "mailto:"].includes(protocol)) {
+                latestRef.current.onLinkError?.(
+                  `Unsupported external link protocol: ${protocol}`,
+                );
+                return;
+              }
+
+              void openUrl(href).catch(() => {
+                latestRef.current.onLinkError?.(
+                  "Failed to open external link",
+                );
+              });
+            } catch {
+              latestRef.current.onLinkError?.("Invalid external link URL");
+            }
           },
           suggestion: {
             items: ({ query }: { query: string }): NoteLinkSuggestionItem[] => {
