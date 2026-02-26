@@ -598,6 +598,10 @@ button:disabled {
   transition: background 0.1s, color 0.1s;
 }
 
+.file-tree-item svg {
+  flex-shrink: 0;
+}
+
 .file-tree-item:hover {
   background: #ededec;
   color: #37352f;
@@ -759,7 +763,6 @@ button:disabled {
   width: 28px;
   height: 28px;
   padding: 0;
-  margin-left: auto;
   border: none;
   border-radius: 6px;
   background: transparent;
@@ -767,6 +770,14 @@ button:disabled {
   cursor: pointer;
   flex-shrink: 0;
   transition: color 0.12s, background 0.12s;
+}
+
+.note-editor-copy-btn:first-of-type {
+  margin-left: auto;
+}
+
+.note-editor-copy-btn + .note-editor-copy-btn {
+  margin-left: 2px;
 }
 
 .note-editor-copy-btn:hover {
