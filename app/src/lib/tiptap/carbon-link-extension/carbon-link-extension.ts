@@ -2,10 +2,29 @@ import Link from "@tiptap/extension-link";
 import type { LinkOptions } from "@tiptap/extension-link";
 import { Plugin, PluginKey } from "@tiptap/pm/state";
 import Suggestion from "@tiptap/suggestion";
+import { getRelativePath } from "../../link-utils";
 import {
   buildSuggestionConfig,
   type CarbonLinkSuggestionConfig,
 } from "./note-link-suggestion";
+
+const CARBON_NOTE_PATH_ATTR = "data-carbon-note-path";
+
+/**
+ * Build a ClipboardItem for copying a note path.
+ * - text/plain: absolute path (for external apps)
+ * - text/html: tagged anchor (detected by the paste handler within Carbon)
+ */
+export function buildNotePathClipboardItem(absolutePath: string, noteId: string): ClipboardItem {
+  const displayName = noteId.replace(/\.md$/i, "").split("/").pop() || noteId;
+  return new ClipboardItem({
+    "text/plain": new Blob([absolutePath], { type: "text/plain" }),
+    "text/html": new Blob(
+      [`<a ${CARBON_NOTE_PATH_ATTR}="${absolutePath}">${displayName}</a>`],
+      { type: "text/html" },
+    ),
+  });
+}
 
 /** Default isInternal: treat scheme-less hrefs as internal (i.e. relative paths). */
 export function isRelativePath(href: string): boolean {
@@ -20,6 +39,8 @@ export interface CarbonLinkOptions extends LinkOptions {
   onOpenExternal: ((href: string) => void) | null;
   /** When set, enables `[[` suggestion for internal note links. */
   suggestion: CarbonLinkSuggestionConfig | null;
+  /** Absolute path of the note currently being edited. Used to resolve pasted note paths. */
+  currentNotePath: string | null;
 }
 
 /**
@@ -42,6 +63,7 @@ export const CarbonLink = Link.extend<CarbonLinkOptions>({
       onOpenInternal: null,
       onOpenExternal: null,
       suggestion: null,
+      currentNotePath: null,
     };
 
     return opts;
@@ -103,6 +125,30 @@ export const CarbonLink = Link.extend<CarbonLinkOptions>({
 
             // External link → open in default browser
             onOpenExternal?.(href);
+            return true;
+          },
+        },
+      }),
+    );
+
+    // Paste handler: detect Carbon note path from clipboard and insert as relative link.
+    plugins.push(
+      new Plugin({
+        key: new PluginKey("carbonPasteLink"),
+        props: {
+          handlePaste: (view, event) => {
+            const html = event.clipboardData?.getData("text/html");
+            if (!html) return false;
+            const match = html.match(new RegExp(`${CARBON_NOTE_PATH_ATTR}="([^"]+)"`));
+            if (!match) return false;
+            const targetPath = match[1];
+            const { currentNotePath } = this.options;
+            if (!currentNotePath) return false; // fall through to default paste (absolute path as plain text)
+            const relativePath = getRelativePath(currentNotePath, targetPath);
+            const displayName = targetPath.split("/").pop()?.replace(/\.md$/i, "") || relativePath;
+            const linkMark = view.state.schema.marks.link.create({ href: relativePath });
+            const textNode = view.state.schema.text(displayName, [linkMark]);
+            view.dispatch(view.state.tr.replaceSelectionWith(textNode, false));
             return true;
           },
         },

@@ -4,6 +4,7 @@ import {
   createRootRoute,
   createRoute,
   createRouter,
+  createHashHistory,
   redirect,
   useNavigate,
 } from "@tanstack/react-router";
@@ -63,8 +64,9 @@ const rootRoute = createRootRoute({
 
     const user = await fetchMe();
     const isLoginPage = location.pathname === "/login";
+    const isWorkspacePage = location.pathname === "/workspace";
 
-    if (user && isLoginPage) {
+    if (user && !isWorkspacePage) {
       throw redirect({ to: "/workspace" });
     }
     if (!user && !isLoginPage) {
@@ -88,8 +90,11 @@ const workspaceRoute = createRoute({
 
 const routeTree = rootRoute.addChildren([loginRoute, workspaceRoute]);
 
+const hashHistory = createHashHistory();
+
 export const router = createRouter({
   routeTree,
+  history: hashHistory,
 });
 
 declare module "@tanstack/react-router" {
