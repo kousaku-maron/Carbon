@@ -82,14 +82,8 @@ select {
 .sidebar-brand-icon {
   width: 22px;
   height: 22px;
-  background: linear-gradient(135deg, #6366f1, #8b5cf6);
   border-radius: 7px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: 700;
-  font-size: 0.85rem;
-  color: #fff;
+  object-fit: contain;
 }
 
 .sidebar-brand-text {

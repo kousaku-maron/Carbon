@@ -64,7 +64,7 @@ export function WorkspaceRoute() {
       <aside className={`sidebar ${sidebarOpen ? "" : "sidebar--closed"}`}>
         <div className="sidebar-top">
           <div className="sidebar-brand">
-            <span className="sidebar-brand-icon">C</span>
+            <img src="/icon.png" alt="Carbon" className="sidebar-brand-icon" />
             <span className="sidebar-brand-text">Carbon</span>
             <button
               className="sidebar-toggle-btn"
