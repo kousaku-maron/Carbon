@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "carbon",
+  "productName": "Carbon",
   "version": "0.1.0",
   "identifier": "dev.maron.carbon",
   "build": {

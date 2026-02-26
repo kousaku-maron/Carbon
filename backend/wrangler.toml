@@ -1,11 +1,11 @@
-name = "tauri-cloudflare-todo-backend"
+name = "carbon-backend"
 main = "src/index.ts"
 compatibility_date = "2025-01-01"
-compatibility_flags = ["nodejs_compat"]
+compatibility_flags = [ "nodejs_compat" ]
 
 [vars]
-BETTER_AUTH_URL = "https://tauri-cloudflare-todo-backend.kousaku-maron.workers.dev"
-CORS_ORIGINS = "http://localhost:1420,tauri://localhost"
+BETTER_AUTH_URL = "https://carbon-backend.kousaku-maron.workers.dev"
+CORS_ORIGINS = "tauri://localhost"
 ASSET_MAX_IMAGE_BYTES = "5242880"
 
 [[r2_buckets]]
