@@ -1,5 +1,6 @@
 export { API_BASE_URL } from "./client";
 export {
+  getCachedToken,
   restoreToken,
   persistToken,
   signInWithGoogle,

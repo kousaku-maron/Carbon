@@ -62,9 +62,18 @@ const rootRoute = createRootRoute({
       tokenRestored = true;
     }
 
-    const user = await fetchMe();
     const isLoginPage = location.pathname === "/login";
     const isWorkspacePage = location.pathname === "/workspace";
+    let user: Awaited<ReturnType<typeof fetchMe>>;
+
+    try {
+      user = await fetchMe();
+    } catch {
+      if (!isLoginPage) {
+        throw redirect({ to: "/login" });
+      }
+      return;
+    }
 
     if (user && !isWorkspacePage) {
       throw redirect({ to: "/workspace" });

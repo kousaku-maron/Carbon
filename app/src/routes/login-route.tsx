@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
-import { signInWithGoogle } from "../lib/api";
+import { fetchMe, getCachedToken, signInWithGoogle } from "../lib/api";
+import { ApiRequestError } from "../lib/api/client";
 
 export function LoginRoute() {
-  const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
   const navigate = useNavigate();
   const abortRef = useRef<AbortController | null>(null);
@@ -12,8 +12,61 @@ export function LoginRoute() {
     return () => abortRef.current?.abort();
   }, []);
 
+  useEffect(() => {
+    if (!getCachedToken()) return;
+
+    let active = true;
+    let inFlight = false;
+    let retryTimer: ReturnType<typeof setInterval> | null = null;
+
+    const stopRetry = () => {
+      if (retryTimer) {
+        clearInterval(retryTimer);
+        retryTimer = null;
+      }
+    };
+
+    const probeSession = async () => {
+      if (!active || inFlight) return;
+      inFlight = true;
+
+      try {
+        const user = await fetchMe();
+        if (!active) return;
+
+        if (user) {
+          stopRetry();
+          await navigate({ to: "/workspace" });
+          return;
+        }
+
+        // Request reached backend successfully; no more retry needed.
+        stopRetry();
+      } catch (error) {
+        if (
+          error instanceof ApiRequestError &&
+          (error.status === 401 || error.status === 403)
+        ) {
+          stopRetry();
+        }
+        // Keep retrying while backend/network is unavailable.
+      } finally {
+        inFlight = false;
+      }
+    };
+
+    retryTimer = setInterval(() => {
+      void probeSession();
+    }, 5_000);
+    void probeSession();
+
+    return () => {
+      active = false;
+      stopRetry();
+    };
+  }, [navigate]);
+
   async function handleGoogleSignIn(): Promise<void> {
-    setLoading(true);
     setMessage("Complete sign-in in your browser...");
 
     try {
@@ -37,7 +90,6 @@ export function LoginRoute() {
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Sign in failed");
     }
-    setLoading(false);
   }
 
   return (
@@ -52,7 +104,6 @@ export function LoginRoute() {
             type="button"
             className="auth-google-btn"
             onClick={handleGoogleSignIn}
-            disabled={loading}
           >
             <svg width="18" height="18" viewBox="0 0 18 18">
               <path
