@@ -1,5 +1,6 @@
 import { useNavigate } from "@tanstack/react-router";
-import { useCallback, useState } from "react";
+import { getVersion } from "@tauri-apps/api/app";
+import { useCallback, useEffect, useState } from "react";
 import { FileTree } from "../components/FileTree";
 import { NoteEditor } from "../components/NoteEditor";
 import { VaultSelector } from "../components/VaultSelector";
@@ -10,6 +11,7 @@ export function WorkspaceRoute() {
   const navigate = useNavigate();
   const [message, setMessage] = useState("");
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [appVersion, setAppVersion] = useState<string | null>(null);
 
   const {
     vaultPath,
@@ -48,6 +50,26 @@ export function WorkspaceRoute() {
     await navigate({ to: "/login" });
   }
 
+  useEffect(() => {
+    let cancelled = false;
+
+    void getVersion()
+      .then((version) => {
+        if (!cancelled) {
+          setAppVersion(version);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setAppVersion(null);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   if (loading) {
     return (
       <div className="app-layout">
@@ -65,7 +87,12 @@ export function WorkspaceRoute() {
         <div className="sidebar-top">
           <div className="sidebar-brand">
             <img src="/icon.png" alt="Carbon" className="sidebar-brand-icon" />
-            <span className="sidebar-brand-text">Carbon</span>
+            <span className="sidebar-brand-text">
+              Carbon
+              {appVersion ? (
+                <span className="sidebar-brand-version">v{appVersion}</span>
+              ) : null}
+            </span>
             <button
               className="sidebar-toggle-btn"
               onClick={() => setSidebarOpen(false)}

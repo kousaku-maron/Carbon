@@ -10,6 +10,7 @@ import {
 } from "@tanstack/react-router";
 import { getCurrent, onOpenUrl } from "@tauri-apps/plugin-deep-link";
 import { fetchMe, persistToken, restoreToken } from "./lib/api";
+import { checkForAppUpdatesOnStartup } from "./lib/updater";
 import { LoginRoute } from "./routes/login-route";
 import { WorkspaceRoute } from "./routes/workspace-route";
 
@@ -27,6 +28,10 @@ function extractTokenFromDeepLink(url: string): string | null {
 
 function RootComponent() {
   const navigate = useNavigate();
+
+  useEffect(() => {
+    void checkForAppUpdatesOnStartup();
+  }, []);
 
   useEffect(() => {
     const handleUrls = async (urls: string[]) => {
