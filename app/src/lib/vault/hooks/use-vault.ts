@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { NoteContent, TreeNode } from "../../types";
-import { pathsEqual } from "../../path-utils";
+import { getBaseName, isPathInside, pathsEqual, toVaultRelative } from "../../path-utils";
 import { scanVault } from "../modules/note-index";
 import { readNote } from "../modules/note-persistence";
 import {
@@ -40,12 +40,46 @@ export function useVault(options?: UseVaultOptions) {
     }
   }, [activeNote, setActiveNote]);
 
+  const onPathsRemoved = useCallback((removedPaths: string[]) => {
+    if (!removedPaths.length) return;
+    setActiveNote((current) => {
+      if (!current) return current;
+      const deleted = removedPaths.some((p) => isPathInside(current.path, p));
+      return deleted ? null : current;
+    });
+  }, [setActiveNote]);
+
+  const onPathsMoved = useCallback((moves: Array<{ from: string; to: string }>) => {
+    if (!moves.length) return;
+    setActiveNote((current) => {
+      if (!current) return current;
+
+      let next = current;
+      for (const move of moves) {
+        if (!isPathInside(next.path, move.from)) continue;
+        const suffix = next.path.substring(move.from.length);
+        const updatedPath = `${move.to}${suffix}`;
+        next = {
+          ...next,
+          path: updatedPath,
+          id: vaultPath ? toVaultRelative(updatedPath, vaultPath) : next.id,
+          name: pathsEqual(next.path, move.from)
+            ? getBaseName(updatedPath).replace(/\.md$/i, "")
+            : next.name,
+        };
+      }
+      return next;
+    });
+  }, [setActiveNote, vaultPath]);
+
   // --- Sub-hooks ---
 
   useFileWatcher({
     vaultPath,
     setTree,
     onFileChange,
+    onPathsRemoved,
+    onPathsMoved,
     onError: options?.onError,
   });
 

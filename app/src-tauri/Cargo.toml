@@ -13,7 +13,7 @@ tauri = { version = "2", features = [] }
 serde_json = "1"
 tauri-plugin-store = "2"
 tauri-plugin-dialog = "2"
-tauri-plugin-fs = "2"
+tauri-plugin-fs = { version = "2", features = ["watch"] }
 tauri-plugin-deep-link = "2"
 tauri-plugin-http = "2"
 tauri-plugin-os = "2"
