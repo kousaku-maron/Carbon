@@ -93,6 +93,13 @@ select {
   flex: 1;
 }
 
+.sidebar-brand-version {
+  margin-left: 0.35rem;
+  font-weight: 500;
+  font-size: 0.72rem;
+  color: #9b9a97;
+}
+
 .sidebar-toggle-btn {
   display: flex;
   align-items: center;

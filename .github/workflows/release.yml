@@ -63,6 +63,8 @@ jobs:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: pnpm tauri build
 
       - name: Upload artifacts
@@ -72,6 +74,8 @@ jobs:
           path: |
             app/src-tauri/target/release/bundle/dmg/*.dmg
             app/src-tauri/target/release/bundle/macos/*.app
+            app/src-tauri/target/release/bundle/macos/*.tar.gz
+            app/src-tauri/target/release/bundle/macos/*.sig
 
   release:
     name: Create Release
@@ -94,7 +98,57 @@ jobs:
           path: artifacts
 
       - name: List artifacts
-        run: find artifacts -type f \( -name "*.dmg" -o -name "*.app" \) | sort
+        run: find artifacts -type f \( -name "*.dmg" -o -name "*.app" -o -name "*.tar.gz" -o -name "*.sig" \) | sort
+
+      - name: Generate latest.json
+        env:
+          TAG_NAME: ${{ github.event.inputs.tag || github.ref_name }}
+          VERSION: ${{ steps.version.outputs.version }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+
+          arm_pkg="$(find artifacts/macos-arm64 -type f -name "*.tar.gz" | head -n 1)"
+          arm_sig_file="$(find artifacts/macos-arm64 -type f -name "*.sig" | head -n 1)"
+          x64_pkg="$(find artifacts/macos-x64 -type f -name "*.tar.gz" | head -n 1)"
+          x64_sig_file="$(find artifacts/macos-x64 -type f -name "*.sig" | head -n 1)"
+
+          if [ -z "${arm_pkg}" ] || [ -z "${arm_sig_file}" ] || [ -z "${x64_pkg}" ] || [ -z "${x64_sig_file}" ]; then
+            echo "missing updater artifacts"
+            exit 1
+          fi
+
+          arm_sig="$(cat "${arm_sig_file}")"
+          x64_sig="$(cat "${x64_sig_file}")"
+          pub_date="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+          base_url="https://github.com/${REPOSITORY}/releases/download/${TAG_NAME}"
+
+          jq -n \
+            --arg version "v${VERSION}" \
+            --arg notes "See release notes on GitHub." \
+            --arg pub_date "${pub_date}" \
+            --arg arm_sig "${arm_sig}" \
+            --arg arm_url "${base_url}/$(basename "${arm_pkg}")" \
+            --arg x64_sig "${x64_sig}" \
+            --arg x64_url "${base_url}/$(basename "${x64_pkg}")" \
+            '{
+              version: $version,
+              notes: $notes,
+              pub_date: $pub_date,
+              platforms: {
+                "darwin-aarch64": {
+                  signature: $arm_sig,
+                  url: $arm_url
+                },
+                "darwin-x86_64": {
+                  signature: $x64_sig,
+                  url: $x64_url
+                }
+              }
+            }' > artifacts/latest.json
+
+      - name: Show latest.json
+        run: cat artifacts/latest.json
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
@@ -120,5 +174,10 @@ jobs:
           files: |
             artifacts/macos-arm64/**/*.dmg
             artifacts/macos-x64/**/*.dmg
+            artifacts/macos-arm64/**/*.tar.gz
+            artifacts/macos-arm64/**/*.sig
+            artifacts/macos-x64/**/*.tar.gz
+            artifacts/macos-x64/**/*.sig
+            artifacts/latest.json
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

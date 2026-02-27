@@ -92,6 +92,37 @@ pnpm --filter backend typecheck
 pnpm build
 ```
 
+## Tauri 自動更新（GitHub Releases）
+
+このリポジトリは Tauri v2 updater を有効化済みです。
+
+- endpoint: `https://github.com/kousaku-maron/Carbon/releases/latest/download/latest.json`
+- 設定ファイル: `app/src-tauri/tauri.conf.json`
+- 起動時チェック: `app/src/lib/updater.ts`
+
+初回セットアップ:
+
+1. アップデート署名鍵を生成
+
+```bash
+cd app
+pnpm tauri signer generate -w ~/.tauri/carbon.key
+```
+
+2. 生成された公開鍵を `app/src-tauri/tauri.conf.json` の `plugins.updater.pubkey` に設定
+
+3. GitHub Secrets を設定（`release.yml` で使用）
+- `TAURI_SIGNING_PRIVATE_KEY`
+- `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`
+- `DEVELOPER_CERT_BASE64`
+- `DEVELOPER_CERT_PASSPHRASE`
+- `APPLE_SIGNING_IDENTITY`
+- `APPLE_ID`
+- `APPLE_PASSWORD`
+- `APPLE_TEAM_ID`
+
+`release.yml` は `.dmg` に加えて updater 用アーティファクト（`*.tar.gz`, `*.sig`）と `latest.json` を Release Asset に添付します。
+
 ## API（現在利用）
 
 - `POST /api/auth/sign-up/email`
