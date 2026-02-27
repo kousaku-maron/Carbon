@@ -4,6 +4,17 @@ export const API_BASE_URL = (
   import.meta.env.VITE_API_BASE_URL || "http://localhost:8787"
 ).replace(/\/$/, "");
 
+export class ApiRequestError extends Error {
+  constructor(
+    readonly path: string,
+    readonly status: number,
+    readonly body: string,
+  ) {
+    super(body || `Request failed: ${status}`);
+    this.name = "ApiRequestError";
+  }
+}
+
 export async function request<T>(
   path: string,
   init?: RequestInit & { timeout?: number },
@@ -12,10 +23,11 @@ export async function request<T>(
   const timeoutMs = init?.timeout ?? 10_000;
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
+  const hasBody = init?.body !== undefined && init?.body !== null;
   const isFormData = init?.body instanceof FormData;
 
   const headers: Record<string, string> = {
-    ...(isFormData ? {} : { "Content-Type": "application/json" }),
+    ...(hasBody && !isFormData ? { "Content-Type": "application/json" } : {}),
     ...((init?.headers as Record<string, string>) || {}),
   };
 
@@ -42,7 +54,7 @@ export async function request<T>(
 
   if (!res.ok) {
     const body = await res.text();
-    throw new Error(body || `Request failed: ${res.status}`);
+    throw new ApiRequestError(path, res.status, body);
   }
 
   const contentType = res.headers.get("content-type") || "";

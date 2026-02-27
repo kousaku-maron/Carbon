@@ -88,7 +88,7 @@ export async function signInWithGoogle(
 
 export async function signOut(): Promise<void> {
   try {
-    await request("/api/auth/sign-out", { method: "POST" });
+    await request("/api/auth/sign-out", { method: "POST", body: "{}" });
   } catch {
     /* ignore sign-out errors */
   }
@@ -96,10 +96,9 @@ export async function signOut(): Promise<void> {
 }
 
 export async function fetchMe(): Promise<User | null> {
-  try {
-    const data = await request<{ user: User | null }>("/api/me");
-    return data.user;
-  } catch {
-    return null;
-  }
+  const data = await request<{ user: User | null }>("/api/me", {
+    // /api/me is called on app boot; allow extra time for Worker cold starts.
+    timeout: 25_000,
+  });
+  return data.user;
 }
