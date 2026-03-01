@@ -90,17 +90,18 @@ const { vaultPath, tree, activeNote, switchVault, handleSelectNote, ... } = useV
   - `remove` → `removeFromTree`
   - `rename.from` → `removeFromTree` / `rename.to` → `addToTree`
   - `modify.data` → `onFileChange` callback のみ（ツリー変更なし）
-  - フォールバック → `scanVault` で全スキャン
+  - `modify.metadata` → 無視（2026-03-01 反映、誤検知抑制）
+  - 不明イベント → 無視（false positive 抑制）
 - 状態を持たない純粋な副作用 hook（戻り値なし）
 
-#### `useFileOps({ vaultPath, tree, activeNote, setTree, setActiveNote, onError? })` — ファイル CRUD
+#### `useFileOps({ vaultPath, tree, setTree, onSelectNote?, onPathsRemoved?, onPathsMoved?, onError? })` — ファイル CRUD
 
 | 項目 | 内容 |
 |------|------|
-| 関数 | `handleSelectNote`, `handleSaveNote`, `handleCreateFile`, `handleCreateFolder`, `handleRename`, `handleDelete`, `handleMove`, `handleNavigateToNote` |
+| 関数 | `handleSaveNote`, `handleCreateFile`, `handleCreateFolder`, `handleRename`, `handleDelete`, `handleMove`, `handleNavigateToNote` |
 | ユーティリティ | `validateNodeName`（モジュールレベル純粋関数） |
 
-- 状態を持たない — `activeNote` / `setActiveNote` / `setTree` はすべて外部から注入
+- 状態を持たない — `setTree` と各種 callback は外部から注入
 - ファイル操作後のツリー更新はインクリメンタル:
   - create → `addToTree`、delete → `removeFromTree`、rename/move → `relocateInTree`
 
@@ -184,7 +185,7 @@ API 呼び出しと DB クエリの効率を上げ、重複した HTTP クライ
 - `WatchEvent` のタイプ別にインクリメンタルツリー更新を実装（`use-file-watcher.ts`）
 - `note-index.ts` に `addToTree` / `removeFromTree` / `relocateInTree` を追加
 - ファイル CRUD 操作後のツリー更新も `scan()` 全スキャンから `addToTree` / `removeFromTree` / `relocateInTree` に置換
-- 認識不能なイベントのみフォールバックで `scanVault` 全スキャン
+- `modify.metadata` は変更通知対象から除外（2026-03-01）
 
 ### 主対象ファイル
 

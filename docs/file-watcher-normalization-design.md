@@ -8,6 +8,7 @@
 ## 1.1 実装ステータス
 
 - 段階1（正規化レイヤーのみ）は実装済み
+- 2026-03-01: `modify.metadata` は `onFileChange` 対象から除外済み（誤検知抑制）
 - 段階2（キュー処理）は未着手
 - キュー処理は別途対応予定
 
@@ -69,8 +70,9 @@ watch event
 
 ### 6.4 modify.data / modify.metadata / any / other
 
-- `touch(path)` を発行
-- 追加で `probePath(path)` を行い、存在する `.md`/folder なら `upsert-*` を補完
+- `modify.data` のみ `touch(path)` を発行
+- `modify.metadata` は `onFileChange` 誤検知を避けるため無視する
+- `modify.any/other` は現状無視する（不明イベントの安全側運用）
 
 ## 7. probePath
 

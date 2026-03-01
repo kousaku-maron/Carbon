@@ -1,18 +1,15 @@
 import type { Dispatch, SetStateAction } from "react";
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback } from "react";
 import { mkdir, remove, rename, writeTextFile } from "@tauri-apps/plugin-fs";
-import { readNote, writeNote } from "../modules/note-persistence";
+import { writeNote } from "../modules/note-persistence";
 import { findNodeByPath } from "../../link-utils";
 import {
   getBaseName,
   getParentPath,
   hasInvalidNodeName,
-  isPathInside,
   joinPath,
-  pathsEqual,
-  toVaultRelative,
 } from "../../path-utils";
-import type { NoteContent, TreeNode } from "../../types";
+import type { TreeNode } from "../../types";
 import { addToTree, relocateInTree, removeFromTree } from "../modules/note-index";
 
 function validateNodeName(raw: string): string {
@@ -27,47 +24,29 @@ function validateNodeName(raw: string): string {
 interface UseFileOpsOptions {
   vaultPath: string | null;
   tree: TreeNode[];
-  activeNote: NoteContent | null;
   setTree: Dispatch<SetStateAction<TreeNode[]>>;
-  setActiveNote: Dispatch<SetStateAction<NoteContent | null>>;
+  onSelectNote?: (node: TreeNode) => Promise<void>;
+  onPathsRemoved?: (removedPaths: string[]) => void;
+  onPathsMoved?: (moves: Array<{ from: string; to: string }>) => void;
   onError?: (msg: string) => void;
 }
 
 export function useFileOps({
   vaultPath,
   tree,
-  activeNote,
   setTree,
-  setActiveNote,
+  onSelectNote,
+  onPathsRemoved,
+  onPathsMoved,
   onError,
 }: UseFileOpsOptions) {
-  const docKeyCounter = useRef(0);
-
-  const handleSelectNote = useCallback(
-    async (node: TreeNode) => {
-      if (node.kind !== "file") return;
-      try {
-        const body = await readNote(node.path);
-        setActiveNote({
-          id: node.id,
-          path: node.path,
-          name: node.name,
-          body,
-          docKey: docKeyCounter.current,
-        });
-      } catch (e) {
-        onError?.(e instanceof Error ? e.message : "Failed to read note");
-      }
-    },
-    [onError, setActiveNote],
-  );
-
   const handleSaveNote = useCallback(
     async (path: string, content: string) => {
       try {
         await writeNote(path, content);
       } catch (err) {
         onError?.(err instanceof Error ? err.message : "Failed to save note");
+        throw err;
       }
     },
     [onError],
@@ -136,28 +115,15 @@ export function useFileOps({
           `${stripped}${isMarkdown ? ".md" : ""}`,
         );
         await rename(oldPath, newPath);
-        if (activeNote && isPathInside(activeNote.path, oldPath)) {
-          const suffix = activeNote.path.substring(oldPath.length);
-          const updatedPath = newPath + suffix;
-          setActiveNote({
-            ...activeNote,
-            path: updatedPath,
-            name: pathsEqual(activeNote.path, oldPath)
-              ? stripped
-              : activeNote.name,
-            id: vaultPath
-              ? toVaultRelative(updatedPath, vaultPath)
-              : activeNote.id,
-          });
-        }
         if (vaultPath) {
           setTree((prev) => relocateInTree(prev, oldPath, newPath, vaultPath));
         }
+        onPathsMoved?.([{ from: oldPath, to: newPath }]);
       } catch (e) {
         onError?.(e instanceof Error ? e.message : "Failed to rename");
       }
     },
-    [vaultPath, activeNote?.path, activeNote?.name, onError, setActiveNote, setTree],
+    [vaultPath, onError, onPathsMoved, setTree],
   );
 
   const handleDelete = useCallback(
@@ -166,15 +132,13 @@ export function useFileOps({
       if (!confirm(`Delete ${label} "${node.name}"?`)) return;
       try {
         await remove(node.path, { recursive: node.kind === "folder" });
-        if (activeNote && isPathInside(activeNote.path, node.path)) {
-          setActiveNote(null);
-        }
         setTree((prev) => removeFromTree(prev, node.path));
+        onPathsRemoved?.([node.path]);
       } catch (err) {
         onError?.(err instanceof Error ? err.message : "Failed to delete");
       }
     },
-    [activeNote, setActiveNote, setTree],
+    [onError, onPathsRemoved, setTree],
   );
 
   const handleMove = useCallback(
@@ -184,25 +148,15 @@ export function useFileOps({
         const newPath = joinPath(targetFolderPath, fileName);
         if (sourcePath === newPath) return;
         await rename(sourcePath, newPath);
-        if (activeNote && isPathInside(activeNote.path, sourcePath)) {
-          const suffix = activeNote.path.substring(sourcePath.length);
-          const updatedPath = newPath + suffix;
-          setActiveNote({
-            ...activeNote,
-            path: updatedPath,
-            id: vaultPath
-              ? toVaultRelative(updatedPath, vaultPath)
-              : activeNote.id,
-          });
-        }
         if (vaultPath) {
           setTree((prev) => relocateInTree(prev, sourcePath, newPath, vaultPath));
         }
+        onPathsMoved?.([{ from: sourcePath, to: newPath }]);
       } catch (e) {
         onError?.(e instanceof Error ? e.message : "Failed to move");
       }
     },
-    [activeNote, vaultPath, setActiveNote, onError, setTree],
+    [onError, onPathsMoved, setTree, vaultPath],
   );
 
   const handleNavigateToNote = useCallback(
@@ -212,13 +166,16 @@ export function useFileOps({
         onError?.("Link target not found");
         return;
       }
-      await handleSelectNote(node);
+      if (!onSelectNote) {
+        onError?.("Failed to open note");
+        return;
+      }
+      await onSelectNote(node);
     },
-    [tree, handleSelectNote, onError],
+    [tree, onSelectNote, onError],
   );
 
   return {
-    handleSelectNote,
     handleSaveNote,
     handleCreateFile,
     handleCreateFolder,

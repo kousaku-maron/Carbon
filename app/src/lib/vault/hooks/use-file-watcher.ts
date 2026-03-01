@@ -20,6 +20,11 @@ type CanonicalOp =
   | { kind: "move"; from: string; to: string }
   | { kind: "touch"; path: string };
 
+function logWatchDev(label: string, payload: Record<string, unknown>): void {
+  if (!import.meta.env.DEV) return;
+  console.debug(`[watch] ${label}`, payload);
+}
+
 function formatError(err: unknown, fallback: string): string {
   if (err instanceof Error && err.message) return err.message;
   if (typeof err === "string" && err.trim()) return err;
@@ -112,9 +117,12 @@ function normalizeWatchEvent(event: WatchEvent): CanonicalOp[] {
     return ops;
   }
 
-  for (const path of paths) {
-    ops.push({ kind: "touch", path });
+  if ("modify" in type) {
+    // Metadata/attribute-only updates should not trigger markdown reload flow.
+    return ops;
   }
+
+  // Unknown events are ignored to avoid false positives in onFileChange.
   return ops;
 }
 
@@ -187,6 +195,7 @@ export function useFileWatcher({
   onError,
 }: UseFileWatcherOptions) {
   const latestRef = useRef({ onFileChange, onPathsRemoved, onPathsMoved, onError });
+  const eventSeqRef = useRef(0);
 
   useEffect(() => {
     latestRef.current = { onFileChange, onPathsRemoved, onPathsMoved, onError };
@@ -204,22 +213,42 @@ export function useFileWatcher({
           async (event: WatchEvent) => {
             if (disposed) return;
             try {
+              eventSeqRef.current += 1;
+              const eventId = eventSeqRef.current;
+              const rawType = typeof event.type === "string"
+                ? event.type
+                : JSON.stringify(event.type);
+              logWatchDev("received", {
+                eventId,
+                rawType,
+                pathCount: event.paths?.length ?? 0,
+                paths: event.paths ?? [],
+              });
+
               const ops = normalizeWatchEvent(event);
               if (!ops.length) return;
+              logWatchDev("normalized", {
+                eventId,
+                opCount: ops.length,
+                opKinds: ops.map((op) => op.kind),
+              });
               setTree((prev) => applyTreeOps(prev, ops, vaultPath));
 
               const removedPaths = collectRemovedPaths(ops);
               if (removedPaths.length) {
+                logWatchDev("removed-paths", { eventId, removedPaths });
                 latestRef.current.onPathsRemoved?.(removedPaths);
               }
 
               const movedPaths = collectMovedPaths(ops);
               if (movedPaths.length) {
+                logWatchDev("moved-paths", { eventId, movedPaths });
                 latestRef.current.onPathsMoved?.(movedPaths);
               }
 
               const changed = collectChangedMarkdownPaths(ops);
               if (changed.length) {
+                logWatchDev("changed-markdown", { eventId, changed });
                 await latestRef.current.onFileChange?.(changed);
               }
             } catch (err) {

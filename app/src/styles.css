@@ -786,32 +786,6 @@ button:disabled {
   color: #37352f;
 }
 
-.note-editor-toast {
-  position: absolute;
-  bottom: 1rem;
-  left: 50%;
-  transform: translateX(-50%);
-  background: #37352f;
-  color: #ffffff;
-  border-radius: 8px;
-  padding: 0.45rem 0.9rem;
-  font-size: 0.8rem;
-  z-index: 50;
-  pointer-events: none;
-  animation: note-editor-toast-in 0.15s ease-out;
-}
-
-@keyframes note-editor-toast-in {
-  from {
-    opacity: 0;
-    transform: translateX(-50%) translateY(6px);
-  }
-  to {
-    opacity: 1;
-    transform: translateX(-50%) translateY(0);
-  }
-}
-
 .note-editor-content {
   flex: 1;
   overflow-y: auto;
@@ -987,15 +961,15 @@ button:disabled {
   bottom: 1rem;
   left: 50%;
   transform: translateX(-50%);
-  background: #ffffff;
-  color: #37352f;
-  border: 1px solid #e3e2e0;
+  background: #37352f;
+  color: #ffffff;
+  border: none;
   border-radius: 8px;
   padding: 0.5rem 1rem;
   font-size: 0.8rem;
   cursor: pointer;
   z-index: 100;
-  box-shadow: 0 4px 16px rgba(15, 15, 15, 0.1);
+  box-shadow: 0 4px 16px rgba(15, 15, 15, 0.18);
   animation: toast-in 0.2s ease-out;
 }
 
