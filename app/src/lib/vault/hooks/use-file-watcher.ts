@@ -1,6 +1,6 @@
 import type { Dispatch, SetStateAction } from "react";
 import { useEffect, useRef } from "react";
-import { watch } from "@tauri-apps/plugin-fs";
+import { readDir, watch } from "@tauri-apps/plugin-fs";
 import type { WatchEvent } from "@tauri-apps/plugin-fs";
 import { addToTree, relocateInTree, removeFromTree } from "../modules/note-index";
 import type { TreeNode } from "../../types";
@@ -41,7 +41,20 @@ function isMarkdownFile(path: string): boolean {
   return path.toLowerCase().endsWith(".md");
 }
 
-function normalizeWatchEvent(event: WatchEvent): CanonicalOp[] {
+async function resolveNodeKind(
+  path: string,
+  hintedKind: "file" | "folder" | "any" | "other",
+): Promise<"file" | "folder"> {
+  if (hintedKind === "file" || hintedKind === "folder") return hintedKind;
+  try {
+    await readDir(path);
+    return "folder";
+  } catch {
+    return "file";
+  }
+}
+
+async function normalizeWatchEvent(event: WatchEvent): Promise<CanonicalOp[]> {
   const type = event.type;
   const paths = event.paths ?? [];
   const ops: CanonicalOp[] = [];
@@ -55,16 +68,8 @@ function normalizeWatchEvent(event: WatchEvent): CanonicalOp[] {
 
   if ("create" in type) {
     for (const path of paths) {
-      if (type.create.kind === "folder") {
-        ops.push({ kind: "upsert", path, nodeKind: "folder" });
-        continue;
-      }
-      // NOTE: On macOS, create.kind can be "any", so keep the existing extension heuristic.
-      if (isMarkdownFile(path)) {
-        ops.push({ kind: "upsert", path, nodeKind: "file" });
-      } else {
-        ops.push({ kind: "upsert", path, nodeKind: "folder" });
-      }
+      const nodeKind = await resolveNodeKind(path, type.create.kind);
+      ops.push({ kind: "upsert", path, nodeKind });
     }
     return ops;
   }
@@ -81,6 +86,8 @@ function normalizeWatchEvent(event: WatchEvent): CanonicalOp[] {
     const mode = type.modify.mode;
     if (mode === "both" && paths.length >= 2) {
       ops.push({ kind: "move", from: paths[0], to: paths[1] });
+      const nodeKind = await resolveNodeKind(paths[1], "any");
+      ops.push({ kind: "upsert", path: paths[1], nodeKind });
       ops.push({ kind: "touch", path: paths[0] });
       ops.push({ kind: "touch", path: paths[1] });
       return ops;
@@ -94,11 +101,8 @@ function normalizeWatchEvent(event: WatchEvent): CanonicalOp[] {
     }
     if (mode === "to") {
       for (const path of paths) {
-        if (isMarkdownFile(path)) {
-          ops.push({ kind: "upsert", path, nodeKind: "file" });
-        } else {
-          ops.push({ kind: "upsert", path, nodeKind: "folder" });
-        }
+        const nodeKind = await resolveNodeKind(path, "any");
+        ops.push({ kind: "upsert", path, nodeKind });
         ops.push({ kind: "touch", path });
       }
       return ops;
@@ -136,12 +140,7 @@ function applyTreeOps(prev: TreeNode[], ops: CanonicalOp[], vaultRoot: string): 
     }
     if (op.kind === "move") {
       const relocated = relocateInTree(next, op.from, op.to, vaultRoot);
-      if (relocated === next) {
-        const fallbackKind = isMarkdownFile(op.to) ? "file" as const : "folder" as const;
-        next = addToTree(next, op.to, vaultRoot, fallbackKind);
-      } else {
-        next = relocated;
-      }
+      next = relocated;
       continue;
     }
     if (op.kind === "upsert") {
@@ -225,7 +224,7 @@ export function useFileWatcher({
                 paths: event.paths ?? [],
               });
 
-              const ops = normalizeWatchEvent(event);
+              const ops = await normalizeWatchEvent(event);
               if (!ops.length) return;
               logWatchDev("normalized", {
                 eventId,

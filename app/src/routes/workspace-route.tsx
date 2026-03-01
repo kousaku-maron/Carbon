@@ -2,10 +2,13 @@ import { useNavigate } from "@tanstack/react-router";
 import { getVersion } from "@tauri-apps/api/app";
 import { useCallback, useEffect, useState } from "react";
 import { FileTree } from "../components/FileTree";
+import { ImageViewer } from "../components/ImageViewer";
 import { NoteEditor } from "../components/NoteEditor";
 import { Toast } from "../components/Toast";
+import { UnsupportedFileViewer } from "../components/UnsupportedFileViewer";
 import { VaultSelector } from "../components/VaultSelector";
 import { signOut } from "../lib/api";
+import { isImagePath } from "../lib/file-kind";
 import { pickVaultFolder, useVault } from "../lib/vault";
 
 export function WorkspaceRoute() {
@@ -19,6 +22,7 @@ export function WorkspaceRoute() {
     vaultHistory,
     tree,
     activeNote,
+    activeNonMarkdownFile,
     loading,
     switchVault,
     handleRemoveFromHistory,
@@ -72,6 +76,31 @@ export function WorkspaceRoute() {
     };
   }, []);
 
+  useEffect(() => {
+    const suppressExternalFileDrop = (e: DragEvent) => {
+      const hasFiles = Array.from(e.dataTransfer?.types ?? []).includes("Files");
+      if (!hasFiles) return;
+
+      const target = e.target;
+      if (target instanceof Element && target.closest(".tiptap, .ProseMirror")) {
+        return;
+      }
+
+      e.preventDefault();
+      if (e.dataTransfer) {
+        e.dataTransfer.dropEffect = "none";
+      }
+    };
+
+    window.addEventListener("dragover", suppressExternalFileDrop);
+    window.addEventListener("drop", suppressExternalFileDrop);
+
+    return () => {
+      window.removeEventListener("dragover", suppressExternalFileDrop);
+      window.removeEventListener("drop", suppressExternalFileDrop);
+    };
+  }, []);
+
   if (loading) {
     return (
       <div className="app-layout">
@@ -119,7 +148,7 @@ export function WorkspaceRoute() {
             <nav className="file-tree-container">
               <FileTree
                 nodes={tree}
-                activeNoteId={activeNote?.id ?? null}
+                activeNoteId={activeNote?.id ?? activeNonMarkdownFile?.id ?? null}
                 vaultPath={vaultPath}
                 onSelect={handleSelectNote}
                 onCreateFile={handleCreateFile}
@@ -178,6 +207,10 @@ export function WorkspaceRoute() {
             onNavigateToNote={handleNavigateToNote}
             onLinkError={(msg) => setMessage(msg)}
           />
+        ) : activeNonMarkdownFile && isImagePath(activeNonMarkdownFile.path) ? (
+          <ImageViewer file={activeNonMarkdownFile} />
+        ) : activeNonMarkdownFile ? (
+          <UnsupportedFileViewer file={activeNonMarkdownFile} />
         ) : (
           <div className="workspace-empty">
             <p>

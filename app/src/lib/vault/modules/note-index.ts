@@ -3,11 +3,15 @@ import { getBaseName, getParentPath, joinPath, toVaultRelative } from "../../pat
 import type { TreeNode } from "../../types";
 
 /**
- * Recursively scan a directory and return a sorted tree of folders and .md files.
+ * Recursively scan a directory and return a sorted tree of folders and files.
  * Sorting: folders first, then files, both alphabetical (case-insensitive).
  */
 export async function scanVault(vaultPath: string): Promise<TreeNode[]> {
   return scanDir(vaultPath, vaultPath);
+}
+
+function getFileDisplayName(fileName: string): string {
+  return fileName.replace(/\.md$/i, "");
 }
 
 async function scanDir(absolutePath: string, vaultRoot: string): Promise<TreeNode[]> {
@@ -30,10 +34,10 @@ async function scanDir(absolutePath: string, vaultRoot: string): Promise<TreeNod
         kind: "folder",
         children,
       });
-    } else if (entry.name.endsWith(".md")) {
+    } else {
       nodes.push({
         id: relativePath,
-        name: entry.name.replace(/\.md$/, ""),
+        name: getFileDisplayName(entry.name),
         path: entryPath,
         kind: "file",
       });
@@ -60,7 +64,6 @@ export function addToTree(
 ): TreeNode[] {
   const baseName = getBaseName(filePath);
   if (baseName.startsWith(".")) return tree;
-  if (kind === "file" && !baseName.endsWith(".md")) return tree;
 
   const parentPath = getParentPath(filePath);
   const relativePath = toVaultRelative(filePath, vaultRoot);
@@ -68,7 +71,7 @@ export function addToTree(
   const newNode: TreeNode =
     kind === "folder"
       ? { id: relativePath, name: baseName, path: filePath, kind: "folder", children: [] }
-      : { id: relativePath, name: baseName.replace(/\.md$/, ""), path: filePath, kind: "file" };
+      : { id: relativePath, name: getFileDisplayName(baseName), path: filePath, kind: "file" };
 
   if (parentPath === vaultRoot) {
     return sortNodes([...tree.filter((n) => n.path !== filePath), newNode]);
@@ -140,7 +143,7 @@ function rebasePaths(
   const isRoot = node.path === oldBase;
   const newName = isRoot
     ? node.kind === "file"
-      ? getBaseName(newPath).replace(/\.md$/, "")
+      ? getFileDisplayName(getBaseName(newPath))
       : getBaseName(newPath)
     : node.name;
 

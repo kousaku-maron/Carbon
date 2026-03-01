@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import type { TreeNode } from "../../types";
+import { isMarkdownPath } from "../../file-kind";
+import { getBaseName, isPathInside, pathsEqual, toVaultRelative } from "../../path-utils";
 import { scanVault } from "../modules/note-index";
 import {
   getVaultHistory,
@@ -19,15 +21,16 @@ export function useVault(options?: UseVaultOptions) {
   const [vaultPath, setVaultPathState] = useState<string | null>(null);
   const [vaultHistory, setVaultHistory] = useState<string[]>([]);
   const [tree, setTree] = useState<TreeNode[]>([]);
+  const [activeNonMarkdownFile, setActiveNonMarkdownFile] = useState<TreeNode | null>(null);
   const [loading, setLoading] = useState(true);
 
   const {
     activeNote,
-    handleSelectNote,
+    handleSelectNote: handleSelectMarkdownNote,
     handleEditorBufferChange,
     onFileChange,
-    onPathsRemoved,
-    onPathsMoved,
+    onPathsRemoved: onActiveNoteRemoved,
+    onPathsMoved: onActiveNoteMoved,
     handleSaveWithGuards,
     clearActiveNote,
   } = useActiveNoteSync({
@@ -35,12 +38,48 @@ export function useVault(options?: UseVaultOptions) {
     onError: options?.onError,
   });
 
+  const handlePathsRemoved = useCallback((removedPaths: string[]) => {
+    onActiveNoteRemoved(removedPaths);
+    setActiveNonMarkdownFile((prev) => {
+      if (!prev) return prev;
+      const removed = removedPaths.some((removedPath) => isPathInside(prev.path, removedPath));
+      return removed ? null : prev;
+    });
+  }, [onActiveNoteRemoved]);
+
+  const handlePathsMoved = useCallback((moves: Array<{ from: string; to: string }>) => {
+    onActiveNoteMoved(moves);
+    setActiveNonMarkdownFile((prev) => {
+      if (!prev) return prev;
+      const moved = moves.find((move) => pathsEqual(prev.path, move.from));
+      if (!moved) return prev;
+      return {
+        ...prev,
+        path: moved.to,
+        id: vaultPath ? toVaultRelative(moved.to, vaultPath) : prev.id,
+        name: getBaseName(moved.to).replace(/\.md$/i, ""),
+      };
+    });
+  }, [onActiveNoteMoved, vaultPath]);
+
+  const handleSelectNote = useCallback(async (node: TreeNode) => {
+    if (node.kind !== "file") return;
+    if (!isMarkdownPath(node.path)) {
+      clearActiveNote();
+      setActiveNonMarkdownFile(node);
+      return;
+    }
+
+    setActiveNonMarkdownFile(null);
+    await handleSelectMarkdownNote(node);
+  }, [clearActiveNote, handleSelectMarkdownNote]);
+
   useFileWatcher({
     vaultPath,
     setTree,
     onFileChange,
-    onPathsRemoved,
-    onPathsMoved,
+    onPathsRemoved: handlePathsRemoved,
+    onPathsMoved: handlePathsMoved,
     onError: options?.onError,
   });
 
@@ -57,8 +96,8 @@ export function useVault(options?: UseVaultOptions) {
     tree,
     setTree,
     onSelectNote: handleSelectNote,
-    onPathsRemoved,
-    onPathsMoved,
+    onPathsRemoved: handlePathsRemoved,
+    onPathsMoved: handlePathsMoved,
     onError: options?.onError,
   });
 
@@ -104,6 +143,7 @@ export function useVault(options?: UseVaultOptions) {
   const switchVault = useCallback(
     async (path: string) => {
       clearActiveNote();
+      setActiveNonMarkdownFile(null);
       await setVaultPath(path);
       setVaultPathState(path);
       setVaultHistory(await getVaultHistory());
@@ -122,6 +162,7 @@ export function useVault(options?: UseVaultOptions) {
     vaultHistory,
     tree,
     activeNote,
+    activeNonMarkdownFile,
     loading,
     switchVault,
     handleRemoveFromHistory,
