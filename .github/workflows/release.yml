@@ -97,6 +97,30 @@ jobs:
         with:
           path: artifacts
 
+      - name: Normalize updater artifact names
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
+
+          arm_pkg="$(find artifacts/macos-arm64 -type f -name "*.tar.gz" | head -n 1)"
+          arm_sig_file="$(find artifacts/macos-arm64 -type f -name "*.sig" | head -n 1)"
+          x64_pkg="$(find artifacts/macos-x64 -type f -name "*.tar.gz" | head -n 1)"
+          x64_sig_file="$(find artifacts/macos-x64 -type f -name "*.sig" | head -n 1)"
+
+          if [ ! -f "${arm_pkg}" ] || [ ! -f "${arm_sig_file}" ] || [ ! -f "${x64_pkg}" ] || [ ! -f "${x64_sig_file}" ]; then
+            echo "missing updater artifacts"
+            exit 1
+          fi
+
+          mkdir -p artifacts/updater
+          arm_named="artifacts/updater/Carbon_${VERSION}_aarch64.app.tar.gz"
+          x64_named="artifacts/updater/Carbon_${VERSION}_x64.app.tar.gz"
+          cp "${arm_pkg}" "${arm_named}"
+          cp "${arm_sig_file}" "${arm_named}.sig"
+          cp "${x64_pkg}" "${x64_named}"
+          cp "${x64_sig_file}" "${x64_named}.sig"
+
       - name: List artifacts
         run: find artifacts -type f \( -name "*.dmg" -o -name "*.app" -o -name "*.tar.gz" -o -name "*.sig" \) | sort
 
@@ -108,12 +132,12 @@ jobs:
         run: |
           set -euo pipefail
 
-          arm_pkg="$(find artifacts/macos-arm64 -type f -name "*.tar.gz" | head -n 1)"
-          arm_sig_file="$(find artifacts/macos-arm64 -type f -name "*.sig" | head -n 1)"
-          x64_pkg="$(find artifacts/macos-x64 -type f -name "*.tar.gz" | head -n 1)"
-          x64_sig_file="$(find artifacts/macos-x64 -type f -name "*.sig" | head -n 1)"
+          arm_pkg="artifacts/updater/Carbon_${VERSION}_aarch64.app.tar.gz"
+          arm_sig_file="${arm_pkg}.sig"
+          x64_pkg="artifacts/updater/Carbon_${VERSION}_x64.app.tar.gz"
+          x64_sig_file="${x64_pkg}.sig"
 
-          if [ -z "${arm_pkg}" ] || [ -z "${arm_sig_file}" ] || [ -z "${x64_pkg}" ] || [ -z "${x64_sig_file}" ]; then
+          if [ ! -f "${arm_pkg}" ] || [ ! -f "${arm_sig_file}" ] || [ ! -f "${x64_pkg}" ] || [ ! -f "${x64_sig_file}" ]; then
             echo "missing updater artifacts"
             exit 1
           fi
@@ -174,10 +198,10 @@ jobs:
           files: |
             artifacts/macos-arm64/**/*.dmg
             artifacts/macos-x64/**/*.dmg
-            artifacts/macos-arm64/**/*.tar.gz
-            artifacts/macos-arm64/**/*.sig
-            artifacts/macos-x64/**/*.tar.gz
-            artifacts/macos-x64/**/*.sig
+            artifacts/updater/*_aarch64.app.tar.gz
+            artifacts/updater/*_aarch64.app.tar.gz.sig
+            artifacts/updater/*_x64.app.tar.gz
+            artifacts/updater/*_x64.app.tar.gz.sig
             artifacts/latest.json
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
