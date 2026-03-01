@@ -10,10 +10,12 @@ import { debounce } from "../lib/debounce";
 import { flattenTreeNodes, getRelativePath, resolveRelativePath, validateLinkTarget } from "../lib/link-utils";
 import { formatMarkdownForCopy } from "../lib/tiptap/markdown";
 import type { NoteContent, TreeNode } from "../lib/types";
+import { Toast } from "./Toast";
 
 type NoteEditorProps = {
   note: NoteContent;
   onSave: (path: string, content: string) => Promise<void>;
+  onBufferChange?: (path: string, content: string) => void;
   vaultPath: string;
   tree: TreeNode[];
   onNavigateToNote?: (absolutePath: string) => void;
@@ -21,8 +23,9 @@ type NoteEditorProps = {
 };
 
 export function NoteEditor(props: NoteEditorProps) {
-  const { note, onSave, vaultPath, tree, onNavigateToNote, onLinkError } = props;
+  const { note, onSave, onBufferChange, vaultPath, tree, onNavigateToNote, onLinkError } = props;
   const [copied, setCopied] = useState<"markdown" | "path" | false>(false);
+  const copiedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const debouncedSave = useMemo(
     () =>
@@ -35,11 +38,53 @@ export function NoteEditor(props: NoteEditorProps) {
   );
 
   // Stable ref to avoid unnecessary useEditor re-initialization.
-  const latestRef = useRef({ onNavigateToNote, onLinkError, debouncedSave, tree });
+  const latestRef = useRef({
+    onNavigateToNote,
+    onLinkError,
+    onBufferChange,
+    debouncedSave,
+    tree,
+  });
   useEffect(() => {
-    latestRef.current = { onNavigateToNote, onLinkError, debouncedSave, tree };
+    latestRef.current = {
+      onNavigateToNote,
+      onLinkError,
+      onBufferChange,
+      debouncedSave,
+      tree,
+    };
     return () => latestRef.current.debouncedSave.cancel();
-  }, [onNavigateToNote, onLinkError, debouncedSave, tree]);
+  }, [onNavigateToNote, onLinkError, onBufferChange, debouncedSave, tree]);
+
+  const dismissCopiedToast = useCallback(() => {
+    if (copiedTimerRef.current) {
+      clearTimeout(copiedTimerRef.current);
+      copiedTimerRef.current = null;
+    }
+    setCopied(false);
+  }, []);
+
+  const showCopiedToast = useCallback(
+    (kind: "markdown" | "path") => {
+      if (copiedTimerRef.current) {
+        clearTimeout(copiedTimerRef.current);
+      }
+      setCopied(kind);
+      copiedTimerRef.current = setTimeout(() => {
+        copiedTimerRef.current = null;
+        setCopied(false);
+      }, 1500);
+    },
+    [],
+  );
+
+  useEffect(() => {
+    return () => {
+      if (copiedTimerRef.current) {
+        clearTimeout(copiedTimerRef.current);
+      }
+    };
+  }, []);
 
   const editor = useEditor(
     {
@@ -118,7 +163,9 @@ export function NoteEditor(props: NoteEditorProps) {
       contentType: "markdown",
       onUpdate: ({ editor: ed, transaction }) => {
         if (transaction.getMeta("skipPersistence")) return;
-        latestRef.current.debouncedSave(note.path, ed.getMarkdown());
+        const markdown = ed.getMarkdown();
+        latestRef.current.onBufferChange?.(note.path, markdown);
+        latestRef.current.debouncedSave(note.path, markdown);
       },
     },
     [note.body, note.path, vaultPath],
@@ -128,18 +175,16 @@ export function NoteEditor(props: NoteEditorProps) {
     if (!editor) return;
     const formatted = formatMarkdownForCopy(editor.getMarkdown());
     navigator.clipboard.writeText(formatted).then(() => {
-      setCopied("markdown");
-      setTimeout(() => setCopied(false), 1500);
+      showCopiedToast("markdown");
     });
-  }, [editor]);
+  }, [editor, showCopiedToast]);
 
   const handleCopyPath = useCallback(() => {
     const item = buildNotePathClipboardItem(note.path, note.id);
     navigator.clipboard.write([item]).then(() => {
-      setCopied("path");
-      setTimeout(() => setCopied(false), 1500);
+      showCopiedToast("path");
     });
-  }, [note.path, note.id]);
+  }, [note.path, note.id, showCopiedToast]);
 
   // Cmd+C with no editor focus and no text selection → copy path
   useEffect(() => {
@@ -220,9 +265,10 @@ export function NoteEditor(props: NoteEditorProps) {
         <EditorContent editor={editor} />
       </div>
       {copied && (
-        <div className="note-editor-toast">
-          {copied === "path" ? "Path copied" : "Markdown copied"}
-        </div>
+        <Toast
+          message={copied === "path" ? "Path copied" : "Markdown copied"}
+          onClose={dismissCopiedToast}
+        />
       )}
     </div>
   );

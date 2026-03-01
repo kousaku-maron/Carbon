@@ -3,6 +3,7 @@ import { getVersion } from "@tauri-apps/api/app";
 import { useCallback, useEffect, useState } from "react";
 import { FileTree } from "../components/FileTree";
 import { NoteEditor } from "../components/NoteEditor";
+import { Toast } from "../components/Toast";
 import { VaultSelector } from "../components/VaultSelector";
 import { signOut } from "../lib/api";
 import { pickVaultFolder, useVault } from "../lib/vault";
@@ -22,6 +23,7 @@ export function WorkspaceRoute() {
     switchVault,
     handleRemoveFromHistory,
     handleSelectNote,
+    handleEditorBufferChange,
     handleSaveNote,
     handleCreateFile,
     handleCreateFolder,
@@ -170,6 +172,7 @@ export function WorkspaceRoute() {
             key={activeNote.docKey}
             note={activeNote}
             onSave={handleSaveNote}
+            onBufferChange={handleEditorBufferChange}
             vaultPath={vaultPath}
             tree={tree}
             onNavigateToNote={handleNavigateToNote}
@@ -186,11 +189,7 @@ export function WorkspaceRoute() {
         )}
       </main>
 
-      {message && (
-        <div className="toast" onClick={() => setMessage("")}>
-          {message}
-        </div>
-      )}
+      {message && <Toast message={message} onClose={() => setMessage("")} />}
     </div>
   );
 }
