@@ -1,7 +1,10 @@
 import Image from "@tiptap/extension-image";
 import type { ImageOptions } from "@tiptap/extension-image";
+import { readFile } from "@tauri-apps/plugin-fs";
 import { Plugin, PluginKey } from "@tiptap/pm/state";
 import { Decoration, DecorationSet } from "@tiptap/pm/view";
+import { getImageMimeType, isImagePath } from "../../file-kind";
+import { resolveRelativePath } from "../../link-utils";
 import { compressImage } from "./image-compression";
 import { parseAssetUri, buildAssetLoadingImage, buildAssetResolveErrorImage } from "./asset-utils";
 import { uploadAsset, cacheUrl, resolveAndCache } from "./asset-client";
@@ -11,11 +14,36 @@ export interface CarbonImageOptions extends ImageOptions {
   compress: boolean;
   /** API base URL. When set, upload and resolve are handled internally. */
   apiUrl: string | null;
+  /** Absolute path of current note. Used to resolve relative local image paths. */
+  currentNotePath: string | null;
   /** Interval (ms) for periodic re-resolve of signed URLs. 0 to disable. */
   resolveInterval: number;
 }
 
 const uploadDecoPluginKey = new PluginKey<Set<string>>("carbonImageUploadDeco");
+const localResolvePluginKey = new PluginKey("carbonLocalImageResolve");
+
+function isWindowsAbsolutePath(path: string): boolean {
+  return /^[A-Za-z]:[\\/]/.test(path);
+}
+
+function hasUriScheme(src: string): boolean {
+  return /^[A-Za-z][A-Za-z\d+.-]*:/.test(src);
+}
+
+function isAbsolutePath(path: string): boolean {
+  return path.startsWith("/") || isWindowsAbsolutePath(path);
+}
+
+function isLocalImageSource(src: string): boolean {
+  if (!src) return false;
+  if (src.startsWith("blob:")) return false;
+  if (src.startsWith("data:")) return false;
+  if (src.startsWith("carbon://asset/")) return false;
+  if (/^https?:\/\//i.test(src)) return false;
+  if (hasUriScheme(src) && !isWindowsAbsolutePath(src)) return false;
+  return true;
+}
 
 /**
  * Extended TipTap Image node that stores `data-asset-uri` for permanent
@@ -36,6 +64,7 @@ export const CarbonImage = Image.extend<CarbonImageOptions>({
       ...this.parent?.(),
       compress: true,
       apiUrl: null,
+      currentNotePath: null,
       resolveInterval: 4 * 60 * 1000,
     } as CarbonImageOptions;
   },
@@ -47,6 +76,7 @@ export const CarbonImage = Image.extend<CarbonImageOptions>({
 
     return {
       resolveTimer: null as ReturnType<typeof setInterval> | null,
+      localPreviewUrls: new Set<string>(),
 
       /** Insert preview, upload to API, replace with signed URL. */
       async uploadImage(
@@ -129,6 +159,8 @@ export const CarbonImage = Image.extend<CarbonImageOptions>({
 
       /** Scan the document for carbon://asset images and resolve their URLs. */
       async resolveImages(editor: any): Promise<void> {
+        await this.resolveLocalImages(editor);
+
         const { apiUrl } = extension.options;
         if (!apiUrl) return;
 
@@ -233,6 +265,72 @@ export const CarbonImage = Image.extend<CarbonImageOptions>({
           }
         }
       },
+
+      async resolveLocalImages(editor: any): Promise<void> {
+        const { currentNotePath } = extension.options;
+        if (!currentNotePath) return;
+
+        const targets: Array<{
+          pos: number;
+          attrs: Record<string, unknown>;
+          localSrc: string;
+          absolutePath: string;
+        }> = [];
+
+        editor.state.doc.descendants(
+          (node: { type: { name: string }; attrs: Record<string, unknown> }, pos: number) => {
+            if (node.type.name !== "image") return;
+
+            const attrs = node.attrs;
+            const src = typeof attrs.src === "string" ? attrs.src : "";
+            const localSrcFromAttr =
+              typeof attrs["data-local-src"] === "string"
+                ? (attrs["data-local-src"] as string)
+                : "";
+            const localSrc = localSrcFromAttr || src;
+            if (!isLocalImageSource(localSrc)) return;
+
+            // Already resolved to local blob preview.
+            if (src.startsWith("blob:") && localSrcFromAttr) return;
+
+            const absolutePath = isAbsolutePath(localSrc)
+              ? localSrc
+              : resolveRelativePath(currentNotePath, localSrc);
+            if (!isImagePath(absolutePath)) return;
+
+            targets.push({ pos, attrs, localSrc, absolutePath });
+          },
+        );
+
+        if (targets.length === 0) return;
+
+        const tr = editor.state.tr;
+        let changed = false;
+
+        for (const target of targets) {
+          try {
+            const bytes = await readFile(target.absolutePath);
+            const blob = new Blob([bytes], { type: getImageMimeType(target.absolutePath) });
+            const blobUrl = URL.createObjectURL(blob);
+            this.localPreviewUrls.add(blobUrl);
+
+            tr.setNodeMarkup(target.pos, undefined, {
+              ...target.attrs,
+              src: blobUrl,
+              "data-local-src": target.localSrc,
+            });
+            changed = true;
+          } catch {
+            // Keep original src if local read fails.
+          }
+        }
+
+        if (changed) {
+          tr.setMeta("addToHistory", false);
+          tr.setMeta("skipPersistence", true);
+          editor.view.dispatch(tr);
+        }
+      },
     };
   },
 
@@ -268,6 +366,15 @@ export const CarbonImage = Image.extend<CarbonImageOptions>({
           return { "data-asset-error": "true" };
         },
       },
+      "data-local-src": {
+        default: null,
+        parseHTML: (element: HTMLElement) =>
+          element.getAttribute("data-local-src"),
+        renderHTML: (attributes: Record<string, unknown>) => {
+          if (!attributes["data-local-src"]) return {};
+          return { "data-local-src": attributes["data-local-src"] };
+        },
+      },
 };
   },
 
@@ -275,6 +382,24 @@ export const CarbonImage = Image.extend<CarbonImageOptions>({
 
   addProseMirrorPlugins() {
     const plugins = this.parent?.() ?? [];
+
+    plugins.push(
+      new Plugin({
+        key: localResolvePluginKey,
+        view: () => {
+          const resolve = () => {
+            void this.storage.resolveLocalImages(this.editor);
+          };
+          resolve();
+          return {
+            update: (view, prevState) => {
+              if (view.state.doc.eq(prevState.doc)) return;
+              resolve();
+            },
+          };
+        },
+      }),
+    );
 
     if (this.options.apiUrl) {
       const processFile = async (file: File): Promise<File> => {
@@ -389,9 +514,7 @@ export const CarbonImage = Image.extend<CarbonImageOptions>({
   // ── 5. Lifecycle ────────────────────────────────────────────
 
   onCreate() {
-    if (this.options.apiUrl) {
-      void this.storage.resolveImages(this.editor);
-    }
+    void this.storage.resolveImages(this.editor);
     if (this.options.apiUrl && this.options.resolveInterval > 0) {
       this.storage.resolveTimer = setInterval(() => {
         void this.storage.resolveImages(this.editor);
@@ -404,6 +527,10 @@ export const CarbonImage = Image.extend<CarbonImageOptions>({
       clearInterval(this.storage.resolveTimer);
       this.storage.resolveTimer = null;
     }
+    for (const blobUrl of this.storage.localPreviewUrls as Set<string>) {
+      URL.revokeObjectURL(blobUrl);
+    }
+    (this.storage.localPreviewUrls as Set<string>).clear();
   },
 
   // ── 6. Markdown ─────────────────────────────────────────────
@@ -420,6 +547,7 @@ export const CarbonImage = Image.extend<CarbonImageOptions>({
     const src = token.href ?? token.src ?? "";
     const alt = token.text ?? "";
     const isAsset = src.startsWith("carbon://asset/");
+    const isLocal = !isAsset && isLocalImageSource(src);
     return helpers.createNode("image", {
       src: isAsset ? buildAssetLoadingImage(alt) : src,
       alt,
@@ -427,6 +555,7 @@ export const CarbonImage = Image.extend<CarbonImageOptions>({
       "data-asset-uri": isAsset ? src : null,
       "data-asset-loading": isAsset,
       "data-asset-error": false,
+      "data-local-src": isLocal ? src : null,
     });
   },
 
@@ -444,7 +573,11 @@ export const CarbonImage = Image.extend<CarbonImageOptions>({
       typeof attrs["data-asset-uri"] === "string"
         ? (attrs["data-asset-uri"] as string)
         : "";
-    const src = assetUri || (typeof attrs.src === "string" ? attrs.src : "");
+    const localSrc =
+      typeof attrs["data-local-src"] === "string"
+        ? (attrs["data-local-src"] as string)
+        : "";
+    const src = assetUri || localSrc || (typeof attrs.src === "string" ? attrs.src : "");
     const alt = typeof attrs.alt === "string" ? attrs.alt : "";
     const title = typeof attrs.title === "string" ? attrs.title : "";
     // Never persist temporary preview images.

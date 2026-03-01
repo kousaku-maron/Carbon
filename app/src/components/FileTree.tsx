@@ -482,6 +482,7 @@ function InlineInput(props: {
 }) {
   const { icon, defaultValue, onConfirm, onCancel } = props;
   const inputRef = useRef<HTMLInputElement>(null);
+  const composingRef = useRef(false);
 
   useEffect(() => {
     if (inputRef.current) {
@@ -491,12 +492,18 @@ function InlineInput(props: {
   }, []);
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    const nativeEvent = e.nativeEvent as KeyboardEvent;
+    const isComposing =
+      composingRef.current || nativeEvent.isComposing || nativeEvent.keyCode === 229;
+
     if (e.key === "Enter") {
+      if (isComposing) return;
       e.preventDefault();
       const value = inputRef.current?.value.trim();
       if (value) onConfirm(value);
       else onCancel();
     } else if (e.key === "Escape") {
+      if (isComposing) return;
       onCancel();
     }
   }
@@ -527,6 +534,12 @@ function InlineInput(props: {
         className="file-tree-inline-input"
         type="text"
         defaultValue={defaultValue}
+        onCompositionStart={() => {
+          composingRef.current = true;
+        }}
+        onCompositionEnd={() => {
+          composingRef.current = false;
+        }}
         onKeyDown={handleKeyDown}
         onBlur={onCancel}
       />

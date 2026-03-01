@@ -7,6 +7,7 @@ import { CarbonImage } from "../lib/tiptap/carbon-image-extension";
 import { CarbonLink, buildNotePathClipboardItem, type NoteLinkSuggestionItem } from "../lib/tiptap/carbon-link-extension";
 import { API_BASE_URL } from "../lib/api";
 import { debounce } from "../lib/debounce";
+import { useCopyFeedback } from "../lib/hooks/use-copy-feedback";
 import { flattenTreeNodes, getRelativePath, resolveRelativePath, validateLinkTarget } from "../lib/link-utils";
 import { formatMarkdownForCopy } from "../lib/tiptap/markdown";
 import type { NoteContent, TreeNode } from "../lib/types";
@@ -24,8 +25,7 @@ type NoteEditorProps = {
 
 export function NoteEditor(props: NoteEditorProps) {
   const { note, onSave, onBufferChange, vaultPath, tree, onNavigateToNote, onLinkError } = props;
-  const [copied, setCopied] = useState<"markdown" | "path" | false>(false);
-  const copiedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const { copied, showCopied, dismissCopied } = useCopyFeedback<"markdown" | "path">(1500);
 
   const debouncedSave = useMemo(
     () =>
@@ -55,36 +55,6 @@ export function NoteEditor(props: NoteEditorProps) {
     };
     return () => latestRef.current.debouncedSave.cancel();
   }, [onNavigateToNote, onLinkError, onBufferChange, debouncedSave, tree]);
-
-  const dismissCopiedToast = useCallback(() => {
-    if (copiedTimerRef.current) {
-      clearTimeout(copiedTimerRef.current);
-      copiedTimerRef.current = null;
-    }
-    setCopied(false);
-  }, []);
-
-  const showCopiedToast = useCallback(
-    (kind: "markdown" | "path") => {
-      if (copiedTimerRef.current) {
-        clearTimeout(copiedTimerRef.current);
-      }
-      setCopied(kind);
-      copiedTimerRef.current = setTimeout(() => {
-        copiedTimerRef.current = null;
-        setCopied(false);
-      }, 1500);
-    },
-    [],
-  );
-
-  useEffect(() => {
-    return () => {
-      if (copiedTimerRef.current) {
-        clearTimeout(copiedTimerRef.current);
-      }
-    };
-  }, []);
 
   const editor = useEditor(
     {
@@ -136,6 +106,7 @@ export function NoteEditor(props: NoteEditorProps) {
               const lower = query.toLowerCase();
               return allFiles
                 .filter((f) => f.path !== currentPath)
+                .filter((f) => /\.md$/i.test(f.path))
                 .filter(
                   (f) =>
                     !query ||
@@ -155,6 +126,7 @@ export function NoteEditor(props: NoteEditorProps) {
         CarbonImage.configure({
           inline: false,
           apiUrl: API_BASE_URL,
+          currentNotePath: note.path,
         }),
         Markdown,
       ],
@@ -175,16 +147,19 @@ export function NoteEditor(props: NoteEditorProps) {
     if (!editor) return;
     const formatted = formatMarkdownForCopy(editor.getMarkdown());
     navigator.clipboard.writeText(formatted).then(() => {
-      showCopiedToast("markdown");
+      showCopied("markdown");
     });
-  }, [editor, showCopiedToast]);
+  }, [editor, showCopied]);
 
   const handleCopyPath = useCallback(() => {
     const item = buildNotePathClipboardItem(note.path, note.id);
-    navigator.clipboard.write([item]).then(() => {
-      showCopiedToast("path");
-    });
-  }, [note.path, note.id, showCopiedToast]);
+    navigator.clipboard
+      .write([item])
+      .catch(() => navigator.clipboard.writeText(note.path))
+      .then(() => {
+        showCopied("path");
+      });
+  }, [note.path, note.id, showCopied]);
 
   // Cmd+C with no editor focus and no text selection → copy path
   useEffect(() => {
@@ -267,7 +242,7 @@ export function NoteEditor(props: NoteEditorProps) {
       {copied && (
         <Toast
           message={copied === "path" ? "Path copied" : "Markdown copied"}
-          onClose={dismissCopiedToast}
+          onClose={dismissCopied}
         />
       )}
     </div>

@@ -2,6 +2,7 @@ import Link from "@tiptap/extension-link";
 import type { LinkOptions } from "@tiptap/extension-link";
 import { Plugin, PluginKey } from "@tiptap/pm/state";
 import Suggestion from "@tiptap/suggestion";
+import { isImagePath } from "../../file-kind";
 import { getRelativePath } from "../../link-utils";
 import {
   buildSuggestionConfig,
@@ -131,7 +132,7 @@ export const CarbonLink = Link.extend<CarbonLinkOptions>({
       }),
     );
 
-    // Paste handler: detect Carbon note path from clipboard and insert as relative link.
+    // Paste handler: detect Carbon path from clipboard and insert relative link/image.
     plugins.push(
       new Plugin({
         key: new PluginKey("carbonPasteLink"),
@@ -146,6 +147,17 @@ export const CarbonLink = Link.extend<CarbonLinkOptions>({
             if (!currentNotePath) return false; // fall through to default paste (absolute path as plain text)
             const relativePath = getRelativePath(currentNotePath, targetPath);
             const displayName = targetPath.split("/").pop()?.replace(/\.md$/i, "") || relativePath;
+
+            const imageNodeType = view.state.schema.nodes.image;
+            if (imageNodeType && isImagePath(targetPath)) {
+              const imageNode = imageNodeType.create({
+                src: relativePath,
+                alt: displayName,
+              });
+              view.dispatch(view.state.tr.replaceSelectionWith(imageNode, false));
+              return true;
+            }
+
             const linkMark = view.state.schema.marks.link.create({ href: relativePath });
             const textNode = view.state.schema.text(displayName, [linkMark]);
             view.dispatch(view.state.tr.replaceSelectionWith(textNode, false));

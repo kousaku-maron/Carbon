@@ -2,7 +2,7 @@
 export type TreeNode = {
   /** Normalized vault-relative path, used as unique identifier. */
   id: string;
-  /** Display name (file name without extension, or folder name). */
+  /** Display name (folder name, or file name; .md extension is hidden). */
   name: string;
   /** Absolute path on disk. */
   path: string;
