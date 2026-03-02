@@ -1,6 +1,6 @@
 import type { Dispatch, SetStateAction } from "react";
 import { useEffect, useRef } from "react";
-import { readDir, watch } from "@tauri-apps/plugin-fs";
+import { readDir, stat, watch } from "@tauri-apps/plugin-fs";
 import type { WatchEvent } from "@tauri-apps/plugin-fs";
 import { addToTree, relocateInTree, removeFromTree } from "../modules/note-index";
 import type { TreeNode } from "../../types";
@@ -41,17 +41,57 @@ function isMarkdownFile(path: string): boolean {
   return path.toLowerCase().endsWith(".md");
 }
 
+function isMissingPathError(err: unknown): boolean {
+  const text = formatError(err, "").toLowerCase();
+  return (
+    text.includes("enoent") ||
+    text.includes("not found") ||
+    text.includes("no such file") ||
+    text.includes("does not exist")
+  );
+}
+
+function isNotDirectoryError(err: unknown): boolean {
+  const text = formatError(err, "").toLowerCase();
+  return text.includes("enotdir") || text.includes("not a directory");
+}
+
+async function probePath(path: string): Promise<CanonicalOp> {
+  try {
+    await readDir(path);
+    return { kind: "upsert", path, nodeKind: "folder" };
+  } catch (readErr) {
+    if (isMissingPathError(readErr)) {
+      return { kind: "remove", path };
+    }
+    if (isNotDirectoryError(readErr)) {
+      return { kind: "upsert", path, nodeKind: "file" };
+    }
+
+    // Fallback for platforms where readDir error text is ambiguous.
+    try {
+      const info = await stat(path);
+      if (info.isDirectory) {
+        return { kind: "upsert", path, nodeKind: "folder" };
+      }
+      return { kind: "upsert", path, nodeKind: "file" };
+    } catch (statErr) {
+      if (isMissingPathError(statErr)) {
+        return { kind: "remove", path };
+      }
+      // Never throw from probing; prefer a stable best-effort tree update.
+      return { kind: "upsert", path, nodeKind: "file" };
+    }
+  }
+}
+
 async function resolveNodeKind(
   path: string,
   hintedKind: "file" | "folder" | "any" | "other",
 ): Promise<"file" | "folder"> {
   if (hintedKind === "file" || hintedKind === "folder") return hintedKind;
-  try {
-    await readDir(path);
-    return "folder";
-  } catch {
-    return "file";
-  }
+  const probed = await probePath(path);
+  return probed.kind === "upsert" ? probed.nodeKind : "file";
 }
 
 async function normalizeWatchEvent(event: WatchEvent): Promise<CanonicalOp[]> {
@@ -60,6 +100,13 @@ async function normalizeWatchEvent(event: WatchEvent): Promise<CanonicalOp[]> {
   const ops: CanonicalOp[] = [];
 
   if (typeof type === "string") {
+    if (type === "any" || type === "other") {
+      for (const path of paths) {
+        ops.push(await probePath(path));
+        ops.push({ kind: "touch", path });
+      }
+      return ops;
+    }
     for (const path of paths) {
       ops.push({ kind: "touch", path });
     }
@@ -86,8 +133,7 @@ async function normalizeWatchEvent(event: WatchEvent): Promise<CanonicalOp[]> {
     const mode = type.modify.mode;
     if (mode === "both" && paths.length >= 2) {
       ops.push({ kind: "move", from: paths[0], to: paths[1] });
-      const nodeKind = await resolveNodeKind(paths[1], "any");
-      ops.push({ kind: "upsert", path: paths[1], nodeKind });
+      ops.push(await probePath(paths[1]));
       ops.push({ kind: "touch", path: paths[0] });
       ops.push({ kind: "touch", path: paths[1] });
       return ops;
@@ -108,6 +154,14 @@ async function normalizeWatchEvent(event: WatchEvent): Promise<CanonicalOp[]> {
       return ops;
     }
 
+    if (mode === "any" || mode === "other") {
+      for (const path of paths) {
+        ops.push(await probePath(path));
+        ops.push({ kind: "touch", path });
+      }
+      return ops;
+    }
+
     for (const path of paths) {
       ops.push({ kind: "touch", path });
     }
@@ -116,6 +170,14 @@ async function normalizeWatchEvent(event: WatchEvent): Promise<CanonicalOp[]> {
 
   if ("modify" in type && type.modify.kind === "data") {
     for (const path of paths) {
+      ops.push({ kind: "touch", path });
+    }
+    return ops;
+  }
+
+  if ("modify" in type && (type.modify.kind === "any" || type.modify.kind === "other")) {
+    for (const path of paths) {
+      ops.push(await probePath(path));
       ops.push({ kind: "touch", path });
     }
     return ops;

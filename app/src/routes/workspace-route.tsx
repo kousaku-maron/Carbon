@@ -16,6 +16,10 @@ export function WorkspaceRoute() {
   const [message, setMessage] = useState("");
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [appVersion, setAppVersion] = useState<string | null>(null);
+  const handleError = useCallback((msg: string) => {
+    console.error("[workspace-error]", msg);
+    setMessage(msg);
+  }, []);
 
   const {
     vaultPath,
@@ -35,7 +39,7 @@ export function WorkspaceRoute() {
     handleDelete,
     handleMove,
     handleNavigateToNote,
-  } = useVault({ onError: setMessage });
+  } = useVault({ onError: handleError });
 
   const handleVaultSwitch = useCallback(
     async (path: string) => {
@@ -205,7 +209,7 @@ export function WorkspaceRoute() {
             vaultPath={vaultPath}
             tree={tree}
             onNavigateToNote={handleNavigateToNote}
-            onLinkError={(msg) => setMessage(msg)}
+            onLinkError={handleError}
           />
         ) : activeNonMarkdownFile && isImagePath(activeNonMarkdownFile.path) ? (
           <ImageViewer file={activeNonMarkdownFile} />
