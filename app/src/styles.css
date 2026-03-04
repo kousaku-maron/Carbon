@@ -704,6 +704,7 @@ button:disabled {
 /* ===== Note Editor ===== */
 
 .note-editor {
+  position: relative;
   display: flex;
   flex-direction: column;
   height: 100%;
@@ -801,6 +802,32 @@ button:disabled {
   flex-direction: column;
 }
 
+.note-editor-zoom-indicator {
+  position: absolute;
+  right: 1.25rem;
+  bottom: 1.25rem;
+  z-index: 8;
+  padding: 0.35rem 0.6rem;
+  border-radius: 999px;
+  border: 1px solid rgba(55, 53, 47, 0.16);
+  background: rgba(255, 255, 255, 0.92);
+  color: #37352f;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  box-shadow: 0 8px 22px rgba(21, 20, 18, 0.12);
+  backdrop-filter: blur(4px);
+  pointer-events: none;
+  opacity: 0;
+  transform: translateY(6px);
+  transition: opacity 220ms ease, transform 220ms ease;
+}
+
+.note-editor-zoom-indicator.is-visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
 /* ===== TipTap Editor Styles ===== */
 
 .note-editor-content .tiptap {
@@ -808,6 +835,7 @@ button:disabled {
   color: #37352f;
   font-size: 0.95rem;
   line-height: 1.75;
+  zoom: var(--editor-zoom, 1);
   flex: 1;
   max-width: 720px;
   width: 100%;
