@@ -10,6 +10,14 @@ const IMAGE_EXTENSIONS = new Set([
   ".ico",
 ]);
 
+const VIDEO_EXTENSIONS = new Set([
+  ".mp4",
+  ".webm",
+  ".mov",
+  ".m4v",
+  ".ogv",
+]);
+
 function getLowerCaseExtension(path: string): string {
   const dot = path.lastIndexOf(".");
   if (dot < 0) return "";
@@ -24,6 +32,10 @@ export function isImagePath(path: string): boolean {
   return IMAGE_EXTENSIONS.has(getLowerCaseExtension(path));
 }
 
+export function isVideoPath(path: string): boolean {
+  return VIDEO_EXTENSIONS.has(getLowerCaseExtension(path));
+}
+
 export function getImageMimeType(path: string): string {
   const ext = getLowerCaseExtension(path);
   if (ext === ".png") return "image/png";
@@ -34,5 +46,14 @@ export function getImageMimeType(path: string): string {
   if (ext === ".bmp") return "image/bmp";
   if (ext === ".avif") return "image/avif";
   if (ext === ".ico") return "image/x-icon";
+  return "application/octet-stream";
+}
+
+export function getVideoMimeType(path: string): string {
+  const ext = getLowerCaseExtension(path);
+  if (ext === ".mp4" || ext === ".m4v") return "video/mp4";
+  if (ext === ".webm") return "video/webm";
+  if (ext === ".mov") return "video/quicktime";
+  if (ext === ".ogv") return "video/ogg";
   return "application/octet-stream";
 }

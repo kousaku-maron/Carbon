@@ -100,6 +100,11 @@ export const fixtures: MarkdownFixture[] = [
     input: '![alt text](https://example.com/image.png "My title")',
     expected: '![alt text](https://example.com/image.png "My title")',
   },
+  {
+    name: "local relative video",
+    input: ':::video {src="../assets/demo.mp4" title="demo.mp4"} :::',
+    expected: ':::video {src="../assets/demo.mp4" title="demo.mp4"} :::',
+  },
 
   // ── Code blocks ───────────────────────────────────────────────
   {
