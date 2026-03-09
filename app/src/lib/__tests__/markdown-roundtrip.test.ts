@@ -4,6 +4,7 @@ import StarterKit from "@tiptap/starter-kit";
 import { describe, expect, it } from "vitest";
 import { CarbonImage } from "../tiptap/carbon-image-extension";
 import { CarbonLink } from "../tiptap/carbon-link-extension";
+import { CarbonVideo } from "../tiptap/carbon-video-extension";
 import { fixtures } from "./markdown-fixtures";
 
 const markdownManager = new MarkdownManager({
@@ -29,6 +30,7 @@ const markdownManager = new MarkdownManager({
     TaskList,
     TaskItem.configure({ nested: true }),
     CarbonImage.configure({ inline: false }),
+    CarbonVideo.configure({ currentNotePath: null }),
   ],
 });
 
@@ -99,6 +101,28 @@ describe("Asset image serialization", () => {
 
     expect(normalizeMarkdown(output)).toBe(
       '![with title](https://example.com/image.png "My title")',
+    );
+  });
+});
+
+describe("Local video serialization", () => {
+  it("persists data-local-src instead of blob preview URLs", () => {
+    const output = markdownManager.serialize({
+      type: "doc",
+      content: [
+        {
+          type: "video",
+          attrs: {
+            src: "blob:https://example.com/preview-video",
+            title: "demo.mp4",
+            "data-local-src": "../assets/demo.mp4",
+          },
+        },
+      ],
+    });
+
+    expect(normalizeMarkdown(output)).toBe(
+      ':::video {src="../assets/demo.mp4" title="demo.mp4"} :::',
     );
   });
 });

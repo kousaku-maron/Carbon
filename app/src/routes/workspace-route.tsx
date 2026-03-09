@@ -6,9 +6,10 @@ import { ImageViewer } from "../components/ImageViewer";
 import { NoteEditor } from "../components/NoteEditor";
 import { Toast } from "../components/Toast";
 import { UnsupportedFileViewer } from "../components/UnsupportedFileViewer";
+import { VideoViewer } from "../components/VideoViewer";
 import { VaultSelector } from "../components/VaultSelector";
 import { signOut } from "../lib/api";
-import { isImagePath } from "../lib/file-kind";
+import { isImagePath, isVideoPath } from "../lib/file-kind";
 import { pickVaultFolder, useVault } from "../lib/vault";
 
 export function WorkspaceRoute() {
@@ -213,6 +214,8 @@ export function WorkspaceRoute() {
           />
         ) : activeNonMarkdownFile && isImagePath(activeNonMarkdownFile.path) ? (
           <ImageViewer file={activeNonMarkdownFile} />
+        ) : activeNonMarkdownFile && isVideoPath(activeNonMarkdownFile.path) ? (
+          <VideoViewer file={activeNonMarkdownFile} />
         ) : activeNonMarkdownFile ? (
           <UnsupportedFileViewer file={activeNonMarkdownFile} />
         ) : (

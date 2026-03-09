@@ -5,6 +5,7 @@ import StarterKit from "@tiptap/starter-kit";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CarbonImage } from "../lib/tiptap/carbon-image-extension";
 import { CarbonLink, buildNotePathClipboardItem, type NoteLinkSuggestionItem } from "../lib/tiptap/carbon-link-extension";
+import { CarbonVideo } from "../lib/tiptap/carbon-video-extension";
 import { API_BASE_URL } from "../lib/api";
 import { debounce } from "../lib/debounce";
 import { useCopyFeedback } from "../lib/hooks/use-copy-feedback";
@@ -151,6 +152,9 @@ export function NoteEditor(props: NoteEditorProps) {
         CarbonImage.configure({
           inline: false,
           apiUrl: API_BASE_URL,
+          currentNotePath: note.path,
+        }),
+        CarbonVideo.configure({
           currentNotePath: note.path,
         }),
         Markdown,

@@ -1,0 +1,22 @@
+/* Video styles */
+.note-editor-content .tiptap video {
+  width: 100%;
+  max-height: 70vh;
+  border-radius: 10px;
+  margin: 0.75rem 0;
+  display: block;
+  background: #111;
+}
+
+.note-editor-content .tiptap video[data-local-error="true"] {
+  min-height: 12rem;
+  border: 1px dashed #d7d5d1;
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.06), transparent 40%),
+    #1f2937;
+}
+
+.note-editor-content .tiptap video.ProseMirror-selectednode {
+  outline: 2px solid #6366f1;
+  outline-offset: 2px;
+}

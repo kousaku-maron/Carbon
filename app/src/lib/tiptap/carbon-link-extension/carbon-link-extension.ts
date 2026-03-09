@@ -2,7 +2,7 @@ import Link from "@tiptap/extension-link";
 import type { LinkOptions } from "@tiptap/extension-link";
 import { Plugin, PluginKey } from "@tiptap/pm/state";
 import Suggestion from "@tiptap/suggestion";
-import { isImagePath } from "../../file-kind";
+import { isImagePath, isVideoPath } from "../../file-kind";
 import { getRelativePath } from "../../link-utils";
 import {
   buildSuggestionConfig,
@@ -155,6 +155,18 @@ export const CarbonLink = Link.extend<CarbonLinkOptions>({
                 alt: displayName,
               });
               view.dispatch(view.state.tr.replaceSelectionWith(imageNode, false));
+              return true;
+            }
+
+            const videoNodeType = view.state.schema.nodes.video;
+            if (videoNodeType && isVideoPath(targetPath)) {
+              const videoNode = videoNodeType.create({
+                src: relativePath,
+                title: displayName,
+                "data-local-src": relativePath,
+                "data-local-error": false,
+              });
+              view.dispatch(view.state.tr.replaceSelectionWith(videoNode, false));
               return true;
             }
 
