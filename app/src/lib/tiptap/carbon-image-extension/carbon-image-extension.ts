@@ -78,6 +78,16 @@ export const CarbonImage = Image.extend<CarbonImageOptions>({
       resolveTimer: null as ReturnType<typeof setInterval> | null,
       localPreviewUrls: new Set<string>(),
 
+      async prepareUploadFile(file: File): Promise<File> {
+        if (!extension.options.compress) return file;
+        try {
+          const result = await compressImage(file);
+          return new File([result.blob], file.name, { type: result.blob.type });
+        } catch {
+          return file;
+        }
+      },
+
       /** Insert preview, upload to API, replace with signed URL. */
       async uploadImage(
         editor: any,
@@ -402,16 +412,6 @@ export const CarbonImage = Image.extend<CarbonImageOptions>({
     );
 
     if (this.options.apiUrl) {
-      const processFile = async (file: File): Promise<File> => {
-        if (!this.options.compress) return file;
-        try {
-          const result = await compressImage(file);
-          return new File([result.blob], file.name, { type: result.blob.type });
-        } catch {
-          return file;
-        }
-      };
-
       const handleImageInsert = (file: File, pos?: number) => {
         void this.storage.uploadImage(this.editor, file, pos);
       };
@@ -439,7 +439,9 @@ export const CarbonImage = Image.extend<CarbonImageOptions>({
                 top: event.clientY,
               })?.pos;
               for (const file of imageFiles) {
-                void processFile(file).then((f) => handleImageInsert(f, dropPos));
+                void this.storage
+                  .prepareUploadFile(file)
+                  .then((f: File) => handleImageInsert(f, dropPos));
               }
               return true;
             },
@@ -456,7 +458,7 @@ export const CarbonImage = Image.extend<CarbonImageOptions>({
 
               event.preventDefault();
               for (const file of imageFiles) {
-                void processFile(file).then((f) => handleImageInsert(f));
+                void this.storage.prepareUploadFile(file).then((f: File) => handleImageInsert(f));
               }
               return true;
             },

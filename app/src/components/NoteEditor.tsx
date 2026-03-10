@@ -2,7 +2,7 @@ import { EditorContent, useEditor } from "@tiptap/react";
 import { Markdown } from "@tiptap/markdown";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import StarterKit from "@tiptap/starter-kit";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { type DragEvent as ReactDragEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CarbonImage } from "../lib/tiptap/carbon-image-extension";
 import { CarbonLink, buildNotePathClipboardItem, type NoteLinkSuggestionItem } from "../lib/tiptap/carbon-link-extension";
 import { CarbonVideo } from "../lib/tiptap/carbon-video-extension";
@@ -30,6 +30,11 @@ const MIN_EDITOR_ZOOM = 0.6;
 const MAX_EDITOR_ZOOM = 2;
 const EDITOR_ZOOM_STEP = 0.1;
 const ZOOM_INDICATOR_DISPLAY_MS = 2000;
+
+type ImageEditorStorage = {
+  prepareUploadFile?: (file: File) => Promise<File>;
+  uploadImage?: (editor: unknown, file: File, pos?: number) => Promise<void>;
+};
 
 function clampEditorZoom(value: number): number {
   return Math.min(MAX_EDITOR_ZOOM, Math.max(MIN_EDITOR_ZOOM, value));
@@ -190,6 +195,48 @@ export function NoteEditor(props: NoteEditorProps) {
       });
   }, [note.path, note.id, showCopied]);
 
+  const handleContentDragOver = useCallback((event: ReactDragEvent<HTMLDivElement>) => {
+    const target = event.target;
+    if (target instanceof Element && target.closest(".tiptap, .ProseMirror")) {
+      return;
+    }
+
+    const imageFiles = Array.from(event.dataTransfer?.files ?? []).filter((file) =>
+      file.type.startsWith("image/"),
+    );
+    if (imageFiles.length === 0) return;
+
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "copy";
+  }, []);
+
+  const handleContentDrop = useCallback((event: ReactDragEvent<HTMLDivElement>) => {
+    if (!editor) return;
+
+    const target = event.target;
+    if (target instanceof Element && target.closest(".tiptap, .ProseMirror")) {
+      return;
+    }
+
+    const imageFiles = Array.from(event.dataTransfer?.files ?? []).filter((file) =>
+      file.type.startsWith("image/"),
+    );
+    if (imageFiles.length === 0) return;
+
+    const imageStorage = (editor.storage as { image?: ImageEditorStorage }).image;
+    if (!imageStorage?.uploadImage) return;
+
+    event.preventDefault();
+    const insertPos = editor.state.doc.content.size;
+    const prepareUploadFile = imageStorage.prepareUploadFile ?? ((file: File) => Promise.resolve(file));
+
+    for (const file of imageFiles) {
+      void prepareUploadFile(file).then((preparedFile) => {
+        void imageStorage.uploadImage?.(editor, preparedFile, insertPos);
+      });
+    }
+  }, [editor]);
+
   const showZoomIndicator = useCallback(() => {
     if (zoomIndicatorTimeoutRef.current !== null) {
       window.clearTimeout(zoomIndicatorTimeoutRef.current);
@@ -336,7 +383,12 @@ export function NoteEditor(props: NoteEditorProps) {
         </button>
       </header>
 
-      <div className="note-editor-content" style={editorContentStyle}>
+      <div
+        className="note-editor-content"
+        style={editorContentStyle}
+        onDragOver={handleContentDragOver}
+        onDrop={handleContentDrop}
+      >
         <EditorContent editor={editor} />
       </div>
       <div className={`note-editor-zoom-indicator${zoomIndicatorVisible ? " is-visible" : ""}`}>
