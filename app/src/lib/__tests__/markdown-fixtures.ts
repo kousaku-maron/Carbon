@@ -105,6 +105,16 @@ export const fixtures: MarkdownFixture[] = [
     input: ':::video {src="../assets/demo.mp4" title="demo.mp4"} :::',
     expected: ':::video {src="../assets/demo.mp4" title="demo.mp4"} :::',
   },
+  {
+    name: "local relative pptx",
+    input: ':::pptx {src="../slides/demo.pptx" title="demo.pptx"} :::',
+    expected: ':::pptx {src="../slides/demo.pptx" title="demo.pptx"} :::',
+  },
+  {
+    name: "local relative pdf",
+    input: ':::pdf {src="../docs/demo.pdf" title="demo.pdf"} :::',
+    expected: ':::pdf {src="../docs/demo.pdf" title="demo.pdf"} :::',
+  },
 
   // ── Code blocks ───────────────────────────────────────────────
   {

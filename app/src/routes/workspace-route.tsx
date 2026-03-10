@@ -4,12 +4,14 @@ import { useCallback, useEffect, useState } from "react";
 import { FileTree } from "../components/FileTree";
 import { ImageViewer } from "../components/ImageViewer";
 import { NoteEditor } from "../components/NoteEditor";
+import { PdfViewer } from "../components/PdfViewer";
+import { PptxViewer } from "../components/PptxViewer";
 import { Toast } from "../components/Toast";
 import { UnsupportedFileViewer } from "../components/UnsupportedFileViewer";
 import { VideoViewer } from "../components/VideoViewer";
 import { VaultSelector } from "../components/VaultSelector";
 import { signOut } from "../lib/api";
-import { isImagePath, isVideoPath } from "../lib/file-kind";
+import { isImagePath, isPdfPath, isPptxPath, isVideoPath } from "../lib/file-kind";
 import { pickVaultFolder, useVault } from "../lib/vault";
 
 export function WorkspaceRoute() {
@@ -216,6 +218,10 @@ export function WorkspaceRoute() {
           <ImageViewer file={activeNonMarkdownFile} />
         ) : activeNonMarkdownFile && isVideoPath(activeNonMarkdownFile.path) ? (
           <VideoViewer file={activeNonMarkdownFile} />
+        ) : activeNonMarkdownFile && isPptxPath(activeNonMarkdownFile.path) ? (
+          <PptxViewer file={activeNonMarkdownFile} />
+        ) : activeNonMarkdownFile && isPdfPath(activeNonMarkdownFile.path) ? (
+          <PdfViewer file={activeNonMarkdownFile} />
         ) : activeNonMarkdownFile ? (
           <UnsupportedFileViewer file={activeNonMarkdownFile} />
         ) : (
