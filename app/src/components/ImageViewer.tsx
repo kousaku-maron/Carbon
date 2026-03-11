@@ -109,13 +109,15 @@ export function ImageViewer(props: ImageViewerProps) {
         ) : loading || !imageSrc ? (
           <p className="image-viewer-loading">画像を読み込み中...</p>
         ) : (
-          <img
-            className="image-viewer-image"
-            src={imageSrc}
-            alt={file.name}
-            draggable={false}
-            onError={() => setHasError(true)}
-          />
+          <div className="image-viewer-stage">
+            <img
+              className="image-viewer-image"
+              src={imageSrc}
+              alt={file.name}
+              draggable={false}
+              onError={() => setHasError(true)}
+            />
+          </div>
         )}
       </div>
       {copied && <Toast message="Path copied" onClose={dismissCopied} />}

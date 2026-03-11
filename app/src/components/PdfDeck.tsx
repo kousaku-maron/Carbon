@@ -12,9 +12,9 @@ type PdfDeckProps = {
 };
 
 const PDF_ZOOM_STORAGE_KEY = "carbon.pdf.zoom";
-const DEFAULT_PDF_ZOOM = 1.2;
+const DEFAULT_PDF_ZOOM = 1;
 const MIN_PDF_ZOOM = 0.6;
-const MAX_PDF_ZOOM = 2;
+const MAX_PDF_ZOOM = 1;
 const PDF_ZOOM_STEP = 0.1;
 const ZOOM_INDICATOR_DISPLAY_MS = 2000;
 const PDFJS_PUBLIC_DIR = "pdfjs";
@@ -224,12 +224,13 @@ export function PdfDeck(props: PdfDeckProps) {
           const outputScale = compact ? 1 : Math.min(2, devicePixelRatio);
           canvas.width = Math.floor(viewport.width * outputScale);
           canvas.height = Math.floor(viewport.height * outputScale);
+          canvas.style.height = "auto";
           if (compact) {
             canvas.style.width = "100%";
-            canvas.style.height = "auto";
+            canvas.style.maxWidth = "100%";
           } else {
-            canvas.style.width = `${viewport.width}px`;
-            canvas.style.height = `${viewport.height}px`;
+            canvas.style.width = `${Math.round(zoom * 100)}%`;
+            canvas.style.maxWidth = "100%";
           }
 
           const transform =

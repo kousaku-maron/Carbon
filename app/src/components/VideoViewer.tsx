@@ -109,14 +109,16 @@ export function VideoViewer(props: VideoViewerProps) {
         ) : loading || !videoSrc ? (
           <p className="video-viewer-loading">動画を読み込み中...</p>
         ) : (
-          <video
-            className="video-viewer-video"
-            src={videoSrc}
-            controls
-            preload="metadata"
-            playsInline
-            onError={() => setHasError(true)}
-          />
+          <div className="video-viewer-stage">
+            <video
+              className="video-viewer-video"
+              src={videoSrc}
+              controls
+              preload="metadata"
+              playsInline
+              onError={() => setHasError(true)}
+            />
+          </div>
         )}
       </div>
       {copied && <Toast message="Path copied" onClose={dismissCopied} />}
