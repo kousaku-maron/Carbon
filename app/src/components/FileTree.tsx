@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { isImagePath, isPdfPath, isVideoPath } from "../lib/file-kind";
 import { getParentPath, isPathInside, pathsEqual } from "../lib/path-utils";
 import type { TreeNode } from "../lib/types";
 import { ContextMenu, type ContextMenuItem } from "./ContextMenu";
@@ -21,6 +22,110 @@ interface FileTreeCallbacks {
 /** Shared drag state (ref-based to avoid re-renders). */
 interface DragState {
   sourcePath: string | null;
+}
+
+function FolderIcon() {
+  return (
+    <svg
+      width="14"
+      height="14"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+    </svg>
+  );
+}
+
+function FileIcon() {
+  return (
+    <svg
+      width="14"
+      height="14"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+      <polyline points="14 2 14 8 20 8" />
+    </svg>
+  );
+}
+
+function PdfIcon() {
+  return (
+    <svg
+      width="14"
+      height="14"
+      viewBox="0 0 24 24"
+      fill="none"
+    >
+      <text
+        x="2"
+        y="16.5"
+        fill="currentColor"
+        stroke="none"
+        fontSize="9.5"
+        fontWeight="800"
+        letterSpacing="-0.45"
+        fontFamily="ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif"
+      >
+        PDF
+      </text>
+    </svg>
+  );
+}
+
+function ImageIcon() {
+  return (
+    <svg
+      width="14"
+      height="14"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <rect x="3" y="4" width="18" height="16" rx="1" />
+      <circle cx="8.5" cy="9" r="1.5" />
+      <path d="M21 15l-4.5-4.5L7 20" />
+      <path d="M14 13l2.5-2.5L21 15" />
+    </svg>
+  );
+}
+
+function VideoIcon() {
+  return (
+    <svg
+      width="14"
+      height="14"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <rect x="3" y="4" width="18" height="16" rx="1" />
+      <path d="M10 9l5 3-5 3z" fill="currentColor" stroke="none" />
+    </svg>
+  );
+}
+
+function renderTreeFileIcon(path: string) {
+  if (isPdfPath(path)) return <PdfIcon />;
+  if (isImagePath(path)) return <ImageIcon />;
+  if (isVideoPath(path)) return <VideoIcon />;
+  return <FileIcon />;
 }
 
 export function FileTree(props: FileTreeCallbacks & {
@@ -397,18 +502,7 @@ function FileTreeItem(props: FileTreeCallbacks & {
                 <path d="M2 1l4 3-4 3V1z" />
               </svg>
             </span>
-            <svg
-              width="14"
-              height="14"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
-            </svg>
+            <FolderIcon />
             <span className="file-tree-name">{node.name}</span>
           </button>
         )}
@@ -454,19 +548,7 @@ function FileTreeItem(props: FileTreeCallbacks & {
           onClick={() => callbacks.onSelect(node)}
           onContextMenu={(e) => onContextMenuFile(e, node)}
         >
-          <svg
-            width="14"
-            height="14"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-            <polyline points="14 2 14 8 20 8" />
-          </svg>
+          {renderTreeFileIcon(node.path)}
           <span className="file-tree-name">{node.name}</span>
         </button>
       )}
@@ -510,25 +592,7 @@ function InlineInput(props: {
 
   return (
     <div className="file-tree-item file-tree-inline-input-wrapper">
-      <svg
-        width="14"
-        height="14"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      >
-        {icon === "folder" ? (
-          <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
-        ) : (
-          <>
-            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-            <polyline points="14 2 14 8 20 8" />
-          </>
-        )}
-      </svg>
+      {icon === "folder" ? <FolderIcon /> : <FileIcon />}
       <input
         ref={inputRef}
         className="file-tree-inline-input"
