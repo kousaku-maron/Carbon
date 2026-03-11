@@ -1,9 +1,0 @@
-.note-editor-content .tiptap .carbon-pptx-node {
-  margin: 0.9rem 0;
-}
-
-.note-editor-content .tiptap .carbon-pptx-node.ProseMirror-selectednode {
-  outline: 2px solid #6366f1;
-  outline-offset: 4px;
-  border-radius: 14px;
-}

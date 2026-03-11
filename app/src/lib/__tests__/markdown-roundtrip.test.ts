@@ -5,7 +5,6 @@ import { describe, expect, it } from "vitest";
 import { CarbonImage } from "../tiptap/carbon-image-extension";
 import { CarbonLink } from "../tiptap/carbon-link-extension";
 import { CarbonPdf } from "../tiptap/carbon-pdf-extension";
-import { CarbonPptx } from "../tiptap/carbon-pptx-extension";
 import { CarbonVideo } from "../tiptap/carbon-video-extension";
 import { fixtures } from "./markdown-fixtures";
 
@@ -33,7 +32,6 @@ const markdownManager = new MarkdownManager({
     TaskItem.configure({ nested: true }),
     CarbonImage.configure({ inline: false }),
     CarbonVideo.configure({ currentNotePath: null }),
-    CarbonPptx.configure({ currentNotePath: null }),
     CarbonPdf.configure({ currentNotePath: null }),
   ],
 });
@@ -127,27 +125,6 @@ describe("Local video serialization", () => {
 
     expect(normalizeMarkdown(output)).toBe(
       ':::video {src="../assets/demo.mp4" title="demo.mp4"} :::',
-    );
-  });
-});
-
-describe("Local PPTX serialization", () => {
-  it("persists local pptx node as markdown block", () => {
-    const output = markdownManager.serialize({
-      type: "doc",
-      content: [
-        {
-          type: "pptx",
-          attrs: {
-            src: "../slides/demo.pptx",
-            title: "demo.pptx",
-          },
-        },
-      ],
-    });
-
-    expect(normalizeMarkdown(output)).toBe(
-      ':::pptx {src="../slides/demo.pptx" title="demo.pptx"} :::',
     );
   });
 });

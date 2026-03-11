@@ -2,7 +2,7 @@ import Link from "@tiptap/extension-link";
 import type { LinkOptions } from "@tiptap/extension-link";
 import { Plugin, PluginKey } from "@tiptap/pm/state";
 import Suggestion from "@tiptap/suggestion";
-import { isImagePath, isPdfPath, isPptxPath, isVideoPath } from "../../file-kind";
+import { isImagePath, isPdfPath, isVideoPath } from "../../file-kind";
 import { getRelativePath } from "../../link-utils";
 import {
   buildSuggestionConfig,
@@ -167,16 +167,6 @@ export const CarbonLink = Link.extend<CarbonLinkOptions>({
                 "data-local-error": false,
               });
               view.dispatch(view.state.tr.replaceSelectionWith(videoNode, false));
-              return true;
-            }
-
-            const pptxNodeType = view.state.schema.nodes.pptx;
-            if (pptxNodeType && isPptxPath(targetPath)) {
-              const pptxNode = pptxNodeType.create({
-                src: relativePath,
-                title: displayName,
-              });
-              view.dispatch(view.state.tr.replaceSelectionWith(pptxNode, false));
               return true;
             }
 

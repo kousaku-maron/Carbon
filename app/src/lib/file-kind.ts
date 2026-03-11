@@ -18,10 +18,6 @@ const VIDEO_EXTENSIONS = new Set([
   ".ogv",
 ]);
 
-const PPTX_EXTENSIONS = new Set([
-  ".pptx",
-]);
-
 const PDF_EXTENSIONS = new Set([
   ".pdf",
 ]);
@@ -42,10 +38,6 @@ export function isImagePath(path: string): boolean {
 
 export function isVideoPath(path: string): boolean {
   return VIDEO_EXTENSIONS.has(getLowerCaseExtension(path));
-}
-
-export function isPptxPath(path: string): boolean {
-  return PPTX_EXTENSIONS.has(getLowerCaseExtension(path));
 }
 
 export function isPdfPath(path: string): boolean {

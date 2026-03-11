@@ -1,4 +1,4 @@
-import { useCallback } from "react";
+import { useCallback, useState } from "react";
 import { useCopyFeedback } from "../lib/hooks/use-copy-feedback";
 import { buildNotePathClipboardItem } from "../lib/tiptap/carbon-link-extension";
 import type { TreeNode } from "../lib/types";
@@ -11,6 +11,7 @@ type PdfViewerProps = {
 
 export function PdfViewer(props: PdfViewerProps) {
   const { file } = props;
+  const [darkBackground, setDarkBackground] = useState(false);
   const { copied, showCopied, dismissCopied } = useCopyFeedback<"path">(1500);
 
   const handleCopyPath = useCallback(() => {
@@ -47,8 +48,16 @@ export function PdfViewer(props: PdfViewerProps) {
           )}
         </button>
       </header>
-      <div className="pdf-viewer-content">
-        <PdfDeck sourcePath={file.path} title={file.name} />
+      <div
+        className={`pdf-viewer-content ${
+          darkBackground ? "pdf-viewer-content--dark" : "pdf-viewer-content--light"
+        }`}
+      >
+        <PdfDeck
+          sourcePath={file.path}
+          darkBackground={darkBackground}
+          onDarkBackgroundChange={setDarkBackground}
+        />
       </div>
       {copied && <Toast message="Path copied" onClose={dismissCopied} />}
     </div>

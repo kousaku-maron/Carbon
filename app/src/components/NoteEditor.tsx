@@ -6,7 +6,6 @@ import { type DragEvent as ReactDragEvent, useCallback, useEffect, useMemo, useR
 import { CarbonImage } from "../lib/tiptap/carbon-image-extension";
 import { CarbonLink, buildNotePathClipboardItem, type NoteLinkSuggestionItem } from "../lib/tiptap/carbon-link-extension";
 import { CarbonPdf } from "../lib/tiptap/carbon-pdf-extension";
-import { CarbonPptx } from "../lib/tiptap/carbon-pptx-extension";
 import { CarbonVideo } from "../lib/tiptap/carbon-video-extension";
 import { API_BASE_URL } from "../lib/api";
 import { debounce } from "../lib/debounce";
@@ -162,9 +161,6 @@ export function NoteEditor(props: NoteEditorProps) {
           currentNotePath: note.path,
         }),
         CarbonVideo.configure({
-          currentNotePath: note.path,
-        }),
-        CarbonPptx.configure({
           currentNotePath: note.path,
         }),
         CarbonPdf.configure({

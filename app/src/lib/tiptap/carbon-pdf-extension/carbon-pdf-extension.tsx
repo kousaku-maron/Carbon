@@ -65,7 +65,6 @@ function CarbonPdfNodeView(props: {
         sourcePath={src}
         currentNotePath={props.extension.options.currentNotePath}
         compact
-        title={title}
       />
     </NodeViewWrapper>
   );
