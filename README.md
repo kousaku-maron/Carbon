@@ -1,25 +1,51 @@
 # Carbon
 
-認証付きローカル Markdown 管理アプリです。  
-このリポジトリは `tauri-cloudflare-todo` テンプレートを土台に、カンバン機能からピボットしています。
+認証付きのローカル knowledge base / Markdown ノートアプリです。  
+Tauri デスクトップアプリとして動作し、ローカル Vault を開いて Markdown・画像・動画・PDF を一つのワークスペースで扱えます。
 
-## 現在の構成
+## できること
 
-- `app`: Tauri デスクトップアプリ (React + Vite + TanStack Router)
-  - ログイン/サインアップ
-  - ローカルフォルダ（Vault）選択
-  - ファイルツリー表示
-  - TipTap ベース Markdown エディタ
-- `backend`: Hono API on Cloudflare Workers
-  - better-auth (email/password + bearer token)
-  - Neon(PostgreSQL) + Drizzle ORM
-  - 認証API (`/api/auth/*`, `/api/me`)
+- better-auth ベースのログイン / サインアップ
+- ローカル Vault フォルダの選択
+- ファイルツリー表示とファイル操作
+- TipTap ベースの Markdown エディタ
+- ノート内リンクの補完と内部遷移
+- 画像 / 動画 / PDF の埋め込み表示
+- 画像 / 動画 / PDF のモーダル拡大表示
+- 単体ファイルとしての画像 / 動画 / PDF ビューア
+- PDF の縦スクロール表示とショートカットズーム
+- Tauri updater による GitHub Releases ベースの自動更新
+
+## 対応ファイル
+
+- `.md`: NoteEditor
+- 画像: 単体ビューア + エディタ埋め込み
+- 動画: 単体ビューア + エディタ埋め込み
+- `.pdf`: 単体ビューア + エディタ埋め込み
+
+現状、`.pptx` はサポートしていません。
+
+## リポジトリ構成
+
+- `app`: Tauri デスクトップアプリ
+  - React
+  - Vite
+  - TanStack Router
+  - TipTap
+- `backend`: Cloudflare Workers 上の API
+  - Hono
+  - better-auth
+  - Drizzle ORM
+  - Neon / PostgreSQL
+- `docs`: 設計メモ、移行方針、実装計画
 
 ## 前提
 
 - Node.js 20+
 - pnpm
-- PostgreSQL (Neon 推奨)
+- Rust / Tauri 開発環境
+- PostgreSQL
+- Cloudflare Workers を動かせる環境
 
 ## セットアップ
 
@@ -36,17 +62,16 @@ cd backend
 cp .dev.vars.example .dev.vars
 ```
 
-`.dev.vars` に以下を設定します。
+`.dev.vars` の主な項目:
 
-- `DATABASE_URL`: PostgreSQL 接続文字列
-- `BETTER_AUTH_SECRET`: 十分に長いランダム文字列
-- `BETTER_AUTH_URL`: 開発時は `http://localhost:8787`
-- `CORS_ORIGINS`: 開発時は `http://localhost:1420,tauri://localhost`
+- `DATABASE_URL`
+- `BETTER_AUTH_SECRET`
+- `BETTER_AUTH_URL`
+- `CORS_ORIGINS`
 
-### 3. DB マイグレーションを適用
+### 3. DB マイグレーション
 
 ```bash
-cd backend
 pnpm db:migrate
 ```
 
@@ -57,82 +82,81 @@ cd app
 cp .env.example .env
 ```
 
-必要に応じて `VITE_API_BASE_URL` を変更してください（デフォルト: `http://localhost:8787`）。
+必要に応じて `VITE_API_BASE_URL` を変更してください。  
+通常は開発時 `http://localhost:8787` です。
 
 ## 開発起動
 
-リポジトリルートで実行:
+リポジトリルートで:
 
 ```bash
 pnpm dev
 ```
 
-`pnpm dev` は以下を自動で行います。
+`pnpm dev` は次をまとめて起動します。
 
-1. backend (`wrangler dev`) 起動
-2. `/api/health` が返るまで待機
-3. app (`tauri dev`) 起動
+1. backend (`wrangler dev`)
+2. health check 待機
+3. app (`tauri dev`)
 
 デフォルトポート:
 
 - backend: `8787`
 - frontend: `1420`
 
-必要なら次のように変更できます。
+変更したい場合:
 
 ```bash
 BACKEND_PORT=8791 FRONTEND_PORT=1520 pnpm dev
 ```
 
-## ビルド / チェック
+個別起動も可能です。
+
+```bash
+pnpm dev:backend
+pnpm dev:app
+```
+
+## 主要コマンド
 
 ```bash
 pnpm --filter app typecheck
+pnpm --filter app test
 pnpm --filter backend typecheck
 pnpm build
 ```
 
-## Tauri 自動更新（GitHub Releases）
+## 実装メモ
 
-このリポジトリは Tauri v2 updater を有効化済みです。
+- PDF 表示は `pdf.js` ベースです
+- ローカル画像 / 動画 / PDF は Tauri FS 経由で扱います
+- エディタ埋め込みの media preview は `NoteEditor` 周辺で共通管理しています
+- 画像ドロップの host 側イベントは薄く保ち、アップロード / 挿入本体は `CarbonImage` extension 側に寄せています
+
+## 自動更新
+
+Tauri v2 updater を有効化しています。
 
 - endpoint: `https://github.com/kousaku-maron/Carbon/releases/latest/download/latest.json`
-- 設定ファイル: `app/src-tauri/tauri.conf.json`
-- 起動時チェック: `app/src/lib/updater.ts`
+- config: `app/src-tauri/tauri.conf.json`
+- startup check: `app/src/lib/updater.ts`
 
 初回セットアップ:
 
-1. アップデート署名鍵を生成
+1. 署名鍵を生成
 
 ```bash
 cd app
 pnpm tauri signer generate -w ~/.tauri/carbon.key
 ```
 
-2. 生成された公開鍵を `app/src-tauri/tauri.conf.json` の `plugins.updater.pubkey` に設定
+2. 公開鍵を `app/src-tauri/tauri.conf.json` に設定
+3. GitHub Actions / Release 用 Secret を設定
 
-3. GitHub Secrets を設定（`release.yml` で使用）
-- `TAURI_SIGNING_PRIVATE_KEY`
-- `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`
-- `DEVELOPER_CERT_BASE64`
-- `DEVELOPER_CERT_PASSPHRASE`
-- `APPLE_SIGNING_IDENTITY`
-- `APPLE_ID`
-- `APPLE_PASSWORD`
-- `APPLE_TEAM_ID`
+## 主なドキュメント
 
-`release.yml` は `.dmg` に加えて updater 用アーティファクト（`*.tar.gz`, `*.sig`）と `latest.json` を Release Asset に添付します。
-
-## API（現在利用）
-
-- `POST /api/auth/sign-up/email`
-- `POST /api/auth/sign-in/email`
-- `POST /api/auth/sign-out`
-- `GET /api/me`
-- `GET /api/health`
-
-## ドキュメント
-
-- `docs/local-markdown-pivot-design.md`: ワイヤーフレーム設計
-- `docs/image-dnd-r2-design.md`: 画像D&D / R2 設計
-- `docs/tiptap-markdown-unification-policy.md`: TipTap Markdown 統一方針（v3 最新化）
+- `docs/local-markdown-pivot-design.md`
+- `docs/local-page-link-design.md`
+- `docs/image-dnd-r2-design.md`
+- `docs/file-operation-stability-plan.md`
+- `docs/tiptap-markdown-unification-policy.md`
