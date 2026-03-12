@@ -1,4 +1,5 @@
 import { EditorContent, useEditor } from "@tiptap/react";
+import { TaskItem, TaskList } from "@tiptap/extension-list";
 import { Markdown } from "@tiptap/markdown";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import StarterKit from "@tiptap/starter-kit";
@@ -145,6 +146,8 @@ export function NoteEditor(props: NoteEditorProps) {
           currentNotePath: note.path,
           onPreviewPdf: openPdfPreview,
         }),
+        TaskList,
+        TaskItem.configure({ nested: true }),
         Markdown,
       ],
       editable: true,

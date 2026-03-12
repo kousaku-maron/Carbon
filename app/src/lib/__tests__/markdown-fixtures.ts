@@ -72,6 +72,11 @@ export const fixtures: MarkdownFixture[] = [
     input: "- [ ] Todo item\n- [x] Done item",
     expected: "- [ ] Todo item\n- [x] Done item",
   },
+  {
+    name: "nested task list",
+    input: "- [ ] Parent\n  - [x] Child done\n  - [ ] Child todo",
+    expected: "- [ ] Parent\n  - [x] Child done\n  - [ ] Child todo",
+  },
 
   // ── Links ─────────────────────────────────────────────────────
   {
