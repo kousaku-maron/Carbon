@@ -6,8 +6,15 @@ function isEditorContentTarget(target: EventTarget | null) {
   return target instanceof Element && target.closest(".tiptap, .ProseMirror");
 }
 
-export function useImageDropUpload(editor: Editor | null) {
+export function useImageDropUpload(editor: Editor | null, enabled: boolean) {
   const handleContentDragOver = useCallback((event: ReactDragEvent<HTMLDivElement>) => {
+    if (!enabled) {
+      if (hasDroppedImageFiles(event.dataTransfer)) {
+        event.preventDefault();
+        event.dataTransfer.dropEffect = "none";
+      }
+      return;
+    }
     if (isEditorContentTarget(event.target)) {
       return;
     }
@@ -16,9 +23,15 @@ export function useImageDropUpload(editor: Editor | null) {
 
     event.preventDefault();
     event.dataTransfer.dropEffect = "copy";
-  }, []);
+  }, [enabled]);
 
   const handleContentDrop = useCallback((event: ReactDragEvent<HTMLDivElement>) => {
+    if (!enabled) {
+      if (hasDroppedImageFiles(event.dataTransfer)) {
+        event.preventDefault();
+      }
+      return;
+    }
     if (!editor) return;
     if (isEditorContentTarget(event.target)) {
       return;
@@ -28,7 +41,7 @@ export function useImageDropUpload(editor: Editor | null) {
 
     event.preventDefault();
     void appendDroppedImages(editor, event.dataTransfer?.files);
-  }, [editor]);
+  }, [editor, enabled]);
 
   return {
     handleContentDragOver,

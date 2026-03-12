@@ -17,6 +17,8 @@ export interface CarbonImageOptions extends ImageOptions {
   compress: boolean;
   /** API base URL. When set, upload and resolve are handled internally. */
   apiUrl: string | null;
+  /** Allow image upload via drag-and-drop / paste. */
+  uploadEnabled: boolean;
   /** Absolute path of current note. Used to resolve relative local image paths. */
   currentNotePath: string | null;
   /** Interval (ms) for periodic re-resolve of signed URLs. 0 to disable. */
@@ -29,6 +31,7 @@ const uploadDecoPluginKey = new PluginKey<Set<string>>("carbonImageUploadDeco");
 const localResolvePluginKey = new PluginKey("carbonLocalImageResolve");
 
 type ImageEditorStorage = {
+  canUpload?: () => boolean;
   prepareUploadFile?: (file: File) => Promise<File>;
   uploadImage?: (editor: Editor, file: File, pos?: number) => Promise<void>;
 };
@@ -54,6 +57,7 @@ export async function appendDroppedImages(
   if (imageFiles.length === 0) return false;
 
   const imageStorage = (editor.storage as { image?: ImageEditorStorage }).image;
+  if (!imageStorage?.canUpload?.()) return false;
   if (!imageStorage?.uploadImage) return false;
 
   const insertPos = editor.state.doc.content.size;
@@ -109,6 +113,7 @@ export const CarbonImage = Image.extend<CarbonImageOptions>({
       ...this.parent?.(),
       compress: true,
       apiUrl: null,
+      uploadEnabled: true,
       currentNotePath: null,
       resolveInterval: 4 * 60 * 1000,
       onPreviewImage: null,
@@ -127,6 +132,9 @@ export const CarbonImage = Image.extend<CarbonImageOptions>({
     return {
       resolveTimer: null as ReturnType<typeof setInterval> | null,
       localPreviewUrls: new Set<string>(),
+      canUpload(): boolean {
+        return Boolean(extension.options.apiUrl && extension.options.uploadEnabled);
+      },
 
       async prepareUploadFile(file: File): Promise<File> {
         if (!extension.options.compress) return file;
@@ -144,8 +152,8 @@ export const CarbonImage = Image.extend<CarbonImageOptions>({
         file: File,
         insertPos?: number,
       ): Promise<void> {
-        const { apiUrl } = extension.options;
-        if (!apiUrl) return;
+        const { apiUrl, uploadEnabled } = extension.options;
+        if (!apiUrl || !uploadEnabled) return;
 
         const blobUrl = URL.createObjectURL(file);
 
@@ -482,6 +490,10 @@ export const CarbonImage = Image.extend<CarbonImageOptions>({
                 f.type.startsWith("image/"),
               );
               if (imageFiles.length === 0) return false;
+              if (!this.options.uploadEnabled) {
+                event.preventDefault();
+                return true;
+              }
 
               event.preventDefault();
               const dropPos = view.posAtCoords({
@@ -505,6 +517,10 @@ export const CarbonImage = Image.extend<CarbonImageOptions>({
                 f.type.startsWith("image/"),
               );
               if (imageFiles.length === 0) return false;
+              if (!this.options.uploadEnabled) {
+                event.preventDefault();
+                return true;
+              }
 
               event.preventDefault();
               for (const file of imageFiles) {

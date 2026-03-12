@@ -85,6 +85,9 @@ cp .env.example .env
 必要に応じて `VITE_API_BASE_URL` を変更してください。  
 通常は開発時 `http://localhost:8787` です。
 
+画像のドラッグ&ドロップ / ペースト時のクラウドアップロードはデフォルトで無効です。  
+有効化したい場合は `app/.env` で `VITE_ENABLE_CLOUD_IMAGE_UPLOAD=true` を指定してください。
+
 ## 開発起動
 
 リポジトリルートで:

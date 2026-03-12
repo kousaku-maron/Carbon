@@ -8,6 +8,7 @@ import { CarbonLink, buildNotePathClipboardItem, type NoteLinkSuggestionItem } f
 import { CarbonPdf } from "../../lib/tiptap/carbon-pdf-extension";
 import { CarbonVideo } from "../../lib/tiptap/carbon-video-extension";
 import { API_BASE_URL } from "../../lib/api";
+import { ENABLE_CLOUD_IMAGE_UPLOAD } from "../../lib/app-config";
 import { debounce } from "../../lib/debounce";
 import { useCopyFeedback } from "../../lib/hooks/use-copy-feedback";
 import { resolveRelativePath, validateLinkTarget } from "../../lib/link-utils";
@@ -31,7 +32,15 @@ type NoteEditorProps = {
 };
 
 export function NoteEditor(props: NoteEditorProps) {
-  const { note, onSave, onBufferChange, vaultPath, tree, onNavigateToNote, onLinkError } = props;
+  const {
+    note,
+    onSave,
+    onBufferChange,
+    vaultPath,
+    tree,
+    onNavigateToNote,
+    onLinkError,
+  } = props;
   const { copied, showCopied, dismissCopied } = useCopyFeedback<"markdown" | "path">(1500);
   const { editorContentStyle, zoomIndicatorVisible, zoomPercent } = useEditorZoom();
   const {
@@ -124,6 +133,7 @@ export function NoteEditor(props: NoteEditorProps) {
         CarbonImage.configure({
           inline: false,
           apiUrl: API_BASE_URL,
+          uploadEnabled: ENABLE_CLOUD_IMAGE_UPLOAD,
           currentNotePath: note.path,
           onPreviewImage: openImagePreview,
         }),
@@ -149,7 +159,10 @@ export function NoteEditor(props: NoteEditorProps) {
     },
     [note.body, note.path, vaultPath],
   );
-  const { handleContentDragOver, handleContentDrop } = useImageDropUpload(editor);
+  const { handleContentDragOver, handleContentDrop } = useImageDropUpload(
+    editor,
+    ENABLE_CLOUD_IMAGE_UPLOAD,
+  );
 
   const handleCopyMarkdown = useCallback(() => {
     if (!editor) return;
