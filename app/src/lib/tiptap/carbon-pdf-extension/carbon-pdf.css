@@ -2,8 +2,20 @@
   margin: 0.9rem 0;
 }
 
+.note-editor-content .tiptap .carbon-pdf-frame {
+  position: relative;
+}
+
 .note-editor-content .tiptap .carbon-pdf-node.ProseMirror-selectednode {
   outline: 2px solid #6366f1;
-  outline-offset: 4px;
-  border-radius: 14px;
+  outline-offset: 2px;
+}
+
+.note-editor-content .tiptap .carbon-pdf-node.ProseMirror-selectednode .carbon-pdf-frame::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: rgba(99, 102, 241, 0.12);
+  pointer-events: none;
+  z-index: 1;
 }

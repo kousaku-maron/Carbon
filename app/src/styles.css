@@ -828,6 +828,97 @@ button:disabled {
   transform: translateY(0);
 }
 
+.note-editor-image-preview {
+  position: fixed;
+  inset: 0;
+  z-index: 120;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  background: rgba(9, 9, 11, 0.82);
+  backdrop-filter: blur(4px);
+}
+
+.note-editor-image-preview-content {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  max-width: min(calc(100vw - 4rem), 1200px);
+  max-height: min(calc(100vh - 4rem), 900px);
+}
+
+.note-editor-image-preview-image {
+  display: block;
+  max-width: 100%;
+  max-height: 100%;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+}
+
+.note-editor-pdf-preview {
+  position: fixed;
+  inset: 0;
+  z-index: 120;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  background: rgba(9, 9, 11, 0.82);
+  backdrop-filter: blur(4px);
+}
+
+.note-editor-pdf-preview-content {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: min(calc(100vw - 4rem), 1200px);
+  max-height: min(calc(100vh - 4rem), 900px);
+  overflow: hidden;
+}
+
+.note-editor-pdf-preview-content .pdf-deck {
+  width: 100%;
+}
+
+.note-editor-pdf-preview-content .pdf-canvas-frame--compact {
+  width: 100%;
+}
+
+.note-editor-pdf-preview-content .pdf-viewer-zoom-indicator {
+  position: absolute;
+}
+
+.note-editor-video-preview {
+  position: fixed;
+  inset: 0;
+  z-index: 120;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  background: rgba(9, 9, 11, 0.82);
+  backdrop-filter: blur(4px);
+}
+
+.note-editor-video-preview-content {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  max-width: min(calc(100vw - 4rem), 1320px);
+  max-height: min(calc(100vh - 4rem), 900px);
+}
+
+.note-editor-video-preview-video {
+  display: block;
+  max-width: 100%;
+  max-height: 100%;
+  width: auto;
+  height: auto;
+  background: #111;
+}
+
 /* ===== TipTap Editor Styles ===== */
 
 .note-editor-content .tiptap {
@@ -1239,15 +1330,17 @@ button:disabled {
 
 .pdf-compact-footer {
   position: absolute;
-  right: 0;
-  bottom: 0;
-  left: 0;
+  right: 0.45rem;
+  bottom: 0.45rem;
+  left: 0.45rem;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 0.75rem;
-  padding: 0.65rem 0.8rem;
-  background: rgba(0, 0, 0, 0.68);
+  gap: 0.4rem;
+  min-height: 2.05rem;
+  padding: 0.25rem 0.35rem;
+  border-radius: 0.55rem;
+  background: rgba(32, 32, 32, 0.72);
   color: #ffffff;
   opacity: 0;
   transform: translateY(8px);
@@ -1263,12 +1356,20 @@ button:disabled {
 }
 
 .pdf-compact-footer-btn {
-  border: 1px solid rgba(255, 255, 255, 0.22);
-  background: rgba(255, 255, 255, 0.12);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.85rem;
+  height: 1.55rem;
+  border: none;
+  border-radius: 0.45rem;
+  background: transparent;
   color: #ffffff;
-  padding: 0.3rem 0.65rem;
-  font-size: 0.74rem;
   cursor: pointer;
+}
+
+.pdf-compact-footer-btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.08);
 }
 
 .pdf-compact-footer-btn:disabled {
@@ -1277,8 +1378,48 @@ button:disabled {
 }
 
 .pdf-compact-footer-counter {
-  font-size: 0.74rem;
+  min-width: 0;
+  padding: 0 0.2rem;
+  font-size: 0.72rem;
+  font-variant-numeric: tabular-nums;
   letter-spacing: 0.02em;
+  text-align: center;
+}
+
+.pdf-compact-expand-btn {
+  position: absolute;
+  top: 0.55rem;
+  right: 0.55rem;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.55rem;
+  height: 1.8rem;
+  border: none;
+  border-radius: 0.55rem;
+  background: rgba(32, 32, 32, 0.72);
+  color: #ffffff;
+  cursor: pointer;
+  opacity: 0;
+  transform: translateY(-1px);
+  transition: opacity 140ms ease, transform 140ms ease, background 140ms ease;
+}
+
+.pdf-canvas-frame--compact:hover .pdf-compact-expand-btn,
+.pdf-canvas-frame--compact:focus-within .pdf-compact-expand-btn,
+.pdf-compact-expand-btn:focus-visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.pdf-compact-expand-btn:hover {
+  background: rgba(32, 32, 32, 0.84);
+}
+
+.pdf-compact-expand-btn:focus-visible {
+  outline: 2px solid rgba(255, 255, 255, 0.65);
+  outline-offset: 2px;
 }
 
 .pdf-canvas-overlay {

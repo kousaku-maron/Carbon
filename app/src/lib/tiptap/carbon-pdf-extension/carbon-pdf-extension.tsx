@@ -1,11 +1,18 @@
 import { Node, createAtomBlockMarkdownSpec, mergeAttributes } from "@tiptap/core";
 import { Plugin, PluginKey } from "@tiptap/pm/state";
 import { NodeViewWrapper, ReactNodeViewRenderer } from "@tiptap/react";
+import { useState } from "react";
 import { PdfDeck } from "../../../components/PdfDeck";
 import { isPdfPath } from "../../file-kind";
 
 export interface CarbonPdfOptions {
   currentNotePath: string | null;
+  onPreviewPdf: ((payload: {
+    src: string;
+    title: string;
+    currentPage: number;
+    syncBack: (page: number) => void;
+  }) => void) | null;
 }
 
 const localPastePluginKey = new PluginKey("carbonLocalPdfPaste");
@@ -54,6 +61,7 @@ function CarbonPdfNodeView(props: {
   selected: boolean;
 }) {
   const src = typeof props.node.attrs.src === "string" ? props.node.attrs.src : "";
+  const [currentPage, setCurrentPage] = useState(1);
   const title =
     typeof props.node.attrs.title === "string" && props.node.attrs.title.length > 0
       ? props.node.attrs.title
@@ -61,11 +69,27 @@ function CarbonPdfNodeView(props: {
 
   return (
     <NodeViewWrapper className={`carbon-pdf-node${props.selected ? " ProseMirror-selectednode" : ""}`}>
-      <PdfDeck
-        sourcePath={src}
-        currentNotePath={props.extension.options.currentNotePath}
-        compact
-      />
+      <div className="carbon-pdf-frame">
+        <PdfDeck
+          sourcePath={src}
+          currentNotePath={props.extension.options.currentNotePath}
+          compact
+          compactPage={currentPage}
+          onCompactPageChange={setCurrentPage}
+          onPreviewRequest={
+            src
+              ? () => {
+                  props.extension.options.onPreviewPdf?.({
+                    src,
+                    title,
+                    currentPage,
+                    syncBack: setCurrentPage,
+                  });
+                }
+              : undefined
+          }
+        />
+      </div>
     </NodeViewWrapper>
   );
 }
@@ -80,6 +104,7 @@ export const CarbonPdf = Node.create<CarbonPdfOptions>({
   addOptions() {
     return {
       currentNotePath: null,
+      onPreviewPdf: null,
     } as CarbonPdfOptions;
   },
 

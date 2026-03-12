@@ -2,18 +2,23 @@ import { EditorContent, useEditor } from "@tiptap/react";
 import { Markdown } from "@tiptap/markdown";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import StarterKit from "@tiptap/starter-kit";
-import { type DragEvent as ReactDragEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { CarbonImage } from "../lib/tiptap/carbon-image-extension";
-import { CarbonLink, buildNotePathClipboardItem, type NoteLinkSuggestionItem } from "../lib/tiptap/carbon-link-extension";
-import { CarbonPdf } from "../lib/tiptap/carbon-pdf-extension";
-import { CarbonVideo } from "../lib/tiptap/carbon-video-extension";
-import { API_BASE_URL } from "../lib/api";
-import { debounce } from "../lib/debounce";
-import { useCopyFeedback } from "../lib/hooks/use-copy-feedback";
-import { flattenTreeNodes, getRelativePath, resolveRelativePath, validateLinkTarget } from "../lib/link-utils";
-import { formatMarkdownForCopy } from "../lib/tiptap/markdown";
-import type { NoteContent, TreeNode } from "../lib/types";
-import { Toast } from "./Toast";
+import { useCallback, useEffect, useMemo, useRef } from "react";
+import { CarbonImage } from "../../lib/tiptap/carbon-image-extension";
+import { CarbonLink, buildNotePathClipboardItem, type NoteLinkSuggestionItem } from "../../lib/tiptap/carbon-link-extension";
+import { CarbonPdf } from "../../lib/tiptap/carbon-pdf-extension";
+import { CarbonVideo } from "../../lib/tiptap/carbon-video-extension";
+import { API_BASE_URL } from "../../lib/api";
+import { debounce } from "../../lib/debounce";
+import { useCopyFeedback } from "../../lib/hooks/use-copy-feedback";
+import { resolveRelativePath, validateLinkTarget } from "../../lib/link-utils";
+import { formatMarkdownForCopy } from "../../lib/tiptap/markdown";
+import type { NoteContent, TreeNode } from "../../lib/types";
+import { MediaPreviewHost } from "./MediaPreviewHost";
+import { buildNoteLinkSuggestions } from "./build-note-link-suggestions";
+import { Toast } from "../Toast";
+import { useEditorZoom } from "./use-editor-zoom";
+import { useImageDropUpload } from "./use-image-drop-upload";
+import { useMediaPreview } from "./use-media-preview";
 
 type NoteEditorProps = {
   note: NoteContent;
@@ -25,39 +30,19 @@ type NoteEditorProps = {
   onLinkError?: (message: string) => void;
 };
 
-const EDITOR_ZOOM_STORAGE_KEY = "carbon.editor.zoom";
-const DEFAULT_EDITOR_ZOOM = 1;
-const MIN_EDITOR_ZOOM = 0.6;
-const MAX_EDITOR_ZOOM = 2;
-const EDITOR_ZOOM_STEP = 0.1;
-const ZOOM_INDICATOR_DISPLAY_MS = 2000;
-
-type ImageEditorStorage = {
-  prepareUploadFile?: (file: File) => Promise<File>;
-  uploadImage?: (editor: unknown, file: File, pos?: number) => Promise<void>;
-};
-
-function clampEditorZoom(value: number): number {
-  return Math.min(MAX_EDITOR_ZOOM, Math.max(MIN_EDITOR_ZOOM, value));
-}
-
-function parseStoredEditorZoom(value: string | null): number {
-  if (!value) return DEFAULT_EDITOR_ZOOM;
-  const parsed = Number.parseFloat(value);
-  if (!Number.isFinite(parsed)) return DEFAULT_EDITOR_ZOOM;
-  return clampEditorZoom(parsed);
-}
-
 export function NoteEditor(props: NoteEditorProps) {
   const { note, onSave, onBufferChange, vaultPath, tree, onNavigateToNote, onLinkError } = props;
   const { copied, showCopied, dismissCopied } = useCopyFeedback<"markdown" | "path">(1500);
-  const [editorZoom, setEditorZoom] = useState<number>(() => {
-    if (typeof window === "undefined") return DEFAULT_EDITOR_ZOOM;
-    return parseStoredEditorZoom(window.localStorage.getItem(EDITOR_ZOOM_STORAGE_KEY));
-  });
-  const [zoomIndicatorVisible, setZoomIndicatorVisible] = useState(false);
-  const zoomIndicatorTimeoutRef = useRef<number | null>(null);
-  const editorZoomRef = useRef(editorZoom);
+  const { editorContentStyle, zoomIndicatorVisible, zoomPercent } = useEditorZoom();
+  const {
+    preview,
+    videoPreviewRef,
+    openImagePreview,
+    openPdfPreview,
+    openVideoPreview,
+    updatePdfPreviewPage,
+    closePreview,
+  } = useMediaPreview();
 
   const debouncedSave = useMemo(
     () =>
@@ -132,39 +117,23 @@ export function NoteEditor(props: NoteEditorProps) {
             }
           },
           suggestion: {
-            items: ({ query }: { query: string }): NoteLinkSuggestionItem[] => {
-              const allFiles = flattenTreeNodes(latestRef.current.tree);
-              const currentPath = note.path;
-              const lower = query.toLowerCase();
-              return allFiles
-                .filter((f) => f.path !== currentPath)
-                .filter((f) => /\.md$/i.test(f.path))
-                .filter(
-                  (f) =>
-                    !query ||
-                    f.name.toLowerCase().includes(lower) ||
-                    f.id.toLowerCase().includes(lower),
-                )
-                .slice(0, 20)
-                .map((f) => ({
-                  id: f.id,
-                  name: f.name,
-                  path: f.path,
-                  relativePath: getRelativePath(currentPath, f.path),
-                }));
-            },
+            items: ({ query }: { query: string }): NoteLinkSuggestionItem[] =>
+              buildNoteLinkSuggestions(latestRef.current.tree, note.path, query),
           },
         }),
         CarbonImage.configure({
           inline: false,
           apiUrl: API_BASE_URL,
           currentNotePath: note.path,
+          onPreviewImage: openImagePreview,
         }),
         CarbonVideo.configure({
           currentNotePath: note.path,
+          onPreviewVideo: openVideoPreview,
         }),
         CarbonPdf.configure({
           currentNotePath: note.path,
+          onPreviewPdf: openPdfPreview,
         }),
         Markdown,
       ],
@@ -180,6 +149,7 @@ export function NoteEditor(props: NoteEditorProps) {
     },
     [note.body, note.path, vaultPath],
   );
+  const { handleContentDragOver, handleContentDrop } = useImageDropUpload(editor);
 
   const handleCopyMarkdown = useCallback(() => {
     if (!editor) return;
@@ -199,94 +169,6 @@ export function NoteEditor(props: NoteEditorProps) {
       });
   }, [note.path, note.id, showCopied]);
 
-  const handleContentDragOver = useCallback((event: ReactDragEvent<HTMLDivElement>) => {
-    const target = event.target;
-    if (target instanceof Element && target.closest(".tiptap, .ProseMirror")) {
-      return;
-    }
-
-    const imageFiles = Array.from(event.dataTransfer?.files ?? []).filter((file) =>
-      file.type.startsWith("image/"),
-    );
-    if (imageFiles.length === 0) return;
-
-    event.preventDefault();
-    event.dataTransfer.dropEffect = "copy";
-  }, []);
-
-  const handleContentDrop = useCallback((event: ReactDragEvent<HTMLDivElement>) => {
-    if (!editor) return;
-
-    const target = event.target;
-    if (target instanceof Element && target.closest(".tiptap, .ProseMirror")) {
-      return;
-    }
-
-    const imageFiles = Array.from(event.dataTransfer?.files ?? []).filter((file) =>
-      file.type.startsWith("image/"),
-    );
-    if (imageFiles.length === 0) return;
-
-    const imageStorage = (editor.storage as { image?: ImageEditorStorage }).image;
-    if (!imageStorage?.uploadImage) return;
-
-    event.preventDefault();
-    const insertPos = editor.state.doc.content.size;
-    const prepareUploadFile = imageStorage.prepareUploadFile ?? ((file: File) => Promise.resolve(file));
-
-    for (const file of imageFiles) {
-      void prepareUploadFile(file).then((preparedFile) => {
-        void imageStorage.uploadImage?.(editor, preparedFile, insertPos);
-      });
-    }
-  }, [editor]);
-
-  const showZoomIndicator = useCallback(() => {
-    if (zoomIndicatorTimeoutRef.current !== null) {
-      window.clearTimeout(zoomIndicatorTimeoutRef.current);
-      zoomIndicatorTimeoutRef.current = null;
-    }
-    setZoomIndicatorVisible(true);
-    zoomIndicatorTimeoutRef.current = window.setTimeout(() => {
-      setZoomIndicatorVisible(false);
-      zoomIndicatorTimeoutRef.current = null;
-    }, ZOOM_INDICATOR_DISPLAY_MS);
-  }, []);
-
-  const setNextEditorZoom = useCallback(
-    (delta: number) => {
-      const nextZoom = clampEditorZoom(
-        Math.round((editorZoomRef.current + delta) * 10) / 10,
-      );
-      if (nextZoom === editorZoomRef.current) return;
-      editorZoomRef.current = nextZoom;
-      setEditorZoom(nextZoom);
-      showZoomIndicator();
-    },
-    [showZoomIndicator],
-  );
-
-  const handleZoomIn = useCallback(() => {
-    setNextEditorZoom(EDITOR_ZOOM_STEP);
-  }, [setNextEditorZoom]);
-
-  const handleZoomOut = useCallback(() => {
-    setNextEditorZoom(-EDITOR_ZOOM_STEP);
-  }, [setNextEditorZoom]);
-
-  useEffect(() => {
-    editorZoomRef.current = editorZoom;
-    window.localStorage.setItem(EDITOR_ZOOM_STORAGE_KEY, editorZoom.toFixed(1));
-  }, [editorZoom]);
-
-  useEffect(() => {
-    return () => {
-      if (zoomIndicatorTimeoutRef.current !== null) {
-        window.clearTimeout(zoomIndicatorTimeoutRef.current);
-      }
-    };
-  }, []);
-
   // Cmd+C with no editor focus and no text selection → copy path
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -302,31 +184,6 @@ export function NoteEditor(props: NoteEditorProps) {
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, [editor, handleCopyPath]);
-
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (!e.metaKey || !e.shiftKey || e.altKey) return;
-      if (e.isComposing) return;
-      const isZoomIn = e.code === "Equal" || e.code === "NumpadAdd" || e.key === "+";
-      const isZoomOut = e.code === "Minus" || e.code === "NumpadSubtract" || e.key === "-" || e.key === "_";
-      if (!isZoomIn && !isZoomOut) return;
-      e.preventDefault();
-      if (isZoomIn) {
-        handleZoomIn();
-      } else {
-        handleZoomOut();
-      }
-    };
-
-    document.addEventListener("keydown", handleKeyDown);
-    return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [handleZoomIn, handleZoomOut]);
-
-  const editorContentStyle = useMemo(
-    () => ({ ["--editor-zoom" as any]: editorZoom.toString() }),
-    [editorZoom],
-  );
-  const zoomPercent = Math.round(editorZoom * 100);
 
   return (
     <div className="note-editor">
@@ -404,6 +261,13 @@ export function NoteEditor(props: NoteEditorProps) {
           onClose={dismissCopied}
         />
       )}
+      <MediaPreviewHost
+        notePath={note.path}
+        preview={preview}
+        videoPreviewRef={videoPreviewRef}
+        onClose={closePreview}
+        onPdfPageChange={updatePdfPreviewPage}
+      />
     </div>
   );
 }

@@ -9,6 +9,9 @@ type PdfDeckProps = {
   compact?: boolean;
   darkBackground?: boolean;
   onDarkBackgroundChange?: (value: boolean) => void;
+  onPreviewRequest?: () => void;
+  compactPage?: number;
+  onCompactPageChange?: (page: number) => void;
 };
 
 const PDF_ZOOM_STORAGE_KEY = "carbon.pdf.zoom";
@@ -89,6 +92,9 @@ export function PdfDeck(props: PdfDeckProps) {
     compact = false,
     darkBackground: controlledDarkBackground,
     onDarkBackgroundChange,
+    onPreviewRequest,
+    compactPage,
+    onCompactPageChange,
   } = props;
   const resolvedPath = useMemo(
     () => resolveSourcePath(sourcePath, currentNotePath),
@@ -109,12 +115,29 @@ export function PdfDeck(props: PdfDeckProps) {
   });
   const [zoomIndicatorVisible, setZoomIndicatorVisible] = useState(false);
   const darkBackground = controlledDarkBackground ?? localDarkBackground;
+  const effectiveCompactPage = compactPage ?? activeCompactPage;
   const zoomRef = useRef(zoom);
   const zoomIndicatorTimeoutRef = useRef<number | null>(null);
   const visiblePages = useMemo(
-    () => (compact ? [activeCompactPage] : Array.from({ length: pageCount }, (_, index) => index + 1)),
-    [activeCompactPage, compact, pageCount],
+    () => (compact ? [effectiveCompactPage] : Array.from({ length: pageCount }, (_, index) => index + 1)),
+    [compact, effectiveCompactPage, pageCount],
   );
+
+  const setCompactPageValue = (nextPage: number | ((current: number) => number)) => {
+    const resolvedCurrent = effectiveCompactPage;
+    const nextValue =
+      typeof nextPage === "function"
+        ? nextPage(resolvedCurrent)
+        : nextPage;
+    const boundedValue = pageCount > 0
+      ? Math.min(Math.max(1, nextValue), pageCount)
+      : Math.max(1, nextValue);
+
+    if (compactPage == null) {
+      setActiveCompactPage(boundedValue);
+    }
+    onCompactPageChange?.(boundedValue);
+  };
 
   useEffect(() => {
     let alive = true;
@@ -187,8 +210,12 @@ export function PdfDeck(props: PdfDeckProps) {
 
   useEffect(() => {
     if (pageCount === 0) return;
+    if (compactPage != null) {
+      onCompactPageChange?.(Math.min(Math.max(1, compactPage), pageCount));
+      return;
+    }
     setActiveCompactPage((current) => Math.min(Math.max(1, current), pageCount));
-  }, [pageCount]);
+  }, [compactPage, onCompactPageChange, pageCount]);
 
   useEffect(() => {
     const pdf = documentRef.current;
@@ -400,26 +427,69 @@ export function PdfDeck(props: PdfDeckProps) {
           ))}
         </div>
         {rendering ? <div className="pdf-canvas-overlay">Rendering...</div> : null}
+        {compact && onPreviewRequest ? (
+          <button
+            type="button"
+            className="pdf-compact-expand-btn"
+            aria-label="Expand PDF preview"
+            onMouseDown={(event) => {
+              event.preventDefault();
+            }}
+            onClick={(event) => {
+              event.preventDefault();
+              event.stopPropagation();
+              onPreviewRequest();
+            }}
+          >
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+              <path
+                d="M6.25 3.75H3.75V6.25M9.75 12.25H12.25V9.75M3.75 3.75L6.4 6.4M12.25 12.25L9.6 9.6"
+                stroke="currentColor"
+                strokeWidth="1.3"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          </button>
+        ) : null}
         {compact ? (
           <div className="pdf-compact-footer" aria-label="PDF page controls">
             <button
               type="button"
               className="pdf-compact-footer-btn"
-              onClick={() => setActiveCompactPage((current) => Math.max(1, current - 1))}
-              disabled={activeCompactPage <= 1}
+              onClick={() => setCompactPageValue((current) => current - 1)}
+              disabled={effectiveCompactPage <= 1}
+              aria-label="Previous PDF page"
             >
-              Back
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                <path
+                  d="M10 3.5L5.5 8L10 12.5"
+                  stroke="currentColor"
+                  strokeWidth="1.35"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
             </button>
             <span className="pdf-compact-footer-counter">
-              {activeCompactPage} / {pageCount}
+              {effectiveCompactPage} / {pageCount}
             </span>
             <button
               type="button"
               className="pdf-compact-footer-btn"
-              onClick={() => setActiveCompactPage((current) => Math.min(pageCount, current + 1))}
-              disabled={activeCompactPage >= pageCount}
+              onClick={() => setCompactPageValue((current) => current + 1)}
+              disabled={effectiveCompactPage >= pageCount}
+              aria-label="Next PDF page"
             >
-              Next
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                <path
+                  d="M6 3.5L10.5 8L6 12.5"
+                  stroke="currentColor"
+                  strokeWidth="1.35"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
             </button>
           </div>
         ) : null}

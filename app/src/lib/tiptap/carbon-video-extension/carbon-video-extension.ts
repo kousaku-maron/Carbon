@@ -1,12 +1,30 @@
 import { Node, createAtomBlockMarkdownSpec, mergeAttributes } from "@tiptap/core";
 import { readFile } from "@tauri-apps/plugin-fs";
 import { Plugin, PluginKey } from "@tiptap/pm/state";
+import { ReactNodeViewRenderer } from "@tiptap/react";
 import { getVideoMimeType, isVideoPath } from "../../file-kind";
 import { resolveRelativePath } from "../../link-utils";
+import { CarbonVideoNodeView } from "./carbon-video-node-view";
 
 export interface CarbonVideoOptions {
   /** Absolute path of current note. Used to resolve relative local video paths. */
   currentNotePath: string | null;
+  onPreviewVideo: ((payload: {
+    src: string;
+    title: string;
+    currentTime: number;
+    paused: boolean;
+    muted: boolean;
+    volume: number;
+    playbackRate: number;
+    syncBack: (state: {
+      currentTime: number;
+      paused: boolean;
+      muted: boolean;
+      volume: number;
+      playbackRate: number;
+    }) => void;
+  }) => void) | null;
 }
 
 const localResolvePluginKey = new PluginKey("carbonLocalVideoResolve");
@@ -65,6 +83,7 @@ export const CarbonVideo = Node.create<CarbonVideoOptions>({
   addOptions() {
     return {
       currentNotePath: null,
+      onPreviewVideo: null,
     } as CarbonVideoOptions;
   },
 
@@ -193,9 +212,14 @@ export const CarbonVideo = Node.create<CarbonVideoOptions>({
       controls: "",
       preload: "metadata",
       playsinline: "",
+      disablepictureinpicture: "",
     };
 
     return ["video", mergeAttributes(attrs)];
+  },
+
+  addNodeView() {
+    return ReactNodeViewRenderer(CarbonVideoNodeView);
   },
 
   addProseMirrorPlugins() {

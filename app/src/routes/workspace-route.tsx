@@ -3,7 +3,7 @@ import { getVersion } from "@tauri-apps/api/app";
 import { useCallback, useEffect, useState } from "react";
 import { FileTree } from "../components/FileTree";
 import { ImageViewer } from "../components/ImageViewer";
-import { NoteEditor } from "../components/NoteEditor";
+import { NoteEditor } from "../components/note-editor";
 import { PdfViewer } from "../components/PdfViewer";
 import { Toast } from "../components/Toast";
 import { UnsupportedFileViewer } from "../components/UnsupportedFileViewer";

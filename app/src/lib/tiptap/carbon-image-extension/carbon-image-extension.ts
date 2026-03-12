@@ -1,10 +1,13 @@
 import Image from "@tiptap/extension-image";
 import type { ImageOptions } from "@tiptap/extension-image";
+import type { Editor } from "@tiptap/core";
 import { readFile } from "@tauri-apps/plugin-fs";
 import { Plugin, PluginKey } from "@tiptap/pm/state";
 import { Decoration, DecorationSet } from "@tiptap/pm/view";
+import { ReactNodeViewRenderer } from "@tiptap/react";
 import { getImageMimeType, isImagePath } from "../../file-kind";
 import { resolveRelativePath } from "../../link-utils";
+import { CarbonImageNodeView } from "./carbon-image-node-view";
 import { compressImage } from "./image-compression";
 import { parseAssetUri, buildAssetLoadingImage, buildAssetResolveErrorImage } from "./asset-utils";
 import { uploadAsset, cacheUrl, resolveAndCache } from "./asset-client";
@@ -18,10 +21,52 @@ export interface CarbonImageOptions extends ImageOptions {
   currentNotePath: string | null;
   /** Interval (ms) for periodic re-resolve of signed URLs. 0 to disable. */
   resolveInterval: number;
+  /** Open a preview modal for the rendered image. */
+  onPreviewImage: ((payload: { src: string; alt: string }) => void) | null;
 }
 
 const uploadDecoPluginKey = new PluginKey<Set<string>>("carbonImageUploadDeco");
 const localResolvePluginKey = new PluginKey("carbonLocalImageResolve");
+
+type ImageEditorStorage = {
+  prepareUploadFile?: (file: File) => Promise<File>;
+  uploadImage?: (editor: Editor, file: File, pos?: number) => Promise<void>;
+};
+
+export function getDroppedImageFiles(
+  files: ArrayLike<File> | Iterable<File> | null | undefined,
+): File[] {
+  if (!files) return [];
+  return Array.from(files).filter((file) => file.type.startsWith("image/"));
+}
+
+export function hasDroppedImageFiles(
+  dataTransfer: Pick<DataTransfer, "files"> | null | undefined,
+): boolean {
+  return getDroppedImageFiles(dataTransfer?.files).length > 0;
+}
+
+export async function appendDroppedImages(
+  editor: Editor,
+  files: ArrayLike<File> | Iterable<File> | null | undefined,
+): Promise<boolean> {
+  const imageFiles = getDroppedImageFiles(files);
+  if (imageFiles.length === 0) return false;
+
+  const imageStorage = (editor.storage as { image?: ImageEditorStorage }).image;
+  if (!imageStorage?.uploadImage) return false;
+
+  const insertPos = editor.state.doc.content.size;
+  const prepareUploadFile =
+    imageStorage.prepareUploadFile ?? ((file: File) => Promise.resolve(file));
+
+  for (const file of imageFiles) {
+    const preparedFile = await prepareUploadFile(file);
+    await imageStorage.uploadImage(editor, preparedFile, insertPos);
+  }
+
+  return true;
+}
 
 function isWindowsAbsolutePath(path: string): boolean {
   return /^[A-Za-z]:[\\/]/.test(path);
@@ -66,7 +111,12 @@ export const CarbonImage = Image.extend<CarbonImageOptions>({
       apiUrl: null,
       currentNotePath: null,
       resolveInterval: 4 * 60 * 1000,
+      onPreviewImage: null,
     } as CarbonImageOptions;
+  },
+
+  addNodeView() {
+    return ReactNodeViewRenderer(CarbonImageNodeView);
   },
 
   // ── 2. Storage ──────────────────────────────────────────────

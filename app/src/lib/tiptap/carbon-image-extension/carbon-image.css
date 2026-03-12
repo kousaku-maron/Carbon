@@ -1,31 +1,84 @@
 /* Image styles */
-.note-editor-content .tiptap img {
-  width: 100%;
-  height: auto;
+.note-editor-content .tiptap .carbon-image-node {
   margin: 0.5rem 0;
-  display: block;
 }
 
-.note-editor-content .tiptap img[data-asset-loading="true"] {
+.note-editor-content .tiptap .carbon-image-frame {
+  position: relative;
+}
+
+.note-editor-content .tiptap .carbon-image-node.ProseMirror-selectednode .carbon-image-frame::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: rgba(99, 102, 241, 0.12);
+  pointer-events: none;
+  z-index: 1;
+}
+
+.note-editor-content .tiptap .carbon-image-embed {
+  width: 100%;
+  height: auto;
+  display: block;
+  margin: 0;
+}
+
+.note-editor-content .tiptap .carbon-image-embed[data-asset-loading="true"] {
   border: 1px dashed #d7d5d1;
   background: #f7f6f3;
   opacity: 0.6;
   animation: carbon-image-pulse 1.5s ease-in-out infinite;
 }
 
-.note-editor-content .tiptap img[data-asset-error="true"] {
+.note-editor-content .tiptap .carbon-image-embed[data-asset-error="true"] {
   border: 1px dashed #d7d5d1;
   background: #f7f6f3;
 }
 
-.note-editor-content .tiptap img.ProseMirror-selectednode {
+.note-editor-content .tiptap .carbon-image-node.ProseMirror-selectednode {
   outline: 2px solid #6366f1;
   outline-offset: 2px;
 }
 
-.note-editor-content .tiptap img.carbon-image-uploading {
+.note-editor-content .tiptap .carbon-image-embed.carbon-image-uploading {
   opacity: 0.6;
   animation: carbon-image-pulse 1.5s ease-in-out infinite;
+}
+
+.note-editor-content .tiptap .carbon-image-expand-btn {
+  position: absolute;
+  top: 0.55rem;
+  right: 0.55rem;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.55rem;
+  height: 1.8rem;
+  border: none;
+  border-radius: 0.55rem;
+  background: rgba(32, 32, 32, 0.72);
+  color: #ffffff;
+  cursor: pointer;
+  opacity: 0;
+  transform: translateY(-1px);
+  transition: opacity 140ms ease, transform 140ms ease, background 140ms ease;
+}
+
+.note-editor-content .tiptap .carbon-image-frame:hover .carbon-image-expand-btn,
+.note-editor-content .tiptap .carbon-image-frame:focus-within .carbon-image-expand-btn,
+.note-editor-content .tiptap .carbon-image-expand-btn:focus-visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.note-editor-content .tiptap .carbon-image-expand-btn:hover {
+  background: rgba(32, 32, 32, 0.84);
+}
+
+.note-editor-content .tiptap .carbon-image-expand-btn:focus-visible {
+  outline: 2px solid rgba(255, 255, 255, 0.65);
+  outline-offset: 2px;
 }
 
 @keyframes carbon-image-pulse {
