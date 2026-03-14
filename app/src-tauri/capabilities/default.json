@@ -16,7 +16,11 @@
     "fs:allow-watch",
     {
       "identifier": "fs:scope",
-      "allow": ["**"]
+      "allow": [
+        "**",
+        "**/.*",
+        "**/.*/**"
+      ]
     },
     "deep-link:default",
     "http:default",

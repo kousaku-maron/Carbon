@@ -162,6 +162,7 @@ describe("use-file-watcher internals", () => {
         name: "Docs",
         path: "/vault/Docs",
         kind: "folder",
+        dirty: false,
         children: [
           { id: "Docs/new.md", name: "new", path: "/vault/Docs/new.md", kind: "file" },
         ],
@@ -197,14 +198,44 @@ describe("use-file-watcher internals", () => {
     ]);
   });
 
-  it("ignores hidden and out-of-vault directories for suspicious resync targets", () => {
+  it("ignores excluded and out-of-vault directories for suspicious resync targets", () => {
     expect(__fileWatcherTestUtils.shouldIgnoreResyncPath("/vault/.git", "/vault")).toBe(true);
+    expect(__fileWatcherTestUtils.shouldIgnoreResyncPath("/vault/.DS_Store", "/vault")).toBe(true);
     expect(__fileWatcherTestUtils.shouldIgnoreResyncPath("/vault/docs/.cache", "/vault")).toBe(
       true,
     );
+    expect(__fileWatcherTestUtils.shouldIgnoreResyncPath("/vault/.claude", "/vault")).toBe(false);
+    expect(__fileWatcherTestUtils.shouldIgnoreResyncPath("/vault/.claude/settings.json", "/vault")).toBe(false);
     expect(__fileWatcherTestUtils.shouldIgnoreResyncPath("/elsewhere/docs", "/vault")).toBe(true);
     expect(__fileWatcherTestUtils.shouldIgnoreResyncPath("/vault/docs", "/vault")).toBe(false);
     expect(__fileWatcherTestUtils.shouldIgnoreResyncPath("/vault", "/vault")).toBe(false);
+  });
+
+  it("builds vault-relative ids for directory resync snapshot entries", async () => {
+    readDirMock.mockResolvedValueOnce([
+      { name: "docs", isDirectory: true },
+      { name: "note.md", isDirectory: false },
+    ] as never);
+
+    const snapshot = await __fileWatcherTestUtils.readDirectorySnapshotEntries("/vault", "/vault");
+
+    expect(snapshot).toEqual([
+      {
+        id: "docs",
+        name: "docs",
+        path: "/vault/docs",
+        kind: "folder",
+        children: [],
+        loaded: false,
+        dirty: false,
+      },
+      {
+        id: "note.md",
+        name: "note",
+        path: "/vault/note.md",
+        kind: "file",
+      },
+    ]);
   });
 
   it("collects only allowed suspicious resync directories", () => {

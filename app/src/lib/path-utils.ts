@@ -62,3 +62,27 @@ export function toVaultRelative(absolutePath: string, vaultRoot: string): string
 export function hasInvalidNodeName(name: string): boolean {
   return name.includes("/") || name.includes("\\") || name.includes("..");
 }
+
+export function isDefaultExplorerExcludedName(name: string): boolean {
+  return name === ".git" || name === ".svn" || name === ".hg" || name === "CVS" || name === ".DS_Store" || name === "Thumbs.db";
+}
+
+export function isHiddenName(name: string): boolean {
+  return name.startsWith(".");
+}
+
+export function shouldIncludeInVaultTree(filePath: string, vaultRoot: string): boolean {
+  const relative = toVaultRelative(filePath, vaultRoot).replace(/^\/+/, "");
+  if (!relative) return true;
+
+  const segments = relative.split("/").filter(Boolean);
+  if (!segments.length) return true;
+
+  for (let index = 0; index < segments.length; index += 1) {
+    const segment = segments[index];
+    if (isDefaultExplorerExcludedName(segment)) return false;
+    if (index > 0 && isHiddenName(segment)) return false;
+  }
+
+  return true;
+}

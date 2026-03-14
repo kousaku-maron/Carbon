@@ -12,6 +12,7 @@ type PendingAction =
 
 interface FileTreeCallbacks {
   onSelect: (node: TreeNode) => void;
+  onExpandFolder?: (folderPath: string) => Promise<void> | void;
   onCreateFile: (parentDir: string, name: string) => void;
   onCreateFolder: (parentDir: string, name: string) => void;
   onRename: (oldPath: string, newName: string) => void;
@@ -388,7 +389,7 @@ function FileTreeItem(props: FileTreeCallbacks & {
     dragRef,
     ...callbacks
   } = props;
-  const [expanded, setExpanded] = useState(depth === 0);
+  const [expanded, setExpanded] = useState(false);
   const [dragOver, setDragOver] = useState(false);
 
   const isRenaming =
@@ -410,6 +411,13 @@ function FileTreeItem(props: FileTreeCallbacks & {
       setExpanded(true);
     }
   }, [inlineCreate, expanded]);
+
+  useEffect(() => {
+    if (node.kind !== "folder") return;
+    if (!inlineCreate) return;
+    if (node.loaded !== false && !node.dirty) return;
+    void callbacks.onExpandFolder?.(node.path);
+  }, [callbacks, inlineCreate, node]);
 
   // -- Drag handlers (on <li> elements) --
   function handleDragStart(e: React.DragEvent) {
@@ -487,7 +495,13 @@ function FileTreeItem(props: FileTreeCallbacks & {
         ) : (
           <button
             className={folderClasses}
-            onClick={() => setExpanded(!expanded)}
+            onClick={() => {
+              const nextExpanded = !expanded;
+              setExpanded(nextExpanded);
+              if (nextExpanded && (node.loaded === false || node.dirty)) {
+                void callbacks.onExpandFolder?.(node.path);
+              }
+            }}
             onContextMenu={(e) => onContextMenuFolder(e, node)}
           >
             <span

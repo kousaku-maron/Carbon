@@ -2,8 +2,21 @@ import type { Dispatch, SetStateAction } from "react";
 import { useEffect, useRef } from "react";
 import { readDir, stat, watch } from "@tauri-apps/plugin-fs";
 import type { WatchEvent } from "@tauri-apps/plugin-fs";
-import { getParentPath, isPathInside, pathsEqual } from "../../path-utils";
-import { addToTree, relocateInTree, removeFromTree } from "../modules/note-index";
+import {
+  getParentPath,
+  isPathInside,
+  pathsEqual,
+  shouldIncludeInVaultTree,
+  toVaultRelative,
+} from "../../path-utils";
+import {
+  addToTree,
+  findTreeNode,
+  getRemovedTreePaths,
+  relocateInTree,
+  removeFromTree,
+  replaceFolderChildren,
+} from "../modules/note-index";
 import type { TreeNode } from "../../types";
 
 interface UseFileWatcherOptions {
@@ -21,7 +34,7 @@ type CanonicalOp =
   | { kind: "move"; from: string; to: string }
   | { kind: "touch"; path: string };
 
-type SnapshotEntry = { path: string; kind: "file" | "folder" };
+type SnapshotEntry = TreeNode;
 
 const RESYNC_DEBOUNCE_MS = 350;
 const RESYNC_FAILURE_FALLBACK_THRESHOLD = 3;
@@ -267,77 +280,44 @@ function shouldIgnoreResyncPath(path: string, vaultRoot: string): boolean {
   const normalizedRoot = normalizePath(vaultRoot);
   if (pathsEqual(normalizedPath, normalizedRoot)) return false;
   if (!isPathInside(normalizedPath, normalizedRoot)) return true;
-
-  const relative = normalizedPath.slice(normalizedRoot.length).replace(/^\/+/, "");
-  if (!relative) return false;
-  return relative.split("/").some((segment) => segment.startsWith("."));
-}
-
-function collectTreeEntries(nodes: TreeNode[]): SnapshotEntry[] {
-  const entries: SnapshotEntry[] = [];
-  const walk = (items: TreeNode[]) => {
-    for (const item of items) {
-      entries.push({ path: item.path, kind: item.kind });
-      if (item.kind === "folder" && item.children?.length) {
-        walk(item.children);
-      }
-    }
-  };
-  walk(nodes);
-  return entries;
+  return !shouldIncludeInVaultTree(normalizedPath, normalizedRoot);
 }
 
 async function readDirectorySnapshotEntries(
   absoluteDirPath: string,
-): Promise<Array<{ entryPath: string; isDirectory: boolean }>> {
+  vaultRoot: string,
+): Promise<TreeNode[]> {
   const entries = await readDir(absoluteDirPath);
   if (!Array.isArray(entries)) return [];
   return entries
-    .filter((entry) => !entry.name.startsWith("."))
-    .map((entry) => ({
-      entryPath: absoluteDirPath.endsWith("/") || absoluteDirPath.endsWith("\\")
+    .filter((entry) =>
+      shouldIncludeInVaultTree(
+        absoluteDirPath.endsWith("/") || absoluteDirPath.endsWith("\\")
+          ? `${absoluteDirPath}${entry.name}`
+          : `${absoluteDirPath}${absoluteDirPath.includes("\\") ? "\\" : "/"}${entry.name}`,
+        vaultRoot,
+      ))
+    .map((entry) => {
+      const entryPath = absoluteDirPath.endsWith("/") || absoluteDirPath.endsWith("\\")
         ? `${absoluteDirPath}${entry.name}`
-        : `${absoluteDirPath}${absoluteDirPath.includes("\\") ? "\\" : "/"}${entry.name}`,
-      isDirectory: entry.isDirectory,
-    }));
-}
-
-async function scanSubtree(path: string): Promise<SnapshotEntry[]> {
-  const out: SnapshotEntry[] = [{ path, kind: "folder" }];
-  const stack: string[] = [path];
-
-  while (stack.length) {
-    const currentDir = stack.pop()!;
-    let entries: Array<{ entryPath: string; isDirectory: boolean }>;
-    try {
-      entries = await readDirectorySnapshotEntries(currentDir);
-    } catch (err) {
-      if (isMissingPathError(err)) {
-        if (pathsEqual(currentDir, path)) return [];
-        continue;
-      }
-      throw err;
-    }
-
-    for (const entry of entries) {
-      if (entry.isDirectory) {
-        out.push({ path: entry.entryPath, kind: "folder" });
-        stack.push(entry.entryPath);
-      } else {
-        out.push({ path: entry.entryPath, kind: "file" });
-      }
-    }
-  }
-
-  return out;
-}
-
-async function scanScopeSnapshot(scopePath: string, vaultRoot: string): Promise<SnapshotEntry[]> {
-  if (pathsEqual(scopePath, vaultRoot)) {
-    const rootEntries = await scanSubtree(vaultRoot);
-    return rootEntries.filter((entry) => !pathsEqual(entry.path, vaultRoot));
-  }
-  return scanSubtree(scopePath);
+        : `${absoluteDirPath}${absoluteDirPath.includes("\\") ? "\\" : "/"}${entry.name}`;
+      return entry.isDirectory
+        ? {
+            id: toVaultRelative(entryPath, vaultRoot),
+            name: entry.name,
+            path: entryPath,
+            kind: "folder" as const,
+            children: [],
+            loaded: false,
+            dirty: false,
+          }
+        : {
+            id: toVaultRelative(entryPath, vaultRoot),
+            name: entry.name.replace(/\.md$/i, ""),
+            path: entryPath,
+            kind: "file" as const,
+          };
+    });
 }
 
 function reconcileTreeWithSnapshot(
@@ -346,45 +326,47 @@ function reconcileTreeWithSnapshot(
   scopePath: string,
   vaultRoot: string,
 ): { next: TreeNode[]; removedPaths: string[]; changedMarkdownPaths: string[] } {
-  const normalizedScope = normalizePath(scopePath);
-  const inScope = (path: string) =>
-    pathsEqual(normalizedScope, vaultRoot) || isPathInside(path, normalizedScope);
+  const mergeSnapshot = (existingChildren: TreeNode[], entries: SnapshotEntry[]): TreeNode[] =>
+    entries.map((entry) => {
+      const existing = existingChildren.find(
+        (child) => pathsEqual(child.path, entry.path) && child.kind === entry.kind,
+      );
+      if (!existing || entry.kind !== "folder" || existing.kind !== "folder") return entry;
+      return {
+        ...entry,
+        children: existing.children,
+        loaded: existing.loaded,
+        dirty: existing.dirty,
+      };
+    });
 
-  const existing = collectTreeEntries(prev);
-  const existingInScope = existing.filter((entry) => inScope(entry.path));
+  const existingChildren = pathsEqual(scopePath, vaultRoot)
+    ? prev
+    : (() => {
+        const folder = findTreeNode(prev, scopePath);
+        if (!folder || folder.kind !== "folder") return [];
+        return folder.children ?? [];
+      })();
+
   const snapshotSet = new Set(snapshot.map((entry) => normalizePath(entry.path)));
-  const existingSet = new Set(existing.map((entry) => normalizePath(entry.path)));
-
-  let next = prev;
-  const sortedRemovals = [...existingInScope]
-    .sort((a, b) => b.path.length - a.path.length)
-    .map((entry) => entry.path);
-  for (const path of sortedRemovals) {
-    next = removeFromTree(next, path);
-  }
-
-  const sortedAdditions = [...snapshot].sort((a, b) => {
-    const depthA = normalizePath(a.path).split("/").length;
-    const depthB = normalizePath(b.path).split("/").length;
-    if (depthA !== depthB) return depthA - depthB;
-    if (a.kind !== b.kind) return a.kind === "folder" ? -1 : 1;
-    return a.path.localeCompare(b.path);
-  });
-  for (const entry of sortedAdditions) {
-    next = addToTree(next, entry.path, vaultRoot, entry.kind);
-  }
-
-  const removedPaths = existingInScope
-    .map((entry) => entry.path)
-    .filter((path) => !snapshotSet.has(normalizePath(path)));
+  const existingSet = new Set(existingChildren.map((entry) => normalizePath(entry.path)));
+  const removedNodes = existingChildren.filter(
+    (entry) => !snapshotSet.has(normalizePath(entry.path)),
+  );
+  const removedPaths = removedNodes.flatMap((entry) => getRemovedTreePaths(prev, entry.path));
   const changedMarkdownPaths = new Set<string>();
   for (const removedPath of removedPaths) {
     if (isMarkdownFile(removedPath)) changedMarkdownPaths.add(removedPath);
   }
   for (const entry of snapshot) {
     if (entry.kind !== "file" || !isMarkdownFile(entry.path)) continue;
-    if (!existingSet.has(normalizePath(entry.path))) changedMarkdownPaths.add(entry.path);
+      if (!existingSet.has(normalizePath(entry.path))) changedMarkdownPaths.add(entry.path);
   }
+
+  const mergedSnapshot = mergeSnapshot(existingChildren, snapshot);
+  const next = pathsEqual(scopePath, vaultRoot)
+    ? mergedSnapshot
+    : replaceFolderChildren(addToTree(prev, scopePath, vaultRoot, "folder"), scopePath, mergedSnapshot);
 
   return {
     next,
@@ -459,6 +441,7 @@ export const __fileWatcherTestUtils = {
   normalizePath,
   normalizePathKey,
   shouldIgnoreResyncPath,
+  readDirectorySnapshotEntries,
   reconcileTreeWithSnapshot,
   collectSuspiciousResyncDirs,
 };
@@ -499,13 +482,27 @@ export function useFileWatcher({
       if (shouldIgnoreResyncPath(dirPath, vaultPath)) return;
 
       try {
-        const snapshot = await scanScopeSnapshot(dirPath, vaultPath);
+        let snapshot: SnapshotEntry[] = [];
+        let missingDir = false;
+        try {
+          snapshot = await readDirectorySnapshotEntries(dirPath, vaultPath);
+        } catch (err) {
+          if (isMissingPathError(err) && !pathsEqual(dirPath, vaultPath)) {
+            missingDir = true;
+          } else {
+            throw err;
+          }
+        }
         if (disposed) return;
         if (latestSeqByDir.get(key) !== seq) return;
 
         let removedPaths: string[] = [];
         let changedMarkdownPaths: string[] = [];
         setTree((prev) => {
+          if (missingDir) {
+            removedPaths = getRemovedTreePaths(prev, dirPath);
+            return removeFromTree(prev, dirPath);
+          }
           const reconciled = reconcileTreeWithSnapshot(prev, snapshot, dirPath, vaultPath);
           removedPaths = reconciled.removedPaths;
           changedMarkdownPaths = reconciled.changedMarkdownPaths;

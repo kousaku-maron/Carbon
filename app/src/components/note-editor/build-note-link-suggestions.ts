@@ -1,17 +1,16 @@
-import { flattenTreeNodes, getRelativePath } from "../../lib/link-utils";
-import type { TreeNode } from "../../lib/types";
+import { getRelativePath } from "../../lib/link-utils";
+import type { NoteIndexEntry } from "../../lib/types";
 import type { NoteLinkSuggestionItem } from "../../lib/tiptap/carbon-link-extension";
 
 export function buildNoteLinkSuggestions(
-  tree: TreeNode[],
+  notes: NoteIndexEntry[],
   currentPath: string,
   query: string,
 ): NoteLinkSuggestionItem[] {
   const lower = query.toLowerCase();
 
-  return flattenTreeNodes(tree)
+  return notes
     .filter((file) => file.path !== currentPath)
-    .filter((file) => /\.md$/i.test(file.path))
     .filter(
       (file) =>
         !query ||

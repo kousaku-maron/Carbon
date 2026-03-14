@@ -14,7 +14,7 @@ import { debounce } from "../../lib/debounce";
 import { useCopyFeedback } from "../../lib/hooks/use-copy-feedback";
 import { resolveRelativePath, validateLinkTarget } from "../../lib/link-utils";
 import { formatMarkdownForCopy } from "../../lib/tiptap/markdown";
-import type { NoteContent, TreeNode } from "../../lib/types";
+import type { NoteContent, NoteIndexEntry } from "../../lib/types";
 import { MediaPreviewHost } from "./MediaPreviewHost";
 import { buildNoteLinkSuggestions } from "./build-note-link-suggestions";
 import { Toast } from "../Toast";
@@ -27,7 +27,7 @@ type NoteEditorProps = {
   onSave: (path: string, content: string) => Promise<void>;
   onBufferChange?: (path: string, content: string) => void;
   vaultPath: string;
-  tree: TreeNode[];
+  noteIndex: NoteIndexEntry[];
   onNavigateToNote?: (absolutePath: string) => void;
   onLinkError?: (message: string) => void;
 };
@@ -38,7 +38,7 @@ export function NoteEditor(props: NoteEditorProps) {
     onSave,
     onBufferChange,
     vaultPath,
-    tree,
+    noteIndex,
     onNavigateToNote,
     onLinkError,
   } = props;
@@ -70,7 +70,7 @@ export function NoteEditor(props: NoteEditorProps) {
     onLinkError,
     onBufferChange,
     debouncedSave,
-    tree,
+    noteIndex,
   });
   useEffect(() => {
     latestRef.current = {
@@ -78,10 +78,10 @@ export function NoteEditor(props: NoteEditorProps) {
       onLinkError,
       onBufferChange,
       debouncedSave,
-      tree,
+      noteIndex,
     };
     return () => latestRef.current.debouncedSave.cancel();
-  }, [onNavigateToNote, onLinkError, onBufferChange, debouncedSave, tree]);
+  }, [onNavigateToNote, onLinkError, onBufferChange, debouncedSave, noteIndex]);
 
   const editor = useEditor(
     {
@@ -128,7 +128,7 @@ export function NoteEditor(props: NoteEditorProps) {
           },
           suggestion: {
             items: ({ query }: { query: string }): NoteLinkSuggestionItem[] =>
-              buildNoteLinkSuggestions(latestRef.current.tree, note.path, query),
+              buildNoteLinkSuggestions(latestRef.current.noteIndex, note.path, query),
           },
         }),
         CarbonImage.configure({

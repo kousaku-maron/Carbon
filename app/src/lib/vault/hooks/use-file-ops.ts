@@ -2,15 +2,23 @@ import type { Dispatch, SetStateAction } from "react";
 import { useCallback } from "react";
 import { mkdir, remove, rename, writeTextFile } from "@tauri-apps/plugin-fs";
 import { writeNote } from "../modules/note-persistence";
-import { findNodeByPath } from "../../link-utils";
 import {
   getBaseName,
   getParentPath,
   hasInvalidNodeName,
   joinPath,
+  pathsEqual,
 } from "../../path-utils";
-import type { TreeNode } from "../../types";
-import { addToTree, relocateInTree, removeFromTree } from "../modules/note-index";
+import type { NoteIndexEntry, TreeNode } from "../../types";
+import { createNoteIndexEntry, upsertNoteIndex } from "../modules/note-catalog";
+import {
+  addToTree,
+  findTreeNode,
+  getRemovedTreePaths,
+  invalidateTreePaths,
+  relocateInTree,
+  removeFromTree,
+} from "../modules/note-index";
 
 function validateNodeName(raw: string): string {
   const name = raw.trim();
@@ -21,10 +29,21 @@ function validateNodeName(raw: string): string {
   return "";
 }
 
+function createFileNodeFromIndex(entry: NoteIndexEntry): TreeNode {
+  return {
+    id: entry.id,
+    name: entry.name,
+    path: entry.path,
+    kind: "file",
+  };
+}
+
 interface UseFileOpsOptions {
   vaultPath: string | null;
   tree: TreeNode[];
+  noteIndex: NoteIndexEntry[];
   setTree: Dispatch<SetStateAction<TreeNode[]>>;
+  setNoteIndex: Dispatch<SetStateAction<NoteIndexEntry[]>>;
   onSelectNote?: (node: TreeNode) => Promise<void>;
   onPathsRemoved?: (removedPaths: string[]) => void;
   onPathsMoved?: (moves: Array<{ from: string; to: string }>) => void;
@@ -34,7 +53,9 @@ interface UseFileOpsOptions {
 export function useFileOps({
   vaultPath,
   tree,
+  noteIndex,
   setTree,
+  setNoteIndex,
   onSelectNote,
   onPathsRemoved,
   onPathsMoved,
@@ -65,12 +86,13 @@ export function useFileOps({
         await writeTextFile(filePath, "");
         if (vaultPath) {
           setTree((prev) => addToTree(prev, filePath, vaultPath, "file"));
+          setNoteIndex((prev) => upsertNoteIndex(prev, filePath, vaultPath));
         }
       } catch (err) {
         onError?.(err instanceof Error ? err.message : "Failed to create file");
       }
     },
-    [vaultPath, onError, setTree],
+    [vaultPath, onError, setNoteIndex, setTree],
   );
 
   const handleCreateFolder = useCallback(
@@ -132,13 +154,19 @@ export function useFileOps({
       if (!confirm(`Delete ${label} "${node.name}"?`)) return;
       try {
         await remove(node.path, { recursive: node.kind === "folder" });
-        setTree((prev) => removeFromTree(prev, node.path));
-        onPathsRemoved?.([node.path]);
+        const removedPaths = getRemovedTreePaths(tree, node.path);
+        setTree((prev) => {
+          const next = removeFromTree(prev, node.path);
+          return node.kind === "folder"
+            ? invalidateTreePaths(next, [node.path])
+            : next;
+        });
+        onPathsRemoved?.(removedPaths.length ? removedPaths : [node.path]);
       } catch (err) {
         onError?.(err instanceof Error ? err.message : "Failed to delete");
       }
     },
-    [onError, onPathsRemoved, setTree],
+    [onError, onPathsRemoved, setTree, tree],
   );
 
   const handleMove = useCallback(
@@ -161,18 +189,26 @@ export function useFileOps({
 
   const handleNavigateToNote = useCallback(
     async (absolutePath: string) => {
-      const node = findNodeByPath(tree, absolutePath);
-      if (!node) {
+      const visibleNode = findTreeNode(tree, absolutePath);
+      if (visibleNode && visibleNode.kind === "file") {
+        await onSelectNote?.(visibleNode);
+        return;
+      }
+
+      const indexed = noteIndex.find((entry) => pathsEqual(entry.path, absolutePath));
+      if (indexed) {
+        await onSelectNote?.(createFileNodeFromIndex(indexed));
+        return;
+      }
+
+      const fallback = vaultPath ? createNoteIndexEntry(absolutePath, vaultPath) : null;
+      if (!fallback) {
         onError?.("Link target not found");
         return;
       }
-      if (!onSelectNote) {
-        onError?.("Failed to open note");
-        return;
-      }
-      await onSelectNote(node);
+      await onSelectNote?.(createFileNodeFromIndex(fallback));
     },
-    [tree, onSelectNote, onError],
+    [noteIndex, onError, onSelectNote, tree, vaultPath],
   );
 
   return {

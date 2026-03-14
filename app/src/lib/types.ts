@@ -9,6 +9,16 @@ export type TreeNode = {
   kind: "file" | "folder";
   /** Children, only present for folders. Sorted: folders first, then files, alphabetical. */
   children?: TreeNode[];
+  /** Whether a folder's direct children have been loaded into memory. */
+  loaded?: boolean;
+  /** Whether a folder should be refreshed before its children are trusted. */
+  dirty?: boolean;
+};
+
+export type NoteIndexEntry = {
+  id: string;
+  name: string;
+  path: string;
 };
 
 /** Represents the currently active note. */

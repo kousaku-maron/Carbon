@@ -28,12 +28,14 @@ export function WorkspaceRoute() {
     vaultPath,
     vaultHistory,
     tree,
+    noteIndex,
     activeNote,
     activeNonMarkdownFile,
     loading,
     switchVault,
     handleRemoveFromHistory,
     handleSelectNote,
+    handleLoadFolder,
     handleEditorBufferChange,
     handleSaveNote,
     handleCreateFile,
@@ -162,6 +164,7 @@ export function WorkspaceRoute() {
                 activeNoteId={activeNote?.id ?? activeNonMarkdownFile?.id ?? null}
                 vaultPath={vaultPath}
                 onSelect={handleSelectNote}
+                onExpandFolder={handleLoadFolder}
                 onCreateFile={handleCreateFile}
                 onCreateFolder={handleCreateFolder}
                 onRename={handleRename}
@@ -214,7 +217,7 @@ export function WorkspaceRoute() {
             onSave={handleSaveNote}
             onBufferChange={handleEditorBufferChange}
             vaultPath={vaultPath}
-            tree={tree}
+            noteIndex={noteIndex}
             onNavigateToNote={handleNavigateToNote}
             onLinkError={handleError}
           />
