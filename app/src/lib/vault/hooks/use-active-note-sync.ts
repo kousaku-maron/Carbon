@@ -435,8 +435,41 @@ export function useActiveNoteSync({
     logActiveSyncDev("active-note-cleared", {});
   }, []);
 
+  const getActiveNoteSnapshot = useCallback((): NoteContent | null => {
+    const current = runtimeRef.current.activeNote;
+    if (!current) return null;
+
+    const editor = runtimeRef.current.editor;
+    if (!editor.path || !pathsEqual(editor.path, current.path)) {
+      return current;
+    }
+
+    return {
+      ...current,
+      body: editor.buffer,
+    };
+  }, []);
+
+  const commitActiveNoteBufferToState = useCallback(() => {
+    const current = runtimeRef.current.activeNote;
+    if (!current) return;
+
+    const editor = runtimeRef.current.editor;
+    if (!editor.path || !pathsEqual(editor.path, current.path)) return;
+    if (current.body === editor.buffer) return;
+
+    const next = {
+      ...current,
+      body: editor.buffer,
+    };
+    runtimeRef.current.activeNote = next;
+    setActiveNote(next);
+  }, []);
+
   return {
     activeNote,
+    getActiveNoteSnapshot,
+    commitActiveNoteBufferToState,
     handleSelectNote,
     handleEditorBufferChange,
     onFileChange,

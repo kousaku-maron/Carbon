@@ -21,6 +21,8 @@ export type NoteIndexEntry = {
   path: string;
 };
 
+export type NoteViewMode = "visual" | "plaintext";
+
 /** Represents the currently active note. */
 export type NoteContent = {
   /** Vault-relative path. */

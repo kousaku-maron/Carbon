@@ -14,9 +14,10 @@ import { debounce } from "../../lib/debounce";
 import { useCopyFeedback } from "../../lib/hooks/use-copy-feedback";
 import { resolveRelativePath, validateLinkTarget } from "../../lib/link-utils";
 import { formatMarkdownForCopy } from "../../lib/tiptap/markdown";
-import type { NoteContent, NoteIndexEntry } from "../../lib/types";
+import type { NoteContent, NoteIndexEntry, NoteViewMode } from "../../lib/types";
 import { MediaPreviewHost } from "./MediaPreviewHost";
 import { buildNoteLinkSuggestions } from "./build-note-link-suggestions";
+import { NoteViewHeader } from "../note-view-header";
 import { Toast } from "../Toast";
 import { useEditorZoom } from "./use-editor-zoom";
 import { useImageDropUpload } from "./use-image-drop-upload";
@@ -30,6 +31,10 @@ type NoteEditorProps = {
   noteIndex: NoteIndexEntry[];
   onNavigateToNote?: (absolutePath: string) => void;
   onLinkError?: (message: string) => void;
+  viewMode: NoteViewMode;
+  onViewModeChange: (mode: NoteViewMode) => void;
+  menuOpen: boolean;
+  onMenuOpenChange: (open: boolean) => void;
 };
 
 export function NoteEditor(props: NoteEditorProps) {
@@ -41,6 +46,10 @@ export function NoteEditor(props: NoteEditorProps) {
     noteIndex,
     onNavigateToNote,
     onLinkError,
+    viewMode,
+    onViewModeChange,
+    menuOpen,
+    onMenuOpenChange,
   } = props;
   const { copied, showCopied, dismissCopied } = useCopyFeedback<"markdown" | "path">(1500);
   const { editorContentStyle, zoomIndicatorVisible, zoomPercent } = useEditorZoom();
@@ -203,62 +212,16 @@ export function NoteEditor(props: NoteEditorProps) {
 
   return (
     <div className="note-editor">
-      <header className="note-editor-header">
-        <nav className="note-editor-breadcrumbs">
-          {note.id
-            .replace(/\.md$/i, "")
-            .split("/")
-            .map((segment, i, arr) => (
-              <span key={i} className="note-editor-breadcrumb-item">
-                {i > 0 && <span className="note-editor-breadcrumb-sep">/</span>}
-                <span
-                  className={
-                    i === arr.length - 1
-                      ? "note-editor-breadcrumb-current"
-                      : "note-editor-breadcrumb-folder"
-                  }
-                >
-                  {segment}
-                </span>
-              </span>
-            ))}
-        </nav>
-        <button
-          type="button"
-          className="note-editor-copy-btn"
-          onClick={handleCopyPath}
-          title="Copy path"
-        >
-          {copied === "path" ? (
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-              <path d="M3.5 8.5L6.5 11.5L12.5 4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
-          ) : (
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-              <path d="M6.75 9.25L9.25 6.75" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/>
-              <path d="M8.5 10L7.25 11.25C6.28 12.22 4.72 12.22 3.75 11.25C2.78 10.28 2.78 8.72 3.75 7.75L5 6.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/>
-              <path d="M7.5 6L8.75 4.75C9.72 3.78 11.28 3.78 12.25 4.75C13.22 5.72 13.22 7.28 12.25 8.25L11 9.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/>
-            </svg>
-          )}
-        </button>
-        <button
-          type="button"
-          className="note-editor-copy-btn"
-          onClick={handleCopyMarkdown}
-          title="Copy as Markdown"
-        >
-          {copied === "markdown" ? (
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-              <path d="M3.5 8.5L6.5 11.5L12.5 4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
-          ) : (
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-              <rect x="5.5" y="5.5" width="7" height="8" rx="1.5" stroke="currentColor" strokeWidth="1.3"/>
-              <path d="M10.5 5.5V3.5C10.5 2.67 9.83 2 9 2H4.5C3.67 2 3 2.67 3 3.5V10C3 10.83 3.67 11.5 4.5 11.5H5.5" stroke="currentColor" strokeWidth="1.3"/>
-            </svg>
-          )}
-        </button>
-      </header>
+      <NoteViewHeader
+        note={note}
+        viewMode={viewMode}
+        onViewModeChange={onViewModeChange}
+        onCopyPath={handleCopyPath}
+        onCopyMarkdown={handleCopyMarkdown}
+        copied={copied}
+        menuOpen={menuOpen}
+        onMenuOpenChange={onMenuOpenChange}
+      />
 
       <div
         className="note-editor-content"

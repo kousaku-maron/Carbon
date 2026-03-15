@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { FileTree } from "../components/FileTree";
 import { ImageViewer } from "../components/ImageViewer";
 import { NoteEditor } from "../components/note-editor";
+import { PlainTextEditor } from "../components/plaintext-editor";
 import { PdfViewer } from "../components/PdfViewer";
 import { Toast } from "../components/Toast";
 import { UnsupportedFileViewer } from "../components/UnsupportedFileViewer";
@@ -12,6 +13,7 @@ import { VaultSelector } from "../components/VaultSelector";
 import { signOut } from "../lib/api";
 import { ENABLE_CLOUD_IMAGE_UPLOAD } from "../lib/app-config";
 import { isImagePath, isPdfPath, isVideoPath } from "../lib/file-kind";
+import type { NoteViewMode } from "../lib/types";
 import { pickVaultFolder, useVault } from "../lib/vault";
 
 export function WorkspaceRoute() {
@@ -19,6 +21,8 @@ export function WorkspaceRoute() {
   const [message, setMessage] = useState("");
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [appVersion, setAppVersion] = useState<string | null>(null);
+  const [activeNoteViewMode, setActiveNoteViewMode] = useState<NoteViewMode>("visual");
+  const [noteMenuOpen, setNoteMenuOpen] = useState(false);
   const handleError = useCallback((msg: string) => {
     console.error("[workspace-error]", msg);
     setMessage(msg);
@@ -30,6 +34,8 @@ export function WorkspaceRoute() {
     tree,
     noteIndex,
     activeNote,
+    getActiveNoteSnapshot,
+    commitActiveNoteBufferToState,
     activeNonMarkdownFile,
     loading,
     switchVault,
@@ -113,6 +119,19 @@ export function WorkspaceRoute() {
       window.removeEventListener("drop", suppressExternalFileDrop);
     };
   }, []);
+
+  useEffect(() => {
+    setNoteMenuOpen(false);
+  }, [activeNote?.path]);
+
+  const handleViewModeChange = useCallback((mode: NoteViewMode) => {
+    if (mode === "visual") {
+      commitActiveNoteBufferToState();
+    }
+    setActiveNoteViewMode(mode);
+  }, [commitActiveNoteBufferToState]);
+
+  const activeNoteSnapshot = getActiveNoteSnapshot();
 
   if (loading) {
     return (
@@ -211,16 +230,33 @@ export function WorkspaceRoute() {
           </button>
         )}
         {activeNote && vaultPath ? (
-          <NoteEditor
-            key={activeNote.docKey}
-            note={activeNote}
-            onSave={handleSaveNote}
-            onBufferChange={handleEditorBufferChange}
-            vaultPath={vaultPath}
-            noteIndex={noteIndex}
-            onNavigateToNote={handleNavigateToNote}
-            onLinkError={handleError}
-          />
+          activeNoteViewMode === "plaintext" ? (
+            <PlainTextEditor
+              key={`plaintext-${activeNote.docKey}`}
+              note={activeNoteSnapshot ?? activeNote}
+              onSave={handleSaveNote}
+              onBufferChange={handleEditorBufferChange}
+              viewMode={activeNoteViewMode}
+              onViewModeChange={handleViewModeChange}
+              menuOpen={noteMenuOpen}
+              onMenuOpenChange={setNoteMenuOpen}
+            />
+          ) : (
+            <NoteEditor
+              key={`visual-${activeNote.docKey}`}
+              note={activeNote}
+              onSave={handleSaveNote}
+              onBufferChange={handleEditorBufferChange}
+              vaultPath={vaultPath}
+              noteIndex={noteIndex}
+              onNavigateToNote={handleNavigateToNote}
+              onLinkError={handleError}
+              viewMode={activeNoteViewMode}
+              onViewModeChange={handleViewModeChange}
+              menuOpen={noteMenuOpen}
+              onMenuOpenChange={setNoteMenuOpen}
+            />
+          )
         ) : activeNonMarkdownFile && isImagePath(activeNonMarkdownFile.path) ? (
           <ImageViewer file={activeNonMarkdownFile} />
         ) : activeNonMarkdownFile && isVideoPath(activeNonMarkdownFile.path) ? (

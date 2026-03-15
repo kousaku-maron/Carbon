@@ -2,6 +2,7 @@
   font-family: "IBM Plex Sans", "Noto Sans JP", sans-serif;
   color: #37352f;
   background: #ffffff;
+  --tint-color: #2383e2;
 }
 
 html,
@@ -787,6 +788,115 @@ button:disabled {
   color: #37352f;
 }
 
+.note-header-menu-wrap {
+  position: relative;
+  margin-left: 2px;
+  flex-shrink: 0;
+}
+
+.note-header-menu {
+  position: absolute;
+  top: calc(100% + 0.4rem);
+  right: 0;
+  z-index: 40;
+  min-width: 220px;
+  padding: 0.3rem;
+  border: 1px solid #ece9e3;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.98);
+  box-shadow: 0 12px 30px rgba(21, 20, 18, 0.14);
+  backdrop-filter: blur(12px);
+}
+
+.note-header-menu-label {
+  padding: 0.35rem 0.55rem 0.45rem;
+  color: #8b887f;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.note-header-menu-item {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 0.8rem;
+  padding: 0.5rem 0.6rem;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: #37352f;
+  font-size: 0.78rem;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+
+.note-header-menu-item:hover {
+  background: #f1f1ef;
+}
+
+.note-header-menu-item--static {
+  justify-content: space-between;
+}
+
+.note-header-menu-item--static:hover {
+  background: #f1f1ef;
+}
+
+.note-header-menu-item-label {
+  min-width: 0;
+  color: #37352f;
+  font-size: 0.78rem;
+  font-weight: 500;
+}
+
+.note-header-menu-item.is-active {
+  background: #f5f3ef;
+  color: #111111;
+  font-weight: 600;
+}
+
+.note-header-switch {
+  display: inline-flex;
+  align-items: center;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: #6f6b62;
+  cursor: pointer;
+}
+
+.note-header-switch-track {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  width: 27px;
+  height: 16px;
+  padding: 2px;
+  border-radius: 999px;
+  background: #ddd9d1;
+}
+
+.note-header-switch.is-on .note-header-switch-track {
+  background: var(--tint-color);
+}
+
+.note-header-switch-thumb {
+  display: block;
+  width: 12px;
+  height: 12px;
+  border-radius: 999px;
+  background: #ffffff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.14);
+  transform: translateX(0);
+}
+
+.note-header-switch.is-on .note-header-switch-thumb {
+  transform: translateX(11px);
+}
+
 .note-editor-content {
   --editor-scroll-bottom-space: clamp(14rem, 48vh, 26rem);
   flex: 1;
@@ -800,6 +910,43 @@ button:disabled {
   flex: 1;
   display: flex;
   flex-direction: column;
+}
+
+.note-editor-content--plaintext {
+  padding: 0;
+}
+
+.plaintext-editor-shell {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+  width: 100%;
+}
+
+.plaintext-editor-textarea {
+  flex: 1;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  padding-top: 1.25rem;
+  padding-right: max(1.25rem, calc((100% - 720px) / 2 + 1.25rem));
+  padding-bottom: var(--editor-scroll-bottom-space);
+  padding-left: max(1.25rem, calc((100% - 720px) / 2 + 1.25rem));
+  border: none;
+  outline: none;
+  resize: none;
+  background: transparent;
+  color: #37352f;
+  font-size: 0.95rem;
+  line-height: 1.75;
+  font-family: "SF Mono", "Menlo", "Monaco", "Courier New", monospace;
+  white-space: pre-wrap;
+  tab-size: 2;
+  box-sizing: border-box;
+}
+
+.plaintext-editor-textarea::placeholder {
+  color: #b4b4b0;
 }
 
 .note-editor-zoom-indicator {

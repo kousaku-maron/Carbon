@@ -42,6 +42,8 @@ export function useVault(options?: UseVaultOptions) {
 
   const {
     activeNote,
+    getActiveNoteSnapshot,
+    commitActiveNoteBufferToState,
     handleSelectNote: handleSelectMarkdownNote,
     handleEditorBufferChange,
     onFileChange,
@@ -237,6 +239,8 @@ export function useVault(options?: UseVaultOptions) {
     tree,
     noteIndex,
     activeNote,
+    getActiveNoteSnapshot,
+    commitActiveNoteBufferToState,
     activeNonMarkdownFile,
     loading,
     switchVault,
