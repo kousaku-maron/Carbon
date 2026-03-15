@@ -141,6 +141,7 @@ describe("buildRenderedHtml", () => {
     expect(html).toContain("<title>Carbon | abc.md</title>");
     expect(html).toContain('rel="icon" type="image/png" href="data:image/png;base64,');
     expect(html).toContain('meta name="description" content="abc.md これは共有ページの説明文です。リンクや装飾を含んでも自然な description にしたいです。"');
+    expect(html).toContain('meta name="robots" content="noindex, nofollow, noarchive"');
     expect(html).toContain('meta property="og:title" content="Carbon | abc.md"');
     expect(html).toContain('meta property="og:site_name" content="Carbon"');
     expect(html).toContain('meta property="og:url" content="https://example.com/s/st_123/abc"');

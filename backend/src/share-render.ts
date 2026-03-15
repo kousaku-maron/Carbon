@@ -180,6 +180,7 @@ function buildDocumentTemplate(
     <title>${escapeHtml(pageTitle)}</title>
     <link rel="icon" type="image/png" href="${CARBON_ICON_PNG_DATA_URL}" />
     <meta name="description" content="${escapeAttr(description)}" />
+    <meta name="robots" content="noindex, nofollow, noarchive" />
 ${canonicalMeta}
     <meta property="og:type" content="article" />
     <meta property="og:site_name" content="Carbon" />

@@ -778,7 +778,9 @@ async function renderPublicDocument(c: any) {
 
   if (!revision) return c.json({ error: "Share revision missing" }, 404);
 
-  return c.html(revision.renderedHtml);
+  return c.html(revision.renderedHtml, 200, {
+    "X-Robots-Tag": "noindex, nofollow, noarchive",
+  });
 }
 
 sharePublicApp.get("/:shareToken", renderPublicDocument);
