@@ -3,13 +3,18 @@ import type { NoteContent, NoteViewMode } from "../lib/types";
 
 type ShareActions =
   | {
+      state: "loading";
+    }
+  | {
       state: "unpublished";
       busy: boolean;
+      busyLabel?: string;
       onShare: () => void;
     }
   | {
       state: "published";
       busy: boolean;
+      busyLabel?: string;
       onCopyLink: () => void;
       onRepublish: () => void;
       onRevoke: () => void;
@@ -91,19 +96,33 @@ export function NoteViewHeader(props: NoteViewHeaderProps) {
           ))}
       </nav>
       <div className="note-editor-header-spacer" />
+      {shareActions?.state === "loading" ? (
+        <button
+          type="button"
+          className="note-editor-copy-btn note-editor-share-icon-btn note-editor-share-loading-btn"
+          disabled
+          title="Checking publish status"
+          aria-label="Checking publish status"
+        >
+          <svg className="note-editor-spinner" width="16" height="16" viewBox="0 0 16 16" fill="none">
+            <circle cx="8" cy="8" r="5.25" stroke="currentColor" strokeWidth="1.3" opacity="0.28" />
+            <path d="M8 2.75C9.5 4.25 10.25 6 10.25 8" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+          </svg>
+        </button>
+      ) : null}
       {shareActions?.state === "unpublished" ? (
         <button
           type="button"
           className="note-editor-copy-btn note-editor-share-icon-btn"
           onClick={shareActions.onShare}
           disabled={shareActions.busy}
-          title="Share note"
-          aria-label="Share note"
+          title={shareActions.busy ? shareActions.busyLabel ?? "Publishing..." : "Share note"}
+          aria-label={shareActions.busy ? shareActions.busyLabel ?? "Publishing..." : "Share note"}
         >
           {shareActions.busy ? (
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-              <circle cx="8" cy="8" r="5.25" stroke="currentColor" strokeWidth="1.3" opacity="0.35" />
-              <path d="M8 2.75C9.5 4.25 10.25 6 10.25 8C10.25 10 9.5 11.75 8 13.25C6.5 11.75 5.75 10 5.75 8C5.75 6 6.5 4.25 8 2.75Z" stroke="currentColor" strokeWidth="1.3" />
+            <svg className="note-editor-spinner" width="16" height="16" viewBox="0 0 16 16" fill="none">
+              <circle cx="8" cy="8" r="5.25" stroke="currentColor" strokeWidth="1.3" opacity="0.28" />
+              <path d="M8 2.75C9.5 4.25 10.25 6 10.25 8" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
             </svg>
           ) : (
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
@@ -129,15 +148,27 @@ export function NoteViewHeader(props: NoteViewHeaderProps) {
             aria-haspopup="menu"
             aria-expanded={shareMenuOpen}
           >
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-              <circle cx="8" cy="8" r="5.25" stroke="currentColor" strokeWidth="1.3" />
-              <path d="M2.75 8H13.25" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
-              <path d="M8 2.75C9.5 4.25 10.25 6 10.25 8C10.25 10 9.5 11.75 8 13.25C6.5 11.75 5.75 10 5.75 8C5.75 6 6.5 4.25 8 2.75Z" stroke="currentColor" strokeWidth="1.3" />
-            </svg>
-            <span>Published</span>
-            <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
-              <path d="M4.5 6.5L8 10L11.5 6.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
+            {shareActions.busy ? (
+              <>
+                <svg className="note-editor-spinner" width="16" height="16" viewBox="0 0 16 16" fill="none">
+                  <circle cx="8" cy="8" r="5.25" stroke="currentColor" strokeWidth="1.3" opacity="0.28" />
+                  <path d="M8 2.75C9.5 4.25 10.25 6 10.25 8" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+                </svg>
+                <span>{shareActions.busyLabel ?? "Publishing..."}</span>
+              </>
+            ) : (
+              <>
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                  <circle cx="8" cy="8" r="5.25" stroke="currentColor" strokeWidth="1.3" />
+                  <path d="M2.75 8H13.25" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+                  <path d="M8 2.75C9.5 4.25 10.25 6 10.25 8C10.25 10 9.5 11.75 8 13.25C6.5 11.75 5.75 10 5.75 8C5.75 6 6.5 4.25 8 2.75Z" stroke="currentColor" strokeWidth="1.3" />
+                </svg>
+                <span>Published</span>
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+                  <path d="M4.5 6.5L8 10L11.5 6.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </>
+            )}
           </button>
           {shareMenuOpen ? (
             <div className="note-header-menu note-header-share-menu" role="menu" aria-label="Publish actions">

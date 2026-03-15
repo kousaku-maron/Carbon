@@ -70,9 +70,17 @@ export function NoteEditor(props: NoteEditorProps) {
     closePreview,
   } = useMediaPreview();
   const [shareSummary, setShareSummary] = useState<ShareSummary | null>(null);
-  const [shareBusy, setShareBusy] = useState(false);
+  const [shareLoading, setShareLoading] = useState(true);
+  const [sharePendingAction, setSharePendingAction] = useState<null | "publishing" | "republishing" | "revoking">(null);
   const [shareMessage, setShareMessage] = useState("");
   const [shareConfirmOpen, setShareConfirmOpen] = useState(false);
+  const shareBusy = sharePendingAction !== null;
+  const shareProgressMessage =
+    sharePendingAction === "revoking"
+      ? "Revoking..."
+      : sharePendingAction === "publishing" || sharePendingAction === "republishing"
+        ? "Publishing..."
+        : "";
 
   const debouncedSave = useMemo(
     () =>
@@ -106,17 +114,20 @@ export function NoteEditor(props: NoteEditorProps) {
   useEffect(() => {
     let cancelled = false;
     setShareSummary(null);
+    setShareLoading(true);
     setShareMessage("");
 
     void listShares({ status: "active", sourceVaultPath: vaultPath, sourceNotePath: note.id })
       .then((items) => {
         if (!cancelled) {
           setShareSummary(items[0] ?? null);
+          setShareLoading(false);
         }
       })
       .catch(() => {
         if (!cancelled) {
           setShareSummary(null);
+          setShareLoading(false);
         }
       });
 
@@ -124,6 +135,18 @@ export function NoteEditor(props: NoteEditorProps) {
       cancelled = true;
     };
   }, [note.id, vaultPath]);
+
+  useEffect(() => {
+    if (!shareMessage) return;
+
+    const timeoutId = window.setTimeout(() => {
+      setShareMessage("");
+    }, 1800);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [shareMessage]);
 
   const editor = useEditor(
     {
@@ -221,7 +244,7 @@ export function NoteEditor(props: NoteEditorProps) {
     return buildShareFormData(analysis);
   }, [editor, note.body, note.id, note.name, note.path, vaultPath]);
   const handleShare = useCallback(async () => {
-    setShareBusy(true);
+    setSharePendingAction("publishing");
     try {
       const formData = await buildCurrentShareFormData();
       const result = await createShare(formData);
@@ -231,13 +254,13 @@ export function NoteEditor(props: NoteEditorProps) {
     } catch (error) {
       setShareMessage(formatShareError(error, "Failed to share"));
     } finally {
-      setShareBusy(false);
+      setSharePendingAction(null);
     }
   }, [buildCurrentShareFormData]);
 
   const handleRepublish = useCallback(async () => {
     if (!shareSummary) return;
-    setShareBusy(true);
+    setSharePendingAction("republishing");
     try {
       const formData = await buildCurrentShareFormData();
       const result = await republishShare(shareSummary.id, formData);
@@ -246,13 +269,13 @@ export function NoteEditor(props: NoteEditorProps) {
     } catch (error) {
       setShareMessage(formatShareError(error, "Failed to republish"));
     } finally {
-      setShareBusy(false);
+      setSharePendingAction(null);
     }
   }, [buildCurrentShareFormData, shareSummary]);
 
   const handleRevoke = useCallback(async () => {
     if (!shareSummary) return;
-    setShareBusy(true);
+    setSharePendingAction("revoking");
     try {
       await revokeShare(shareSummary.id);
       setShareSummary(null);
@@ -260,7 +283,7 @@ export function NoteEditor(props: NoteEditorProps) {
     } catch (error) {
       setShareMessage(error instanceof Error ? error.message : "Failed to revoke");
     } finally {
-      setShareBusy(false);
+      setSharePendingAction(null);
     }
   }, [shareSummary]);
 
@@ -321,10 +344,15 @@ export function NoteEditor(props: NoteEditorProps) {
         menuOpen={menuOpen}
         onMenuOpenChange={onMenuOpenChange}
         shareActions={
-          shareSummary
+          shareLoading
+            ? {
+                state: "loading",
+              }
+            : shareSummary
             ? {
                 state: "published",
                 busy: shareBusy,
+                busyLabel: shareProgressMessage || "Publishing...",
                 onCopyLink: handleCopyLink,
                 onRepublish: handleRepublish,
                 onRevoke: handleRevoke,
@@ -332,6 +360,7 @@ export function NoteEditor(props: NoteEditorProps) {
             : {
                 state: "unpublished",
                 busy: shareBusy,
+                busyLabel: shareProgressMessage || "Publishing...",
                 onShare: () => setShareConfirmOpen(true),
               }
         }
@@ -354,6 +383,9 @@ export function NoteEditor(props: NoteEditorProps) {
           onClose={dismissCopied}
         />
       )}
+      {shareProgressMessage ? (
+        <Toast message={shareProgressMessage} dismissible={false} loading />
+      ) : null}
       {shareMessage ? (
         <Toast message={shareMessage} onClose={() => setShareMessage("")} />
       ) : null}
