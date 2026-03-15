@@ -4,6 +4,7 @@ import { createAuth } from "./auth";
 import { createDb } from "./db";
 import { assetsApp } from "./assets";
 import { desktopAuthApp } from "./desktop-auth";
+import { sharePublicApp, sharesApp } from "./shares";
 
 type Bindings = {
   DATABASE_URL: string;
@@ -13,9 +14,11 @@ type Bindings = {
   GOOGLE_CLIENT_ID: string;
   GOOGLE_CLIENT_SECRET: string;
   ASSET_BUCKET: R2Bucket;
+  SHARE_BUCKET: R2Bucket;
   ASSET_SIGNING_SECRET: string;
   ASSET_MAX_IMAGE_BYTES: string;
   AUTH_EXCHANGE_ENABLED?: string;
+  PUBLIC_SHARE_BASE_URL?: string;
 };
 
 type Env = { Bindings: Bindings };
@@ -76,6 +79,8 @@ app.get("/api/me", async (c) => {
 });
 
 app.route("/api/assets", assetsApp);
+app.route("/api/shares", sharesApp);
+app.route("/s", sharePublicApp);
 
 app.notFound((c) => c.json({ error: "Not found" }, 404));
 

@@ -7,7 +7,12 @@ compatibility_flags = [ "nodejs_compat" ]
 BETTER_AUTH_URL = "https://carbon-backend.kousaku-maron.workers.dev"
 CORS_ORIGINS = "tauri://localhost"
 ASSET_MAX_IMAGE_BYTES = "5242880"
+PUBLIC_SHARE_BASE_URL = "https://carbon-backend.kousaku-maron.workers.dev"
 
 [[r2_buckets]]
 binding = "ASSET_BUCKET"
 bucket_name = "carbon-assets-private"
+
+[[r2_buckets]]
+binding = "SHARE_BUCKET"
+bucket_name = "carbon-shares-public"

@@ -1,6 +1,6 @@
 [package]
 name = "carbon"
-version = "0.1.13"
+version = "0.1.14"
 description = "Local Markdown management app"
 authors = ["template-manager"]
 edition = "2021"

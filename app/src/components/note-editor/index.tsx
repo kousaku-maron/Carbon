@@ -1,9 +1,11 @@
 import { EditorContent, useEditor } from "@tiptap/react";
+import { CARBON_PROSE_CLASS } from "@carbon/rendering";
 import { TaskItem, TaskList } from "@tiptap/extension-list";
 import { Markdown } from "@tiptap/markdown";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import StarterKit from "@tiptap/starter-kit";
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createShare, listShares, republishShare, revokeShare } from "../../lib/api";
 import { CarbonImage } from "../../lib/tiptap/carbon-image-extension";
 import { CarbonLink, buildNotePathClipboardItem, type NoteLinkSuggestionItem } from "../../lib/tiptap/carbon-link-extension";
 import { CarbonPdf } from "../../lib/tiptap/carbon-pdf-extension";
@@ -13,10 +15,15 @@ import { ENABLE_CLOUD_IMAGE_UPLOAD } from "../../lib/app-config";
 import { debounce } from "../../lib/debounce";
 import { useCopyFeedback } from "../../lib/hooks/use-copy-feedback";
 import { resolveRelativePath, validateLinkTarget } from "../../lib/link-utils";
+import { analyzeShareInput } from "../../lib/share/analyze-share-input";
+import { buildShareFormData } from "../../lib/share/build-share-form-data";
+import { formatShareError } from "../../lib/share/format-share-error";
+import type { ShareSummary } from "../../lib/share/types";
 import { formatMarkdownForCopy } from "../../lib/tiptap/markdown";
 import type { NoteContent, NoteIndexEntry, NoteViewMode } from "../../lib/types";
 import { MediaPreviewHost } from "./MediaPreviewHost";
 import { buildNoteLinkSuggestions } from "./build-note-link-suggestions";
+import { ShareConfirmDialog } from "../share/ShareConfirmDialog";
 import { NoteViewHeader } from "../note-view-header";
 import { Toast } from "../Toast";
 import { useEditorZoom } from "./use-editor-zoom";
@@ -62,6 +69,18 @@ export function NoteEditor(props: NoteEditorProps) {
     updatePdfPreviewPage,
     closePreview,
   } = useMediaPreview();
+  const [shareSummary, setShareSummary] = useState<ShareSummary | null>(null);
+  const [shareLoading, setShareLoading] = useState(true);
+  const [sharePendingAction, setSharePendingAction] = useState<null | "publishing" | "republishing" | "revoking">(null);
+  const [shareMessage, setShareMessage] = useState("");
+  const [shareConfirmOpen, setShareConfirmOpen] = useState(false);
+  const shareBusy = sharePendingAction !== null;
+  const shareProgressMessage =
+    sharePendingAction === "revoking"
+      ? "Revoking..."
+      : sharePendingAction === "publishing" || sharePendingAction === "republishing"
+        ? "Publishing..."
+        : "";
 
   const debouncedSave = useMemo(
     () =>
@@ -91,6 +110,43 @@ export function NoteEditor(props: NoteEditorProps) {
     };
     return () => latestRef.current.debouncedSave.cancel();
   }, [onNavigateToNote, onLinkError, onBufferChange, debouncedSave, noteIndex]);
+
+  useEffect(() => {
+    let cancelled = false;
+    setShareSummary(null);
+    setShareLoading(true);
+    setShareMessage("");
+
+    void listShares({ status: "active", sourceVaultPath: vaultPath, sourceNotePath: note.id })
+      .then((items) => {
+        if (!cancelled) {
+          setShareSummary(items[0] ?? null);
+          setShareLoading(false);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setShareSummary(null);
+          setShareLoading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [note.id, vaultPath]);
+
+  useEffect(() => {
+    if (!shareMessage) return;
+
+    const timeoutId = window.setTimeout(() => {
+      setShareMessage("");
+    }, 1800);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [shareMessage]);
 
   const editor = useEditor(
     {
@@ -160,6 +216,11 @@ export function NoteEditor(props: NoteEditorProps) {
         Markdown,
       ],
       editable: true,
+      editorProps: {
+        attributes: {
+          class: CARBON_PROSE_CLASS,
+        },
+      },
       content: note.body,
       contentType: "markdown",
       onUpdate: ({ editor: ed, transaction }) => {
@@ -171,6 +232,67 @@ export function NoteEditor(props: NoteEditorProps) {
     },
     [note.body, note.path, vaultPath],
   );
+  const buildCurrentShareFormData = useCallback(async () => {
+    const markdownBody = editor?.getMarkdown() ?? note.body;
+    const analysis = analyzeShareInput({
+      noteId: note.id,
+      notePath: note.path,
+      vaultPath,
+      markdownBody,
+      title: note.name,
+    });
+    return buildShareFormData(analysis);
+  }, [editor, note.body, note.id, note.name, note.path, vaultPath]);
+  const handleShare = useCallback(async () => {
+    setSharePendingAction("publishing");
+    try {
+      const formData = await buildCurrentShareFormData();
+      const result = await createShare(formData);
+      setShareSummary(result.share);
+      setShareMessage("Shared");
+      setShareConfirmOpen(false);
+    } catch (error) {
+      setShareMessage(formatShareError(error, "Failed to share"));
+    } finally {
+      setSharePendingAction(null);
+    }
+  }, [buildCurrentShareFormData]);
+
+  const handleRepublish = useCallback(async () => {
+    if (!shareSummary) return;
+    setSharePendingAction("republishing");
+    try {
+      const formData = await buildCurrentShareFormData();
+      const result = await republishShare(shareSummary.id, formData);
+      setShareSummary(result.share);
+      setShareMessage("Republished");
+    } catch (error) {
+      setShareMessage(formatShareError(error, "Failed to republish"));
+    } finally {
+      setSharePendingAction(null);
+    }
+  }, [buildCurrentShareFormData, shareSummary]);
+
+  const handleRevoke = useCallback(async () => {
+    if (!shareSummary) return;
+    setSharePendingAction("revoking");
+    try {
+      await revokeShare(shareSummary.id);
+      setShareSummary(null);
+      setShareMessage("Share revoked");
+    } catch (error) {
+      setShareMessage(error instanceof Error ? error.message : "Failed to revoke");
+    } finally {
+      setSharePendingAction(null);
+    }
+  }, [shareSummary]);
+
+  const handleCopyLink = useCallback(() => {
+    if (!shareSummary) return;
+    navigator.clipboard.writeText(shareSummary.publicUrl).then(() => {
+      setShareMessage("Public link copied");
+    });
+  }, [shareSummary]);
   const { handleContentDragOver, handleContentDrop } = useImageDropUpload(
     editor,
     ENABLE_CLOUD_IMAGE_UPLOAD,
@@ -221,6 +343,27 @@ export function NoteEditor(props: NoteEditorProps) {
         copied={copied}
         menuOpen={menuOpen}
         onMenuOpenChange={onMenuOpenChange}
+        shareActions={
+          shareLoading
+            ? {
+                state: "loading",
+              }
+            : shareSummary
+            ? {
+                state: "published",
+                busy: shareBusy,
+                busyLabel: shareProgressMessage || "Publishing...",
+                onCopyLink: handleCopyLink,
+                onRepublish: handleRepublish,
+                onRevoke: handleRevoke,
+              }
+            : {
+                state: "unpublished",
+                busy: shareBusy,
+                busyLabel: shareProgressMessage || "Publishing...",
+                onShare: () => setShareConfirmOpen(true),
+              }
+        }
       />
 
       <div
@@ -240,6 +383,22 @@ export function NoteEditor(props: NoteEditorProps) {
           onClose={dismissCopied}
         />
       )}
+      {shareProgressMessage ? (
+        <Toast message={shareProgressMessage} dismissible={false} loading />
+      ) : null}
+      {shareMessage ? (
+        <Toast message={shareMessage} onClose={() => setShareMessage("")} />
+      ) : null}
+      {shareConfirmOpen ? (
+        <ShareConfirmDialog
+          noteName={note.name}
+          busy={shareBusy}
+          onConfirm={() => {
+            void handleShare();
+          }}
+          onClose={() => setShareConfirmOpen(false)}
+        />
+      ) : null}
       <MediaPreviewHost
         notePath={note.path}
         preview={preview}
