@@ -1,11 +1,14 @@
 import { useNavigate } from "@tanstack/react-router";
 import { getVersion } from "@tauri-apps/api/app";
 import { useCallback, useEffect, useState } from "react";
+import { AboutCarbonDialog } from "../components/AboutCarbonDialog";
+import { ActivityBar } from "../components/ActivityBar";
 import { FileTree } from "../components/FileTree";
 import { ImageViewer } from "../components/ImageViewer";
 import { NoteEditor } from "../components/note-editor";
 import { PlainTextEditor } from "../components/plaintext-editor";
 import { PdfViewer } from "../components/PdfViewer";
+import { SharePanel } from "../components/share/SharePanel";
 import { Toast } from "../components/Toast";
 import { UnsupportedFileViewer } from "../components/UnsupportedFileViewer";
 import { VideoViewer } from "../components/VideoViewer";
@@ -20,7 +23,9 @@ export function WorkspaceRoute() {
   const navigate = useNavigate();
   const [message, setMessage] = useState("");
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarView, setSidebarView] = useState<"explorer" | "shares">("explorer");
   const [appVersion, setAppVersion] = useState<string | null>(null);
+  const [aboutOpen, setAboutOpen] = useState(false);
   const [activeNoteViewMode, setActiveNoteViewMode] = useState<NoteViewMode>("visual");
   const [noteMenuOpen, setNoteMenuOpen] = useState(false);
   const handleError = useCallback((msg: string) => {
@@ -132,6 +137,7 @@ export function WorkspaceRoute() {
   }, [commitActiveNoteBufferToState]);
 
   const activeNoteSnapshot = getActiveNoteSnapshot();
+  const showSidebar = sidebarView === "explorer";
 
   if (loading) {
     return (
@@ -145,79 +151,60 @@ export function WorkspaceRoute() {
 
   return (
     <div className="app-layout">
+      <ActivityBar
+        active={sidebarView}
+        onChange={setSidebarView}
+        onAbout={() => setAboutOpen(true)}
+        onSignOut={() => void handleSignOut()}
+      />
+
       {/* ---- Sidebar ---- */}
-      <aside className={`sidebar ${sidebarOpen ? "" : "sidebar--closed"}`}>
-        <div className="sidebar-top">
-          <div className="sidebar-brand">
-            <img src="/icon.png" alt="Carbon" className="sidebar-brand-icon" />
-            <span className="sidebar-brand-text">
-              Carbon
-              {appVersion ? (
-                <span className="sidebar-brand-version">v{appVersion}</span>
-              ) : null}
-            </span>
-            <button
-              className="sidebar-toggle-btn"
-              onClick={() => setSidebarOpen(false)}
-              aria-label="Close sidebar"
-            >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <rect x="3" y="3" width="18" height="18" rx="2" />
-                <line x1="9" y1="3" x2="9" y2="21" />
-              </svg>
-            </button>
-          </div>
-
-          <VaultSelector
-            currentPath={vaultPath}
-            history={vaultHistory}
-            onSelect={handleVaultSwitch}
-            onBrowse={handleBrowse}
-            onRemove={handleRemoveFromHistory}
-          />
-
-          {vaultPath && (
-            <nav className="file-tree-container">
-              <FileTree
-                nodes={tree}
-                activeNoteId={activeNote?.id ?? activeNonMarkdownFile?.id ?? null}
-                vaultPath={vaultPath}
-                onSelect={handleSelectNote}
-                onExpandFolder={handleLoadFolder}
-                onCreateFile={handleCreateFile}
-                onCreateFolder={handleCreateFolder}
-                onRename={handleRename}
-                onDelete={handleDelete}
-                onMove={handleMove}
+      {showSidebar ? (
+        <aside className={`sidebar ${sidebarOpen ? "" : "sidebar--closed"}`}>
+          <div className="sidebar-top">
+            <div className="sidebar-toolbar">
+              <VaultSelector
+                currentPath={vaultPath}
+                history={vaultHistory}
+                onSelect={handleVaultSwitch}
+                onBrowse={handleBrowse}
+                onRemove={handleRemoveFromHistory}
               />
-            </nav>
-          )}
-        </div>
+              <button
+                className="sidebar-toggle-btn"
+                onClick={() => setSidebarOpen(false)}
+                aria-label="Close sidebar"
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="3" y="3" width="18" height="18" rx="2" />
+                  <line x1="9" y1="3" x2="9" y2="21" />
+                </svg>
+              </button>
+            </div>
 
-        <div className="sidebar-bottom">
-          <button className="sidebar-signout" onClick={handleSignOut}>
-            <svg
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-              <polyline points="16 17 21 12 16 7" />
-              <line x1="21" y1="12" x2="9" y2="12" />
-            </svg>
-            <span>Sign out</span>
-          </button>
-        </div>
-      </aside>
+            {vaultPath ? (
+              <nav className="file-tree-container">
+                <FileTree
+                  nodes={tree}
+                  activeNoteId={activeNote?.id ?? activeNonMarkdownFile?.id ?? null}
+                  vaultPath={vaultPath}
+                  onSelect={handleSelectNote}
+                  onExpandFolder={handleLoadFolder}
+                  onCreateFile={handleCreateFile}
+                  onCreateFolder={handleCreateFolder}
+                  onRename={handleRename}
+                  onDelete={handleDelete}
+                  onMove={handleMove}
+                />
+              </nav>
+            ) : null}
+          </div>
+        </aside>
+      ) : null}
 
       {/* ---- Main Content ---- */}
       <main className="main-content">
-        {!sidebarOpen && (
+        {showSidebar && !sidebarOpen && (
           <button
             className="sidebar-open-btn"
             onClick={() => setSidebarOpen(true)}
@@ -229,7 +216,9 @@ export function WorkspaceRoute() {
             </svg>
           </button>
         )}
-        {activeNote && vaultPath ? (
+        {sidebarView === "shares" ? (
+          <SharePanel vaultPath={vaultPath} noteIndex={noteIndex} onError={handleError} />
+        ) : activeNote && vaultPath ? (
           activeNoteViewMode === "plaintext" ? (
             <PlainTextEditor
               key={`plaintext-${activeNote.docKey}`}
@@ -277,6 +266,9 @@ export function WorkspaceRoute() {
       </main>
 
       {message && <Toast message={message} onClose={() => setMessage("")} />}
+      {aboutOpen ? (
+        <AboutCarbonDialog version={appVersion} onClose={() => setAboutOpen(false)} />
+      ) : null}
     </div>
   );
 }

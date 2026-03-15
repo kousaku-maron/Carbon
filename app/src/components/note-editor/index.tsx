@@ -3,7 +3,8 @@ import { TaskItem, TaskList } from "@tiptap/extension-list";
 import { Markdown } from "@tiptap/markdown";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import StarterKit from "@tiptap/starter-kit";
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createShare, listShares, republishShare, revokeShare } from "../../lib/api";
 import { CarbonImage } from "../../lib/tiptap/carbon-image-extension";
 import { CarbonLink, buildNotePathClipboardItem, type NoteLinkSuggestionItem } from "../../lib/tiptap/carbon-link-extension";
 import { CarbonPdf } from "../../lib/tiptap/carbon-pdf-extension";
@@ -13,10 +14,15 @@ import { ENABLE_CLOUD_IMAGE_UPLOAD } from "../../lib/app-config";
 import { debounce } from "../../lib/debounce";
 import { useCopyFeedback } from "../../lib/hooks/use-copy-feedback";
 import { resolveRelativePath, validateLinkTarget } from "../../lib/link-utils";
+import { analyzeShareInput } from "../../lib/share/analyze-share-input";
+import { buildShareFormData } from "../../lib/share/build-share-form-data";
+import { formatShareError } from "../../lib/share/format-share-error";
+import type { ShareSummary } from "../../lib/share/types";
 import { formatMarkdownForCopy } from "../../lib/tiptap/markdown";
 import type { NoteContent, NoteIndexEntry, NoteViewMode } from "../../lib/types";
 import { MediaPreviewHost } from "./MediaPreviewHost";
 import { buildNoteLinkSuggestions } from "./build-note-link-suggestions";
+import { ShareConfirmDialog } from "../share/ShareConfirmDialog";
 import { NoteViewHeader } from "../note-view-header";
 import { Toast } from "../Toast";
 import { useEditorZoom } from "./use-editor-zoom";
@@ -62,6 +68,10 @@ export function NoteEditor(props: NoteEditorProps) {
     updatePdfPreviewPage,
     closePreview,
   } = useMediaPreview();
+  const [shareSummary, setShareSummary] = useState<ShareSummary | null>(null);
+  const [shareBusy, setShareBusy] = useState(false);
+  const [shareMessage, setShareMessage] = useState("");
+  const [shareConfirmOpen, setShareConfirmOpen] = useState(false);
 
   const debouncedSave = useMemo(
     () =>
@@ -91,6 +101,28 @@ export function NoteEditor(props: NoteEditorProps) {
     };
     return () => latestRef.current.debouncedSave.cancel();
   }, [onNavigateToNote, onLinkError, onBufferChange, debouncedSave, noteIndex]);
+
+  useEffect(() => {
+    let cancelled = false;
+    setShareSummary(null);
+    setShareMessage("");
+
+    void listShares({ status: "active", sourceVaultPath: vaultPath, sourceNotePath: note.id })
+      .then((items) => {
+        if (!cancelled) {
+          setShareSummary(items[0] ?? null);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setShareSummary(null);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [note.id, vaultPath]);
 
   const editor = useEditor(
     {
@@ -171,6 +203,67 @@ export function NoteEditor(props: NoteEditorProps) {
     },
     [note.body, note.path, vaultPath],
   );
+  const buildCurrentShareFormData = useCallback(async () => {
+    const markdownBody = editor?.getMarkdown() ?? note.body;
+    const analysis = analyzeShareInput({
+      noteId: note.id,
+      notePath: note.path,
+      vaultPath,
+      markdownBody,
+      title: note.name,
+    });
+    return buildShareFormData(analysis);
+  }, [editor, note.body, note.id, note.name, note.path, vaultPath]);
+  const handleShare = useCallback(async () => {
+    setShareBusy(true);
+    try {
+      const formData = await buildCurrentShareFormData();
+      const result = await createShare(formData);
+      setShareSummary(result.share);
+      setShareMessage("Shared");
+      setShareConfirmOpen(false);
+    } catch (error) {
+      setShareMessage(formatShareError(error, "Failed to share"));
+    } finally {
+      setShareBusy(false);
+    }
+  }, [buildCurrentShareFormData]);
+
+  const handleRepublish = useCallback(async () => {
+    if (!shareSummary) return;
+    setShareBusy(true);
+    try {
+      const formData = await buildCurrentShareFormData();
+      const result = await republishShare(shareSummary.id, formData);
+      setShareSummary(result.share);
+      setShareMessage("Republished");
+    } catch (error) {
+      setShareMessage(formatShareError(error, "Failed to republish"));
+    } finally {
+      setShareBusy(false);
+    }
+  }, [buildCurrentShareFormData, shareSummary]);
+
+  const handleRevoke = useCallback(async () => {
+    if (!shareSummary) return;
+    setShareBusy(true);
+    try {
+      await revokeShare(shareSummary.id);
+      setShareSummary(null);
+      setShareMessage("Share revoked");
+    } catch (error) {
+      setShareMessage(error instanceof Error ? error.message : "Failed to revoke");
+    } finally {
+      setShareBusy(false);
+    }
+  }, [shareSummary]);
+
+  const handleCopyLink = useCallback(() => {
+    if (!shareSummary) return;
+    navigator.clipboard.writeText(shareSummary.publicUrl).then(() => {
+      setShareMessage("Public link copied");
+    });
+  }, [shareSummary]);
   const { handleContentDragOver, handleContentDrop } = useImageDropUpload(
     editor,
     ENABLE_CLOUD_IMAGE_UPLOAD,
@@ -221,6 +314,21 @@ export function NoteEditor(props: NoteEditorProps) {
         copied={copied}
         menuOpen={menuOpen}
         onMenuOpenChange={onMenuOpenChange}
+        shareActions={
+          shareSummary
+            ? {
+                state: "published",
+                busy: shareBusy,
+                onCopyLink: handleCopyLink,
+                onRepublish: handleRepublish,
+                onRevoke: handleRevoke,
+              }
+            : {
+                state: "unpublished",
+                busy: shareBusy,
+                onShare: () => setShareConfirmOpen(true),
+              }
+        }
       />
 
       <div
@@ -240,6 +348,19 @@ export function NoteEditor(props: NoteEditorProps) {
           onClose={dismissCopied}
         />
       )}
+      {shareMessage ? (
+        <Toast message={shareMessage} onClose={() => setShareMessage("")} />
+      ) : null}
+      {shareConfirmOpen ? (
+        <ShareConfirmDialog
+          noteName={note.name}
+          busy={shareBusy}
+          onConfirm={() => {
+            void handleShare();
+          }}
+          onClose={() => setShareConfirmOpen(false)}
+        />
+      ) : null}
       <MediaPreviewHost
         notePath={note.path}
         preview={preview}

@@ -1,5 +1,19 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { NoteContent, NoteViewMode } from "../lib/types";
+
+type ShareActions =
+  | {
+      state: "unpublished";
+      busy: boolean;
+      onShare: () => void;
+    }
+  | {
+      state: "published";
+      busy: boolean;
+      onCopyLink: () => void;
+      onRepublish: () => void;
+      onRevoke: () => void;
+    };
 
 type NoteViewHeaderProps = {
   note: NoteContent;
@@ -10,6 +24,7 @@ type NoteViewHeaderProps = {
   copied: "markdown" | "path" | false;
   menuOpen: boolean;
   onMenuOpenChange: (open: boolean) => void;
+  shareActions?: ShareActions;
 };
 
 export function NoteViewHeader(props: NoteViewHeaderProps) {
@@ -22,20 +37,27 @@ export function NoteViewHeader(props: NoteViewHeaderProps) {
     copied,
     menuOpen,
     onMenuOpenChange,
+    shareActions,
   } = props;
   const menuRef = useRef<HTMLDivElement>(null);
+  const shareMenuRef = useRef<HTMLDivElement>(null);
+  const [shareMenuOpen, setShareMenuOpen] = useState(false);
 
   useEffect(() => {
-    if (!menuOpen) return;
+    if (!menuOpen && !shareMenuOpen) return;
 
     const handleMouseDown = (event: MouseEvent) => {
-      if (menuRef.current?.contains(event.target as Node)) return;
+      const target = event.target as Node;
+      if (menuRef.current?.contains(target)) return;
+      if (shareMenuRef.current?.contains(target)) return;
       onMenuOpenChange(false);
+      setShareMenuOpen(false);
     };
 
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         onMenuOpenChange(false);
+        setShareMenuOpen(false);
       }
     };
 
@@ -45,7 +67,7 @@ export function NoteViewHeader(props: NoteViewHeaderProps) {
       document.removeEventListener("mousedown", handleMouseDown);
       document.removeEventListener("keydown", handleKeyDown);
     };
-  }, [menuOpen, onMenuOpenChange]);
+  }, [menuOpen, onMenuOpenChange, shareMenuOpen]);
 
   return (
     <header className="note-editor-header">
@@ -68,6 +90,96 @@ export function NoteViewHeader(props: NoteViewHeaderProps) {
             </span>
           ))}
       </nav>
+      <div className="note-editor-header-spacer" />
+      {shareActions?.state === "unpublished" ? (
+        <button
+          type="button"
+          className="note-editor-copy-btn note-editor-share-icon-btn"
+          onClick={shareActions.onShare}
+          disabled={shareActions.busy}
+          title="Share note"
+          aria-label="Share note"
+        >
+          {shareActions.busy ? (
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+              <circle cx="8" cy="8" r="5.25" stroke="currentColor" strokeWidth="1.3" opacity="0.35" />
+              <path d="M8 2.75C9.5 4.25 10.25 6 10.25 8C10.25 10 9.5 11.75 8 13.25C6.5 11.75 5.75 10 5.75 8C5.75 6 6.5 4.25 8 2.75Z" stroke="currentColor" strokeWidth="1.3" />
+            </svg>
+          ) : (
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+              <circle cx="8" cy="8" r="5.25" stroke="currentColor" strokeWidth="1.3" />
+              <path d="M2.75 8H13.25" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+              <path d="M8 2.75C9.5 4.25 10.25 6 10.25 8C10.25 10 9.5 11.75 8 13.25C6.5 11.75 5.75 10 5.75 8C5.75 6 6.5 4.25 8 2.75Z" stroke="currentColor" strokeWidth="1.3" />
+            </svg>
+          )}
+        </button>
+      ) : null}
+      {shareActions?.state === "published" ? (
+        <div className="note-header-menu-wrap note-header-share-menu-wrap" ref={shareMenuRef}>
+          <button
+            type="button"
+            className="note-editor-share-menu-btn"
+            onClick={() => {
+              onMenuOpenChange(false);
+              setShareMenuOpen((current) => !current);
+            }}
+            disabled={shareActions.busy}
+            title="Published note actions"
+            aria-label="Open publish menu"
+            aria-haspopup="menu"
+            aria-expanded={shareMenuOpen}
+          >
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+              <circle cx="8" cy="8" r="5.25" stroke="currentColor" strokeWidth="1.3" />
+              <path d="M2.75 8H13.25" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+              <path d="M8 2.75C9.5 4.25 10.25 6 10.25 8C10.25 10 9.5 11.75 8 13.25C6.5 11.75 5.75 10 5.75 8C5.75 6 6.5 4.25 8 2.75Z" stroke="currentColor" strokeWidth="1.3" />
+            </svg>
+            <span>Published</span>
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+              <path d="M4.5 6.5L8 10L11.5 6.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </button>
+          {shareMenuOpen ? (
+            <div className="note-header-menu note-header-share-menu" role="menu" aria-label="Publish actions">
+              <button
+                type="button"
+                className="note-header-menu-item"
+                onClick={() => {
+                  setShareMenuOpen(false);
+                  shareActions.onCopyLink();
+                }}
+                disabled={shareActions.busy}
+              >
+                <span className="note-header-menu-item-label">Copy Link</span>
+              </button>
+              <button
+                type="button"
+                className="note-header-menu-item"
+                onClick={() => {
+                  setShareMenuOpen(false);
+                  shareActions.onRepublish();
+                }}
+                disabled={shareActions.busy}
+              >
+                <span className="note-header-menu-item-label">
+                  {shareActions.busy ? "Publishing..." : "Republish"}
+                </span>
+              </button>
+              <button
+                type="button"
+                className="note-header-menu-item note-header-menu-item--danger"
+                onClick={() => {
+                  setShareMenuOpen(false);
+                  shareActions.onRevoke();
+                }}
+                disabled={shareActions.busy}
+              >
+                <span className="note-header-menu-item-label">Revoke</span>
+              </button>
+            </div>
+          ) : null}
+        </div>
+      ) : null}
       <button
         type="button"
         className="note-editor-copy-btn"
@@ -110,7 +222,10 @@ export function NoteViewHeader(props: NoteViewHeaderProps) {
           aria-label="Open note menu"
           aria-haspopup="menu"
           aria-expanded={menuOpen}
-          onClick={() => onMenuOpenChange(!menuOpen)}
+          onClick={() => {
+            setShareMenuOpen(false);
+            onMenuOpenChange(!menuOpen);
+          }}
         >
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
             <circle cx="3.25" cy="8" r="1.1" fill="currentColor" />
