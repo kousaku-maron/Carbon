@@ -23,6 +23,11 @@ import {
   CARBON_VIDEO_EMBED_CLASS,
   CARBON_VIDEO_FRAME_CLASS,
   CARBON_VIDEO_NODE_CLASS,
+  CARBON_ICON_PNG_DATA_URL,
+  SHARE_OG_IMAGE_HEIGHT,
+  SHARE_OG_IMAGE_WIDTH,
+  buildShareDescription,
+  buildSharePageTitle,
   carbonProseCss,
 } from "@carbon/rendering";
 import { marked } from "marked";
@@ -141,13 +146,49 @@ function renderTaskListItemContent(
   return isBlockHtml(html) ? html : `<p>${html}</p>`;
 }
 
-function buildDocumentTemplate(title: string, bodyHtml: string): string {
+function buildDocumentTemplate(
+  noteTitle: string,
+  markdownBody: string,
+  bodyHtml: string,
+  publicUrl?: string | null,
+  ogImageUrl?: string | null,
+): string {
+  const pageTitle = buildSharePageTitle(noteTitle);
+  const description = buildShareDescription(markdownBody);
+  const twitterCardType = ogImageUrl ? "summary_large_image" : "summary";
+  const canonicalMeta = publicUrl
+    ? `
+    <link rel="canonical" href="${escapeAttr(publicUrl)}" />
+    <meta property="og:url" content="${escapeAttr(publicUrl)}" />`
+    : "";
+  const ogImageMeta = ogImageUrl
+    ? `
+    <meta property="og:image" content="${escapeAttr(ogImageUrl)}" />
+    <meta property="og:image:secure_url" content="${escapeAttr(ogImageUrl)}" />
+    <meta property="og:image:type" content="image/png" />
+    <meta property="og:image:width" content="${SHARE_OG_IMAGE_WIDTH}" />
+    <meta property="og:image:height" content="${SHARE_OG_IMAGE_HEIGHT}" />
+    <meta property="og:image:alt" content="${escapeAttr(pageTitle)}" />
+    <meta name="twitter:image" content="${escapeAttr(ogImageUrl)}" />`
+    : "";
+
   return `<!doctype html>
 <html lang="ja">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>${escapeHtml(title)}</title>
+    <title>${escapeHtml(pageTitle)}</title>
+    <link rel="icon" type="image/png" href="${CARBON_ICON_PNG_DATA_URL}" />
+    <meta name="description" content="${escapeAttr(description)}" />
+${canonicalMeta}
+    <meta property="og:type" content="article" />
+    <meta property="og:site_name" content="Carbon" />
+    <meta property="og:title" content="${escapeAttr(pageTitle)}" />
+    <meta property="og:description" content="${escapeAttr(description)}" />
+${ogImageMeta}
+    <meta name="twitter:card" content="${twitterCardType}" />
+    <meta name="twitter:title" content="${escapeAttr(pageTitle)}" />
+    <meta name="twitter:description" content="${escapeAttr(description)}" />
     <style>
       :root {
         color-scheme: light;
@@ -190,6 +231,8 @@ export function buildRenderedHtml(input: {
   markdownBody: string;
   assets: ShareAssetRenderItem[];
   links: ShareLinkManifestItem[];
+  publicUrl?: string | null;
+  ogImageUrl?: string | null;
 }) {
   const assetUrlBySource = new Map(input.assets.map((asset) => [asset.sourceRef, asset]));
   const linkByHref = new Map(input.links.map((link) => [link.href, link]));
@@ -341,5 +384,11 @@ export function buildRenderedHtml(input: {
     resolvedBodyHtml = resolvedBodyHtml.replaceAll(escapeHtml(placeholder), html);
   }
 
-  return buildDocumentTemplate(input.title, resolvedBodyHtml);
+  return buildDocumentTemplate(
+    input.title,
+    input.markdownBody,
+    resolvedBodyHtml,
+    input.publicUrl,
+    input.ogImageUrl,
+  );
 }

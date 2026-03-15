@@ -1,6 +1,7 @@
 import { readFile } from "@tauri-apps/plugin-fs";
 import type { ShareAnalysis } from "./types";
 import { renderPdfPreviewBlob } from "./render-pdf-preview";
+import { renderShareOgImageBlob } from "./render-share-og-image";
 
 export async function buildShareFormData(analysis: ShareAnalysis): Promise<FormData> {
   const formData = new FormData();
@@ -29,6 +30,18 @@ export async function buildShareFormData(analysis: ShareAnalysis): Promise<FormD
     asset.previewUploadField = previewUploadField;
     asset.previewMimeType = previewBlob.type || "image/png";
     formData.append(previewUploadField, previewBlob, `${asset.clientAssetId}.png`);
+  }
+
+  try {
+    const ogImageBlob = await renderShareOgImageBlob({
+      title: metadata.title?.trim() || "Untitled",
+      markdownBody: metadata.markdownBody,
+    });
+    metadata.ogImageUploadField = "og_image";
+    metadata.ogImageMimeType = ogImageBlob.type || "image/png";
+    formData.append(metadata.ogImageUploadField, ogImageBlob, "share-og-image.png");
+  } catch (error) {
+    console.warn("[share] failed to render og image", error);
   }
 
   formData.append("metadata", JSON.stringify(metadata));

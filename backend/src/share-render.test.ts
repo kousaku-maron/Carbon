@@ -127,4 +127,29 @@ describe("buildRenderedHtml", () => {
     expect(html).toContain("<p>Before</p>");
     expect(html).toContain("<p>After</p>");
   });
+
+  it("renders rich metadata for title, description, and favicon", () => {
+    const html = buildRenderedHtml({
+      title: "abc.md",
+      markdownBody: "# abc.md\n\nこれは共有ページの説明文です。リンクや装飾を含んでも自然な description にしたいです。",
+      assets: [],
+      links: [],
+      publicUrl: "https://example.com/s/st_123/abc",
+      ogImageUrl: "https://example.com/assets/og-image.png",
+    });
+
+    expect(html).toContain("<title>Carbon | abc.md</title>");
+    expect(html).toContain('rel="icon" type="image/png" href="data:image/png;base64,');
+    expect(html).toContain('meta name="description" content="abc.md これは共有ページの説明文です。リンクや装飾を含んでも自然な description にしたいです。"');
+    expect(html).toContain('meta property="og:title" content="Carbon | abc.md"');
+    expect(html).toContain('meta property="og:site_name" content="Carbon"');
+    expect(html).toContain('meta property="og:url" content="https://example.com/s/st_123/abc"');
+    expect(html).toContain('meta property="og:image" content="https://example.com/assets/og-image.png"');
+    expect(html).toContain('meta property="og:image:secure_url" content="https://example.com/assets/og-image.png"');
+    expect(html).toContain('meta property="og:image:type" content="image/png"');
+    expect(html).toContain('meta property="og:image:width" content="1200"');
+    expect(html).toContain('meta property="og:image:height" content="630"');
+    expect(html).toContain('meta name="twitter:card" content="summary_large_image"');
+    expect(html).toContain('meta name="twitter:image" content="https://example.com/assets/og-image.png"');
+  });
 });

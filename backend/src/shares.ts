@@ -40,6 +40,8 @@ type ShareMetadata = {
   sourceVaultName: string;
   sourceNotePath: string;
   markdownBody: string;
+  ogImageUploadField?: string;
+  ogImageMimeType?: string | null;
   linkManifest?: ShareLinkManifestItem[];
   assetManifest?: ShareAssetManifestItem[];
   warnings?: ShareWarning[];
@@ -299,6 +301,53 @@ async function prepareShareAssets(input: {
   return { assetRows, assetRenderItems, warnings };
 }
 
+async function prepareOgImageAsset(input: {
+  env: Bindings;
+  shareId: string;
+  revisionId: string;
+  shareToken: string;
+  formData: FormData;
+  metadata: ShareMetadata;
+}): Promise<{
+  assetRow: typeof sharedDocumentAssets.$inferInsert | null;
+  publicUrl: string | null;
+}> {
+  const fieldName = input.metadata.ogImageUploadField;
+  if (!fieldName) {
+    return { assetRow: null, publicUrl: null };
+  }
+
+  const file = input.formData.get(fieldName);
+  if (!(file instanceof File)) {
+    return { assetRow: null, publicUrl: null };
+  }
+
+  const bytes = await file.arrayBuffer();
+  const mimeType = file.type || input.metadata.ogImageMimeType || "image/png";
+  const assetId = generateId("sha");
+  const objectKey = `shares/${input.shareId}/${input.revisionId}/${assetId}.${getExtensionFromMimeType(mimeType)}`;
+
+  await input.env.SHARE_BUCKET.put(objectKey, bytes, {
+    httpMetadata: { contentType: mimeType },
+  });
+
+  return {
+    assetRow: {
+      id: assetId,
+      sharedDocumentId: input.shareId,
+      sharedDocumentRevisionId: input.revisionId,
+      kind: "og-image",
+      sourceType: "generated",
+      sourceRef: "__generated/og-image",
+      title: input.metadata.title ?? null,
+      objectKey,
+      mimeType,
+      sizeBytes: bytes.byteLength,
+    },
+    publicUrl: `${getPublicBaseUrl(input.env)}/s/${input.shareToken}/assets/${assetId}`,
+  };
+}
+
 async function createRevision(input: {
   env: Bindings;
   db: Database;
@@ -328,12 +377,25 @@ async function createRevision(input: {
     formData: input.formData,
     assetManifest: input.metadata.assetManifest,
   });
+  const ogImage = await prepareOgImageAsset({
+    env: input.env,
+    shareId: input.shareId,
+    revisionId,
+    shareToken: input.shareToken,
+    formData: input.formData,
+    metadata: input.metadata,
+  });
+  if (ogImage.assetRow) {
+    assetRows.push(ogImage.assetRow);
+  }
 
   const renderedHtml = buildRenderedHtml({
     title: input.title,
     markdownBody: input.metadata.markdownBody,
     assets: assetRenderItems,
     links: resolvedLinks,
+    publicUrl: buildPublicUrl(input.env, input.shareToken, input.slug),
+    ogImageUrl: ogImage.publicUrl,
   });
 
   const allWarnings = mergeShareWarnings(input.metadata.warnings, assetWarnings);
@@ -691,6 +753,8 @@ sharePublicApp.get("/:shareToken/assets/:assetId", async (c) => {
     headers: {
       "Content-Type": asset.mimeType,
       "Cache-Control": "public, max-age=300",
+      "Content-Disposition": "inline",
+      "Content-Length": String(asset.sizeBytes),
     },
   });
 });

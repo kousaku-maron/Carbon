@@ -50,6 +50,8 @@ export type ShareMetadata = {
   sourceVaultName: string;
   sourceNotePath: string;
   markdownBody: string;
+  ogImageUploadField?: string;
+  ogImageMimeType?: string | null;
   linkManifest: ShareLinkManifestItem[];
   assetManifest: ShareAssetManifestItem[];
   warnings: ShareWarning[];
