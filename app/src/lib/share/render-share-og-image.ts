@@ -33,25 +33,15 @@ async function loadCarbonIcon(): Promise<CanvasImageSource | null> {
   }
 }
 
-function roundRect(
+function drawEllipse(
   ctx: CanvasRenderingContext2D,
   x: number,
   y: number,
   width: number,
   height: number,
-  radius: number,
 ) {
-  const clampedRadius = Math.min(radius, width / 2, height / 2);
   ctx.beginPath();
-  ctx.moveTo(x + clampedRadius, y);
-  ctx.lineTo(x + width - clampedRadius, y);
-  ctx.quadraticCurveTo(x + width, y, x + width, y + clampedRadius);
-  ctx.lineTo(x + width, y + height - clampedRadius);
-  ctx.quadraticCurveTo(x + width, y + height, x + width - clampedRadius, y + height);
-  ctx.lineTo(x + clampedRadius, y + height);
-  ctx.quadraticCurveTo(x, y + height, x, y + height - clampedRadius);
-  ctx.lineTo(x, y + clampedRadius);
-  ctx.quadraticCurveTo(x, y, x + clampedRadius, y);
+  ctx.ellipse(x + width / 2, y + height / 2, width / 2, height / 2, 0, 0, Math.PI * 2);
   ctx.closePath();
 }
 
@@ -222,7 +212,7 @@ export async function renderShareOgImageBlob(input: {
   const buttonHeight = 68;
   const buttonY = SHARE_OG_IMAGE_HEIGHT - 122;
   ctx.fillStyle = "#000000";
-  roundRect(ctx, 52, buttonY, buttonWidth, buttonHeight, 999);
+  drawEllipse(ctx, 52, buttonY, buttonWidth, buttonHeight);
   ctx.fill();
 
   ctx.fillStyle = "#ffffff";

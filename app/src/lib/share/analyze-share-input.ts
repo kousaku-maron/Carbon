@@ -1,3 +1,4 @@
+import { resolveShareTitle } from "@carbon/rendering";
 import { getImageMimeType, getVideoMimeType, isImagePath, isMarkdownPath, isPdfPath, isVideoPath } from "../file-kind";
 import { resolveRelativePath } from "../link-utils";
 import { getBaseName, isPathInside } from "../path-utils";
@@ -226,7 +227,7 @@ export function analyzeShareInput(options: AnalyzeShareInputOptions): ShareAnaly
 
   return {
     metadata: {
-      title: options.title,
+      title: resolveShareTitle(options.markdownBody, options.title?.trim() || "Untitled"),
       sourceVaultPath: options.vaultPath,
       sourceVaultName: getBaseName(options.vaultPath),
       sourceNotePath: options.noteId,

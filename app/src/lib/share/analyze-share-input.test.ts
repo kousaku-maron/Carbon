@@ -42,6 +42,18 @@ describe("analyzeShareInput", () => {
     ]);
   });
 
+  it("uses the first h1 as metadata.title when present", () => {
+    const result = analyzeShareInput({
+      noteId: "docs/guide.md",
+      notePath: "/vault/docs/guide.md",
+      vaultPath: "/vault",
+      title: "guide.md",
+      markdownBody: "# 公開タイトル\n\n## セクション\n\n本文",
+    });
+
+    expect(result.metadata.title).toBe("公開タイトル");
+  });
+
   it("marks outside-vault local references as fatal errors", () => {
     const result = analyzeShareInput({
       noteId: "docs/guide.md",
