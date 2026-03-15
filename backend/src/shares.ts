@@ -755,6 +755,7 @@ sharePublicApp.get("/:shareToken/assets/:assetId", async (c) => {
       "Cache-Control": "public, max-age=300",
       "Content-Disposition": "inline",
       "Content-Length": String(asset.sizeBytes),
+      "X-Robots-Tag": "noindex, nofollow, noarchive",
     },
   });
 });

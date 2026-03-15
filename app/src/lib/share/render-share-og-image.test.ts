@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { wrapOgText } from "./render-share-og-image";
+import { buildSharePageTitle, resolveShareTitle } from "@carbon/rendering";
 
 const fakeMeasureContext = {
   measureText(text: string) {
@@ -34,5 +35,14 @@ describe("wrapOgText", () => {
     );
 
     expect(lines).toEqual(["Carbon share preview"]);
+  });
+
+  it("uses the first h1 for OGP titles when available", () => {
+    expect(buildSharePageTitle(resolveShareTitle("# 公開タイトル\n\n本文", "abc.md"))).toBe(
+      "Carbon | 公開タイトル",
+    );
+    expect(buildSharePageTitle(resolveShareTitle("本文だけです", "abc.md"))).toBe(
+      "Carbon | abc.md",
+    );
   });
 });

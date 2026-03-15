@@ -4,6 +4,7 @@ import {
   SHARE_OG_IMAGE_WIDTH,
   buildShareDescription,
   buildSharePageTitle,
+  resolveShareTitle,
 } from "@carbon/rendering";
 const CANVAS_BG = "#fcfcfb";
 const DOT_COLOR = "rgba(17, 24, 39, 0.12)";
@@ -187,22 +188,22 @@ export async function renderShareOgImageBlob(input: {
 
   const icon = await loadCarbonIcon();
   if (icon) {
-    ctx.drawImage(icon, 68, 66, 32, 32);
+    ctx.drawImage(icon, 52, 56, 40, 40);
   }
 
   ctx.fillStyle = BODY_TEXT;
-  ctx.font = '500 22px "IBM Plex Sans", "Noto Sans JP", sans-serif';
+  ctx.font = '500 28px "IBM Plex Sans", "Noto Sans JP", sans-serif';
   ctx.textBaseline = "middle";
-  ctx.fillText("Carbon", 114, 83);
+  ctx.fillText("Carbon", 104, 76);
 
-  const title = buildSharePageTitle(input.title).replace(/^Carbon \|\s*/, "");
+  const title = buildSharePageTitle(resolveShareTitle(input.markdownBody, input.title)).replace(/^Carbon \|\s*/, "");
   const description = buildShareDescription(input.markdownBody);
 
   ctx.fillStyle = "#0f172a";
   ctx.font = '700 72px "IBM Plex Sans", "Noto Sans JP", sans-serif';
   ctx.textBaseline = "alphabetic";
   const titleLines = wrapOgText(ctx, title, 860, 2);
-  let cursorY = 190;
+  let cursorY = 178;
   for (const line of titleLines) {
     ctx.fillText(line, 52, cursorY);
     cursorY += 84;

@@ -153,4 +153,16 @@ describe("buildRenderedHtml", () => {
     expect(html).toContain('meta name="twitter:card" content="summary_large_image"');
     expect(html).toContain('meta name="twitter:image" content="https://example.com/assets/og-image.png"');
   });
+
+  it("prefers the first h1 over the file name for page metadata", () => {
+    const html = buildRenderedHtml({
+      title: "abc.md",
+      markdownBody: "# 公開タイトル\n\n本文です。",
+      assets: [],
+      links: [],
+    });
+
+    expect(html).toContain("<title>Carbon | 公開タイトル</title>");
+    expect(html).toContain('meta property="og:title" content="Carbon | 公開タイトル"');
+  });
 });

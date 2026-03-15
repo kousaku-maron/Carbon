@@ -28,6 +28,7 @@ import {
   SHARE_OG_IMAGE_WIDTH,
   buildShareDescription,
   buildSharePageTitle,
+  resolveShareTitle,
   carbonProseCss,
 } from "@carbon/rendering";
 import { marked } from "marked";
@@ -153,7 +154,7 @@ function buildDocumentTemplate(
   publicUrl?: string | null,
   ogImageUrl?: string | null,
 ): string {
-  const pageTitle = buildSharePageTitle(noteTitle);
+  const pageTitle = buildSharePageTitle(resolveShareTitle(markdownBody, noteTitle));
   const description = buildShareDescription(markdownBody);
   const twitterCardType = ogImageUrl ? "summary_large_image" : "summary";
   const canonicalMeta = publicUrl
