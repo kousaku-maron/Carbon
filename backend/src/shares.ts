@@ -29,6 +29,8 @@ type ShareAssetManifestItem = {
   mimeType: string;
   title?: string | null;
   uploadField?: string;
+  previewUploadField?: string;
+  previewMimeType?: string | null;
 };
 
 type ShareMetadata = {
@@ -42,6 +44,8 @@ type ShareMetadata = {
   assetManifest?: ShareAssetManifestItem[];
   warnings?: ShareWarning[];
 };
+
+const CURRENT_SUPPORTED_CARBON_ASSET_KINDS = new Set(["image"]);
 
 function generateId(prefix: string): string {
   const bytes = crypto.getRandomValues(new Uint8Array(16));
@@ -123,12 +127,20 @@ async function parseMetadata(formData: FormData): Promise<ShareMetadata> {
       "sourceVaultPath, sourceVaultName, sourceNotePath and markdownBody are required",
     );
   }
+
+  for (const asset of parsed.assetManifest ?? []) {
+    if (asset.sourceType !== "carbon-asset") continue;
+    if (CURRENT_SUPPORTED_CARBON_ASSET_KINDS.has(asset.kind)) continue;
+    throw new Error("Only image carbon://asset references are currently supported");
+  }
+
   return parsed;
 }
 
 async function resolveLinkManifest(
   db: Database,
   ownerUserId: string,
+  sourceVaultPath: string,
   linkManifest: ShareLinkManifestItem[] | undefined,
   env: Bindings,
 ): Promise<ShareLinkManifestItem[]> {
@@ -147,6 +159,7 @@ async function resolveLinkManifest(
       .where(
         and(
           eq(sharedDocuments.ownerUserId, ownerUserId),
+          eq(sharedDocuments.sourceVaultPath, sourceVaultPath),
           eq(sharedDocuments.sourceNotePath, item.targetNotePath),
           eq(sharedDocuments.status, "active"),
         ),
@@ -184,6 +197,7 @@ async function prepareShareAssets(input: {
     const shareAssetId = generateId("sha");
     let bytes: ArrayBuffer;
     let mimeType = asset.mimeType;
+    let previewImageUrl: string | null = null;
 
     if (asset.sourceType === "local-file") {
       const fieldName = asset.uploadField || `file_${asset.clientAssetId}`;
@@ -230,6 +244,37 @@ async function prepareShareAssets(input: {
     });
 
     const publicUrl = `${getPublicBaseUrl(input.env)}/s/${input.shareToken}/assets/${shareAssetId}`;
+
+    if (asset.kind === "pdf" && asset.previewUploadField) {
+      const previewFile = input.formData.get(asset.previewUploadField);
+      if (previewFile instanceof File) {
+        const previewAssetId = generateId("sha");
+        const previewMimeType = previewFile.type || asset.previewMimeType || "image/png";
+        const previewBytes = await previewFile.arrayBuffer();
+        const previewObjectKey = `shares/${input.shareId}/${input.revisionId}/${previewAssetId}.${getExtensionFromMimeType(
+          previewMimeType,
+        )}`;
+
+        await input.env.SHARE_BUCKET.put(previewObjectKey, previewBytes, {
+          httpMetadata: { contentType: previewMimeType },
+        });
+
+        previewImageUrl = `${getPublicBaseUrl(input.env)}/s/${input.shareToken}/assets/${previewAssetId}`;
+        assetRows.push({
+          id: previewAssetId,
+          sharedDocumentId: input.shareId,
+          sharedDocumentRevisionId: input.revisionId,
+          kind: "pdf-preview",
+          sourceType: "generated-preview",
+          sourceRef: `${asset.sourceRef}#preview`,
+          title: asset.title ?? null,
+          objectKey: previewObjectKey,
+          mimeType: previewMimeType,
+          sizeBytes: previewBytes.byteLength,
+        });
+      }
+    }
+
     assetRows.push({
       id: shareAssetId,
       sharedDocumentId: input.shareId,
@@ -247,6 +292,7 @@ async function prepareShareAssets(input: {
       sourceRef: asset.sourceRef,
       title: asset.title ?? null,
       publicUrl,
+      previewImageUrl,
     });
   }
 
@@ -268,6 +314,7 @@ async function createRevision(input: {
   const resolvedLinks = await resolveLinkManifest(
     input.db,
     input.userId,
+    input.metadata.sourceVaultPath,
     input.metadata.linkManifest,
     input.env,
   );

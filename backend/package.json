@@ -12,6 +12,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@carbon/rendering": "workspace:*",
     "@neondatabase/serverless": "^1.0.1",
     "better-auth": "^1.4.13",
     "drizzle-orm": "^0.44.6",

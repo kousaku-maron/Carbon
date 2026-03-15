@@ -1,4 +1,5 @@
 import { EditorContent, useEditor } from "@tiptap/react";
+import { CARBON_PROSE_CLASS } from "@carbon/rendering";
 import { TaskItem, TaskList } from "@tiptap/extension-list";
 import { Markdown } from "@tiptap/markdown";
 import { openUrl } from "@tauri-apps/plugin-opener";
@@ -192,6 +193,11 @@ export function NoteEditor(props: NoteEditorProps) {
         Markdown,
       ],
       editable: true,
+      editorProps: {
+        attributes: {
+          class: CARBON_PROSE_CLASS,
+        },
+      },
       content: note.body,
       contentType: "markdown",
       onUpdate: ({ editor: ed, transaction }) => {

@@ -18,6 +18,20 @@ type ShareItemWithStatus = ShareSummary & {
   noteEntry?: NoteIndexEntry;
 };
 
+const publishedAtFormatter = new Intl.DateTimeFormat(undefined, {
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+  hour: "2-digit",
+  minute: "2-digit",
+});
+
+function formatPublishedAt(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return publishedAtFormatter.format(date);
+}
+
 export function SharePanel(props: SharePanelProps) {
   const { vaultPath, noteIndex, onError } = props;
   const [items, setItems] = useState<ShareSummary[]>([]);
@@ -105,6 +119,7 @@ export function SharePanel(props: SharePanelProps) {
             <div className="share-list-row-main">
               <div className="share-list-item-title">{item.title}</div>
               <div className="share-list-item-path">{item.sourceNotePath}</div>
+              <div className="share-list-item-meta">Published at {formatPublishedAt(item.updatedAt)}</div>
               {item.sourceNoteStatus === "missing" ? (
                 <div className="share-list-item-note-status">Local note is missing</div>
               ) : null}

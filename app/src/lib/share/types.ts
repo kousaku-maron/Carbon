@@ -39,6 +39,8 @@ export type ShareAssetManifestItem = {
   mimeType: string;
   title?: string | null;
   uploadField?: string;
+  previewUploadField?: string;
+  previewMimeType?: string | null;
 };
 
 export type ShareMetadata = {

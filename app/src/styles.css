@@ -1051,6 +1051,12 @@ button:disabled {
   white-space: nowrap;
 }
 
+.share-list-item-meta {
+  margin-top: 0.22rem;
+  font-size: 0.68rem;
+  color: #b4b4b0;
+}
+
 .share-list-item-note-status {
   margin-top: 0.28rem;
   font-size: 0.68rem;
@@ -1465,13 +1471,8 @@ button:disabled {
   background: #111;
 }
 
-/* ===== TipTap Editor Styles ===== */
-
 .note-editor-content .tiptap {
   outline: none;
-  color: #37352f;
-  font-size: 0.95rem;
-  line-height: 1.75;
   zoom: var(--editor-zoom, 1);
   flex: 1;
   max-width: 720px;
@@ -1479,148 +1480,7 @@ button:disabled {
   margin: 0 auto;
 }
 
-.note-editor-content .tiptap > *:first-child {
-  margin-top: 0;
-}
-
-.note-editor-content .tiptap h1 {
-  font-size: 1.75rem;
-  font-weight: 700;
-  margin: 1.5rem 0 0.75rem;
-  color: #37352f;
-}
-
-.note-editor-content .tiptap h2 {
-  font-size: 1.35rem;
-  font-weight: 600;
-  margin: 1.25rem 0 0.6rem;
-  color: #37352f;
-}
-
-.note-editor-content .tiptap h3 {
-  font-size: 1.1rem;
-  font-weight: 600;
-  margin: 1rem 0 0.5rem;
-  color: #37352f;
-}
-
-.note-editor-content .tiptap p {
-  margin: 0.5rem 0;
-}
-
-.note-editor-content .tiptap ul,
-.note-editor-content .tiptap ol {
-  padding-left: 1.5rem;
-  margin: 0.5rem 0;
-}
-
-.note-editor-content .tiptap ul {
-  list-style: disc;
-}
-
-.note-editor-content .tiptap ul ul {
-  list-style: circle;
-}
-
-.note-editor-content .tiptap ul ul ul {
-  list-style: square;
-}
-
-.note-editor-content .tiptap ol {
-  list-style: decimal;
-}
-
-.note-editor-content .tiptap li {
-  margin: 0.15rem 0;
-}
-
-.note-editor-content .tiptap blockquote {
-  border-left: 3px solid #e3e2e0;
-  margin: 0.75rem 0;
-  padding: 0.25rem 0 0.25rem 1rem;
-  color: #787774;
-}
-
-.note-editor-content .tiptap pre {
-  background: #f7f6f3;
-  border: 1px solid #e3e2e0;
-  border-radius: 7px;
-  padding: 0.75rem 1rem;
-  margin: 0.75rem 0;
-  overflow-x: auto;
-}
-
-.note-editor-content .tiptap pre code {
-  font-family: "IBM Plex Mono", monospace;
-  font-size: 0.85rem;
-  color: #37352f;
-  background: none;
-  padding: 0;
-}
-
-.note-editor-content .tiptap code {
-  font-family: "IBM Plex Mono", monospace;
-  font-size: 0.85em;
-  background: #f7f6f3;
-  padding: 0.15rem 0.35rem;
-  border-radius: 4px;
-  color: #eb5757;
-}
-
-.note-editor-content .tiptap hr {
-  border: none;
-  border-top: 1px solid #e3e2e0;
-  margin: 1.5rem 0;
-}
-
 /* Task list styles */
-.note-editor-content .tiptap ul[data-type="taskList"] {
-  list-style: none;
-  padding-left: 0;
-  margin: 0.2rem 0;
-}
-
-.note-editor-content .tiptap ul[data-type="taskList"] li {
-  display: flex;
-  align-items: flex-start;
-  gap: 0.55rem;
-  margin: 0;
-  padding: 0.14rem 0;
-}
-
-.note-editor-content .tiptap ul[data-type="taskList"] li label {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex: 0 0 auto;
-  width: 1.05rem;
-  height: 1.05rem;
-  margin-top: 0.26rem;
-  cursor: pointer;
-}
-
-.note-editor-content .tiptap ul[data-type="taskList"] li input[type="checkbox"] {
-  position: absolute;
-  inset: 0;
-  margin: 0;
-  opacity: 0;
-  cursor: pointer;
-}
-
-.note-editor-content .tiptap ul[data-type="taskList"] li label span {
-  width: 1.05rem;
-  height: 1.05rem;
-  border-radius: 0.28rem;
-  border: 1.5px solid #d3d1cb;
-  background: #fff;
-  box-sizing: border-box;
-  transition:
-    background-color 140ms ease,
-    border-color 140ms ease,
-    box-shadow 140ms ease;
-}
-
 .note-editor-content .tiptap ul[data-type="taskList"] li label:hover span {
   border-color: #b9b6af;
   background: #fbfbfa;
@@ -1629,44 +1489,6 @@ button:disabled {
 .note-editor-content .tiptap ul[data-type="taskList"] li input[type="checkbox"]:focus-visible + span {
   outline: 2px solid rgba(35, 131, 226, 0.22);
   outline-offset: 2px;
-}
-
-.note-editor-content .tiptap ul[data-type="taskList"] li input[type="checkbox"]:checked + span {
-  border-color: #2383e2;
-  background: #2383e2;
-  position: relative;
-}
-
-.note-editor-content .tiptap ul[data-type="taskList"] li input[type="checkbox"]:checked + span::after {
-  content: "";
-  position: absolute;
-  left: 0.31rem;
-  top: 0.11rem;
-  width: 0.24rem;
-  height: 0.48rem;
-  border: solid #fff;
-  border-width: 0 0.12rem 0.12rem 0;
-  transform: rotate(45deg);
-}
-
-.note-editor-content .tiptap ul[data-type="taskList"] li > div {
-  flex: 1 1 auto;
-  min-width: 0;
-}
-
-.note-editor-content .tiptap ul[data-type="taskList"] li > div > p {
-  margin: 0;
-}
-
-.note-editor-content .tiptap ul[data-type="taskList"] li > div > ul[data-type="taskList"] {
-  margin-top: 0.08rem;
-  padding-left: 1.6rem;
-}
-
-.note-editor-content .tiptap ul[data-type="taskList"] li[data-checked="true"] > div > p {
-  text-decoration: line-through;
-  text-decoration-color: #9f9b92;
-  text-decoration-thickness: 1.5px;
 }
 
 /* Link styles → moved to lib/carbon-link-extension/carbon-link.css */

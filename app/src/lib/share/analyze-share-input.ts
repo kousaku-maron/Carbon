@@ -54,6 +54,15 @@ function getAssetKind(path: string): ShareAssetManifestItem["kind"] {
   return "file";
 }
 
+const CURRENT_SUPPORTED_CARBON_ASSET_KINDS = new Set<ShareAssetManifestItem["kind"]>(["image"]);
+
+function getDirectiveAssetKind(kind: string): ShareAssetManifestItem["kind"] {
+  if (kind === "video") return "video";
+  if (kind === "pdf") return "pdf";
+  if (kind === "image") return "image";
+  return "file";
+}
+
 function parseDirectiveAttributes(raw: string): Record<string, string> {
   const result: Record<string, string> = {};
   const regex = /([A-Za-z0-9_-]+)="([^"]*)"/g;
@@ -122,11 +131,25 @@ export function analyzeShareInput(options: AnalyzeShareInputOptions): ShareAnaly
     return manifest;
   }
 
-  function addCarbonAsset(sourceRef: string, title: string | null | undefined) {
+  function addCarbonAsset(
+    sourceRef: string,
+    title: string | null | undefined,
+    kind: ShareAssetManifestItem["kind"],
+  ) {
+    if (!CURRENT_SUPPORTED_CARBON_ASSET_KINDS.has(kind)) {
+      addWarning({
+        code: "UNSUPPORTED_CARBON_ASSET_KIND",
+        message: "carbon://asset 共有は現在画像のみ対応しています",
+        sourceRef,
+        severity: "error",
+      });
+      return;
+    }
+
     if (assetManifest.has(sourceRef)) return assetManifest.get(sourceRef)!;
     const manifest: ShareAssetManifestItem = {
       clientAssetId: crypto.randomUUID(),
-      kind: "image",
+      kind,
       sourceType: "carbon-asset",
       sourceRef,
       mimeType: "application/octet-stream",
@@ -139,7 +162,7 @@ export function analyzeShareInput(options: AnalyzeShareInputOptions): ShareAnaly
   for (const match of markdownForScan.matchAll(/!\[([^\]]*)\]\(([^)\s]+)(?:\s+"([^"]*)")?\)/g)) {
     const [, _alt, src, title] = match;
     if (src.startsWith("carbon://asset/")) {
-      addCarbonAsset(src, title);
+      addCarbonAsset(src, title, "image");
       continue;
     }
     if (isLocalReference(src)) {
@@ -148,13 +171,13 @@ export function analyzeShareInput(options: AnalyzeShareInputOptions): ShareAnaly
   }
 
   for (const match of markdownForScan.matchAll(/:::([a-z]+)\s*\{([^}]*)\}\s*:::/g)) {
-    const [, _kind, attrsRaw] = match;
+    const [, rawKind, attrsRaw] = match;
     const attrs = parseDirectiveAttributes(attrsRaw);
     const src = attrs.src ?? "";
     const title = attrs.title ?? null;
     if (!src) continue;
     if (src.startsWith("carbon://asset/")) {
-      addCarbonAsset(src, title);
+      addCarbonAsset(src, title, getDirectiveAssetKind(rawKind));
       continue;
     }
     if (isLocalReference(src)) {
@@ -169,8 +192,7 @@ export function analyzeShareInput(options: AnalyzeShareInputOptions): ShareAnaly
       continue;
     }
     if (href.startsWith("carbon://asset/")) {
-      addCarbonAsset(href, title);
-      linkManifest.set(href, { href, kind: "file-link" });
+      addCarbonAsset(href, title, "file");
       continue;
     }
     if (!isLocalReference(href)) continue;

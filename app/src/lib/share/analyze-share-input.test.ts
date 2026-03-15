@@ -67,15 +67,12 @@ describe("analyzeShareInput", () => {
     ]);
   });
 
-  it("keeps carbon assets in the manifest without treating them as local uploads", () => {
+  it("keeps image carbon assets in the manifest without treating them as local uploads", () => {
     const result = analyzeShareInput({
       noteId: "docs/guide.md",
       notePath: "/vault/docs/guide.md",
       vaultPath: "/vault",
-      markdownBody: [
-        "![cover](carbon://asset/as_123)",
-        "[download](carbon://asset/as_123)",
-      ].join("\n"),
+      markdownBody: "![cover](carbon://asset/as_123)",
     });
 
     expect(result.localUploads).toHaveLength(0);
@@ -86,9 +83,37 @@ describe("analyzeShareInput", () => {
         sourceRef: "carbon://asset/as_123",
       }),
     ]);
-    expect(result.metadata.linkManifest).toContainEqual({
-      href: "carbon://asset/as_123",
-      kind: "file-link",
+    expect(result.metadata.linkManifest).toEqual([]);
+    expect(result.metadata.warnings).toEqual([]);
+  });
+
+  it("rejects non-image carbon assets while keeping the logic future-extensible", () => {
+    const result = analyzeShareInput({
+      noteId: "docs/guide.md",
+      notePath: "/vault/docs/guide.md",
+      vaultPath: "/vault",
+      markdownBody: [
+        ':::video {src="carbon://asset/as_video" title="demo.mp4"} :::',
+        "[file](carbon://asset/as_file)",
+      ].join("\n"),
     });
+
+    expect(result.localUploads).toHaveLength(0);
+    expect(result.metadata.assetManifest).toEqual([]);
+    expect(result.metadata.linkManifest).toEqual([]);
+    expect(result.metadata.warnings).toEqual([
+      {
+        code: "UNSUPPORTED_CARBON_ASSET_KIND",
+        message: "carbon://asset 共有は現在画像のみ対応しています",
+        sourceRef: "carbon://asset/as_video",
+        severity: "error",
+      },
+      {
+        code: "UNSUPPORTED_CARBON_ASSET_KIND",
+        message: "carbon://asset 共有は現在画像のみ対応しています",
+        sourceRef: "carbon://asset/as_file",
+        severity: "error",
+      },
+    ]);
   });
 });

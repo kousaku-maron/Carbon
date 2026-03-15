@@ -1,12 +1,3 @@
-/* Image styles */
-.note-editor-content .tiptap .carbon-image-node {
-  margin: 0.5rem 0;
-}
-
-.note-editor-content .tiptap .carbon-image-frame {
-  position: relative;
-}
-
 .note-editor-content .tiptap .carbon-image-node.ProseMirror-selectednode .carbon-image-frame::after {
   content: "";
   position: absolute;
@@ -14,13 +5,6 @@
   background: rgba(99, 102, 241, 0.12);
   pointer-events: none;
   z-index: 1;
-}
-
-.note-editor-content .tiptap .carbon-image-embed {
-  width: 100%;
-  height: auto;
-  display: block;
-  margin: 0;
 }
 
 .note-editor-content .tiptap .carbon-image-embed[data-asset-loading="true"] {

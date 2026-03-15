@@ -1,4 +1,14 @@
 import { describe, expect, it } from "vitest";
+import {
+  CARBON_FILE_CARD_CLASS,
+  CARBON_FILE_CARD_KIND_CLASS,
+  CARBON_FILE_CARD_TITLE_CLASS,
+  CARBON_INTERNAL_LINK_CLASS,
+  CARBON_LINK_CLASS,
+  CARBON_MISSING_ASSET_CLASS,
+  CARBON_MISSING_IMAGE_ASSET_CLASS,
+  CARBON_MISSING_LINK_CLASS,
+} from "@carbon/rendering";
 import { buildRenderedHtml } from "./share-render";
 
 describe("buildRenderedHtml", () => {
@@ -10,8 +20,11 @@ describe("buildRenderedHtml", () => {
       links: [],
     });
 
-    expect(html).toContain('class="share-link share-link--missing"');
-    expect(html).toContain('title="このページは公開されていません"');
+    expect(html).toContain(
+      `class="${CARBON_LINK_CLASS} ${CARBON_INTERNAL_LINK_CLASS} ${CARBON_MISSING_LINK_CLASS}"`,
+    );
+    expect(html).toContain('title="This page is not published"');
+    expect(html).toContain('data-tooltip="This page is not published"');
     expect(html).toContain(">Other note</span>");
   });
 
@@ -23,7 +36,9 @@ describe("buildRenderedHtml", () => {
       links: [],
     });
 
-    expect(html).toContain('class="share-missing-asset share-missing-asset--image"');
+    expect(html).toContain(
+      `class="${CARBON_MISSING_ASSET_CLASS} ${CARBON_MISSING_IMAGE_ASSET_CLASS}"`,
+    );
     expect(html).toContain("Photo");
     expect(html).not.toContain('img src="carbon://asset/as_123"');
   });
@@ -42,7 +57,74 @@ describe("buildRenderedHtml", () => {
       links: [],
     });
 
-    expect(html).toContain('img src="https://example.com/assets/as_123"');
-    expect(html).not.toContain('<div class="share-missing-asset');
+    expect(html).toContain('src="https://example.com/assets/as_123"');
+    expect(html).not.toContain("<p><figure");
+    expect(html).not.toContain(`<div class="${CARBON_MISSING_ASSET_CLASS}`);
+  });
+
+  it("renders markdown task lists using TipTap-compatible markup", () => {
+    const html = buildRenderedHtml({
+      title: "Spec",
+      markdownBody: "- [x] Done\n- [ ] Todo",
+      assets: [],
+      links: [],
+    });
+
+    expect(html).toContain('<ul data-type="taskList">');
+    expect(html).toContain('<li data-checked="true">');
+    expect(html).toContain('<li data-checked="false">');
+    expect(html).toContain('type="checkbox" checked disabled');
+    expect(html).toContain('type="checkbox" disabled');
+    expect(html).toContain("<div><p>Done</p></div>");
+    expect(html).toContain("<div><p>Todo</p></div>");
+  });
+
+  it("renders pdf directives as download cards", () => {
+    const html = buildRenderedHtml({
+      title: "Spec",
+      markdownBody: 'Before\n\n:::pdf {src="../docs/demo.pdf" title="demo.pdf"} :::\n\nAfter',
+      assets: [
+        {
+          kind: "pdf",
+          sourceRef: "../docs/demo.pdf",
+          title: "demo.pdf",
+          publicUrl: "https://example.com/assets/demo.pdf",
+          previewImageUrl: "https://example.com/assets/demo-preview.png",
+        },
+      ],
+      links: [],
+    });
+
+    expect(html).toContain(`class="${CARBON_FILE_CARD_CLASS}"`);
+    expect(html).toContain(`<div class="${CARBON_FILE_CARD_KIND_CLASS}">PDF</div>`);
+    expect(html).toContain(`<div class="${CARBON_FILE_CARD_TITLE_CLASS}">demo.pdf</div>`);
+    expect(html).toContain('href="https://example.com/assets/demo.pdf" target="_blank" rel="noreferrer"');
+    expect(html).toContain(">Open</a>");
+    expect(html).toContain('src="https://example.com/assets/demo-preview.png"');
+    expect(html).not.toContain("__SHARE_BLOCK_");
+    expect(html).toContain("<p>Before</p>");
+    expect(html).toContain("<p>After</p>");
+  });
+
+  it("renders video directives without figcaption and keeps the video block structure", () => {
+    const html = buildRenderedHtml({
+      title: "Spec",
+      markdownBody: 'Before\n\n:::video {src="../videos/demo.mp4" title="demo.mp4"} :::\n\nAfter',
+      assets: [
+        {
+          kind: "video",
+          sourceRef: "../videos/demo.mp4",
+          title: "demo.mp4",
+          publicUrl: "https://example.com/assets/demo.mp4",
+        },
+      ],
+      links: [],
+    });
+
+    expect(html).toContain('<video class="carbon-video-embed" controls preload="metadata" src="https://example.com/assets/demo.mp4"></video>');
+    expect(html).not.toContain("<figcaption>demo.mp4</figcaption>");
+    expect(html).not.toContain("<p><figure");
+    expect(html).toContain("<p>Before</p>");
+    expect(html).toContain("<p>After</p>");
   });
 });

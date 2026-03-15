@@ -1,3 +1,30 @@
+import {
+  CARBON_FILE_CARD_ACTION_CLASS,
+  CARBON_FILE_CARD_CLASS,
+  CARBON_FILE_CARD_KIND_CLASS,
+  CARBON_FILE_CARD_META_CLASS,
+  CARBON_FILE_CARD_PREVIEW_CLASS,
+  CARBON_FILE_CARD_PREVIEW_IMAGE_CLASS,
+  CARBON_FILE_CARD_TITLE_CLASS,
+  CARBON_IMAGE_EMBED_CLASS,
+  CARBON_IMAGE_FRAME_CLASS,
+  CARBON_IMAGE_NODE_CLASS,
+  CARBON_INTERNAL_LINK_CLASS,
+  CARBON_LINK_CLASS,
+  CARBON_MISSING_ASSET_CLASS,
+  CARBON_MISSING_IMAGE_ASSET_CLASS,
+  CARBON_MISSING_LINK_CLASS,
+  CARBON_PDF_FRAME_CLASS,
+  CARBON_PDF_NODE_CLASS,
+  CARBON_PROSE_CLASS,
+  CARBON_SHARE_DOWNLOAD_CLASS,
+  CARBON_SHARE_EMBED_CLASS,
+  CARBON_SHARE_OPEN_CLASS,
+  CARBON_VIDEO_EMBED_CLASS,
+  CARBON_VIDEO_FRAME_CLASS,
+  CARBON_VIDEO_NODE_CLASS,
+  carbonProseCss,
+} from "@carbon/rendering";
 import { marked } from "marked";
 
 export type ShareWarning = {
@@ -19,6 +46,7 @@ export type ShareAssetRenderItem = {
   sourceRef: string;
   title?: string | null;
   publicUrl: string;
+  previewImageUrl?: string | null;
 };
 
 function escapeHtml(value: string): string {
@@ -34,9 +62,13 @@ function escapeAttr(value: string): string {
   return escapeHtml(value);
 }
 
+function joinClasses(...classNames: Array<string | false | null | undefined>): string {
+  return classNames.filter(Boolean).join(" ");
+}
+
 function renderFigure(title: string | null | undefined, inner: string): string {
-  if (!title) return `<figure class="share-embed">${inner}</figure>`;
-  return `<figure class="share-embed">${inner}<figcaption>${escapeHtml(title)}</figcaption></figure>`;
+  if (!title) return `<figure class="${CARBON_SHARE_EMBED_CLASS}">${inner}</figure>`;
+  return `<figure class="${CARBON_SHARE_EMBED_CLASS}">${inner}<figcaption>${escapeHtml(title)}</figcaption></figure>`;
 }
 
 function parseDirectiveAttributes(raw: string): Record<string, string> {
@@ -54,17 +86,59 @@ function isLikelyLocalMarkdownLink(href: string): boolean {
 }
 
 function renderMissingLink(text: string): string {
-  return `<span class="share-link share-link--missing" title="このページは公開されていません">${text}</span>`;
+  return `<span class="${joinClasses(CARBON_LINK_CLASS, CARBON_INTERNAL_LINK_CLASS, CARBON_MISSING_LINK_CLASS)}" data-href="" data-tooltip="This page is not published" aria-disabled="true" title="This page is not published">${text}</span>`;
 }
 
 function renderMissingAsset(kind: string, label: string): string {
   const safeLabel = escapeHtml(label);
 
   if (kind === "image") {
-    return `<div class="share-missing-asset share-missing-asset--image" role="img" aria-label="${safeLabel}">${safeLabel}</div>`;
+    return `<div class="${joinClasses(CARBON_MISSING_ASSET_CLASS, CARBON_MISSING_IMAGE_ASSET_CLASS)}" role="img" aria-label="${safeLabel}">${safeLabel}</div>`;
   }
 
-  return `<div class="share-missing-asset">${safeLabel}</div>`;
+  return `<div class="${CARBON_MISSING_ASSET_CLASS}">${safeLabel}</div>`;
+}
+
+function renderDownloadCard(input: {
+  kindLabel: string;
+  title: string;
+  href: string;
+  actionLabel: string;
+  previewImageUrl?: string | null;
+  openInNewTab?: boolean;
+}) {
+  const preview = input.previewImageUrl
+    ? `<div class="${CARBON_FILE_CARD_PREVIEW_CLASS}"><img class="${CARBON_FILE_CARD_PREVIEW_IMAGE_CLASS}" src="${escapeAttr(input.previewImageUrl)}" alt="" loading="lazy" /></div>`
+    : "";
+  const actionAttrs = input.openInNewTab
+    ? `href="${escapeAttr(input.href)}" target="_blank" rel="noreferrer"`
+    : `href="${escapeAttr(input.href)}" download`;
+  const icon = input.openInNewTab
+    ? `<svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M6 3.75H4.75C4.2 3.75 3.75 4.2 3.75 4.75V11.25C3.75 11.8 4.2 12.25 4.75 12.25H11.25C11.8 12.25 12.25 11.8 12.25 11.25V10" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/><path d="M8.25 3.75H12.25V7.75" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/><path d="M7.75 8.25L12.25 3.75" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>`
+    : "";
+  return `<div class="${CARBON_FILE_CARD_CLASS}">${preview}<div class="${CARBON_FILE_CARD_META_CLASS}"><div class="${CARBON_FILE_CARD_KIND_CLASS}">${escapeHtml(input.kindLabel)}</div><div class="${CARBON_FILE_CARD_TITLE_CLASS}">${escapeHtml(input.title)}</div></div><a class="${joinClasses(CARBON_FILE_CARD_ACTION_CLASS, input.openInNewTab ? CARBON_SHARE_OPEN_CLASS : CARBON_SHARE_DOWNLOAD_CLASS)}" ${actionAttrs}>${icon}${escapeHtml(input.actionLabel)}</a></div>`;
+}
+
+function isStandaloneBlockHtml(html: string): boolean {
+  return /^(<figure\b|<div class="(?:carbon-image-node|carbon-video-node|carbon-pdf-node|share-missing-asset))/i.test(
+    html.trim(),
+  );
+}
+
+function isBlockHtml(html: string): boolean {
+  return /^(<(p|ul|ol|blockquote|pre|figure|div|table|h[1-6]|hr)\b)/i.test(html.trim());
+}
+
+function renderTaskListItemContent(
+  tokens: Array<{ type?: string }> | undefined,
+  renderer: any,
+): string {
+  const bodyTokens = (tokens ?? []).filter((token) => token.type !== "checkbox");
+  const html = bodyTokens.length > 0
+    ? String(marked.Parser.parse(bodyTokens as never, { renderer }))
+    : "";
+  if (!html) return "<p></p>";
+  return isBlockHtml(html) ? html : `<p>${html}</p>`;
 }
 
 function buildDocumentTemplate(title: string, bodyHtml: string): string {
@@ -77,100 +151,33 @@ function buildDocumentTemplate(title: string, bodyHtml: string): string {
     <style>
       :root {
         color-scheme: light;
-        --bg: #f6f3ec;
-        --panel: #fffdf8;
-        --text: #201d18;
-        --muted: #6e665c;
-        --line: #ddd4c7;
-        --accent: #0f766e;
-        --missing: #9a3412;
+        --text: #37352f;
       }
       * { box-sizing: border-box; }
+      html {
+        background: #ffffff;
+      }
       body {
         margin: 0;
-        background: radial-gradient(circle at top, #fdf9ef, var(--bg));
+        background: #ffffff;
         color: var(--text);
-        font: 16px/1.7 "Iowan Old Style", "Palatino Linotype", "Book Antiqua", serif;
+        font-family: "IBM Plex Sans", "Noto Sans JP", sans-serif;
       }
       main {
-        max-width: 860px;
-        margin: 0 auto;
-        padding: 48px 24px 80px;
+        min-height: 100vh;
+        padding: 1.25rem 1.25rem clamp(14rem, 48vh, 26rem);
       }
       article {
-        background: var(--panel);
-        border: 1px solid var(--line);
-        border-radius: 24px;
-        padding: 40px 32px;
-        box-shadow: 0 18px 60px rgba(32, 29, 24, 0.08);
-      }
-      h1, h2, h3, h4, h5, h6 { line-height: 1.2; margin: 1.6em 0 0.6em; }
-      h1:first-child { margin-top: 0; }
-      p, ul, ol, blockquote, pre, table, figure { margin: 1em 0; }
-      a { color: var(--accent); }
-      img, video { max-width: 100%; border-radius: 14px; display: block; }
-      code, pre {
-        font-family: "SFMono-Regular", ui-monospace, "Cascadia Code", Menlo, monospace;
-      }
-      pre {
-        overflow: auto;
-        padding: 16px;
-        border-radius: 14px;
-        background: #1f2428;
-        color: #f8f8f2;
-      }
-      blockquote {
-        border-left: 4px solid var(--line);
-        padding-left: 16px;
-        color: var(--muted);
-      }
-      table {
+        max-width: 720px;
         width: 100%;
-        border-collapse: collapse;
+        margin: 0 auto;
       }
-      th, td {
-        border: 1px solid var(--line);
-        padding: 10px 12px;
-      }
-      figcaption {
-        margin-top: 8px;
-        color: var(--muted);
-        font-size: 14px;
-      }
-      .share-link--missing {
-        color: var(--missing);
-        text-decoration: underline dotted;
-        cursor: help;
-      }
-      .share-download {
-        display: inline-flex;
-        align-items: center;
-        gap: 8px;
-      }
-      .share-download::before {
-        content: "↧";
-      }
-      .share-missing-asset {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        min-height: 96px;
-        padding: 18px;
-        border: 1px dashed var(--line);
-        border-radius: 14px;
-        background: #faf7f2;
-        color: var(--muted);
-        font-size: 14px;
-        text-align: center;
-      }
-      .share-missing-asset--image {
-        min-height: 220px;
-      }
+      ${carbonProseCss}
     </style>
   </head>
   <body>
     <main>
-      <article>
+      <article class="${CARBON_PROSE_CLASS}">
 ${bodyHtml}
       </article>
     </main>
@@ -210,29 +217,43 @@ export function buildRenderedHtml(input: {
         directiveHtml.set(
           placeholder,
           renderFigure(
-            title,
-            `<video controls preload="metadata" src="${escapeAttr(asset.publicUrl)}"></video>`,
+            null,
+            `<div class="${CARBON_VIDEO_NODE_CLASS}"><div class="${CARBON_VIDEO_FRAME_CLASS}"><video class="${CARBON_VIDEO_EMBED_CLASS}" controls preload="metadata" src="${escapeAttr(asset.publicUrl)}"></video></div></div>`,
           ),
         );
         return placeholder;
       }
 
       if (kind === "pdf") {
+        const resolvedTitle = title ?? asset.title ?? "PDF";
         directiveHtml.set(
           placeholder,
           renderFigure(
-            title,
-            `<a class="share-download" href="${escapeAttr(asset.publicUrl)}" download>PDF をダウンロード</a>`,
+            null,
+            `<div class="${CARBON_PDF_NODE_CLASS}"><div class="${CARBON_PDF_FRAME_CLASS}">${renderDownloadCard({
+              kindLabel: "PDF",
+              title: resolvedTitle,
+              href: asset.publicUrl,
+              actionLabel: "Open",
+              previewImageUrl: asset.previewImageUrl,
+              openInNewTab: true,
+            })}</div></div>`,
           ),
         );
         return placeholder;
       }
 
+      const resolvedTitle = title ?? asset.title ?? "File";
       directiveHtml.set(
         placeholder,
         renderFigure(
-          title,
-          `<a class="share-download" href="${escapeAttr(asset.publicUrl)}" download>ファイルをダウンロード</a>`,
+          null,
+          renderDownloadCard({
+            kindLabel: "File",
+            title: resolvedTitle,
+            href: asset.publicUrl,
+            actionLabel: "Download",
+          }),
         ),
       );
       return placeholder;
@@ -246,20 +267,54 @@ export function buildRenderedHtml(input: {
     return resolved ?? escapeHtml(text);
   };
 
+  renderer.paragraph = ({ tokens }) => {
+    const inner = tokens ? marked.Parser.parseInline(tokens, { renderer }) : "";
+    if (isStandaloneBlockHtml(inner)) {
+      return inner;
+    }
+    return `<p>${inner}</p>`;
+  };
+
+  renderer.list = ({ ordered, start, items }) => {
+    const hasTaskItems = items.some((item) => item.task);
+    const tag = ordered ? "ol" : "ul";
+    const attrs = [
+      hasTaskItems ? ' data-type="taskList"' : "",
+      ordered && typeof start === "number" && start > 1 ? ` start="${start}"` : "",
+    ].join("");
+    const inner = items.map((item) => renderer.listitem(item)).join("");
+    return `<${tag}${attrs}>${inner}</${tag}>`;
+  };
+
+  renderer.listitem = (item) => {
+    if (!item.task) {
+      const inner = item.tokens ? marked.Parser.parse(item.tokens as never, { renderer }) : item.text;
+      return `<li>${inner}</li>`;
+    }
+
+    const checked = item.checked === true;
+    const contentHtml = renderTaskListItemContent(item.tokens, renderer);
+    return `<li data-checked="${checked ? "true" : "false"}"><label><input type="checkbox"${checked ? " checked" : ""} disabled /><span></span></label><div>${contentHtml}</div></li>`;
+  };
+
   renderer.link = ({ href, title, tokens }) => {
     const label = tokens ? marked.Parser.parseInline(tokens) : escapeHtml(href);
     const mappedLink = linkByHref.get(href);
     if (mappedLink?.publicUrl) {
-      return `<a href="${escapeAttr(mappedLink.publicUrl)}"${title ? ` title="${escapeAttr(title)}"` : ""}>${label}</a>`;
+      const className =
+        mappedLink.kind === "note-link"
+          ? joinClasses(CARBON_LINK_CLASS, CARBON_INTERNAL_LINK_CLASS)
+          : CARBON_LINK_CLASS;
+      return `<a class="${className}" data-href="${escapeAttr(mappedLink.publicUrl)}" href="${escapeAttr(mappedLink.publicUrl)}"${title ? ` title="${escapeAttr(title)}"` : ""}>${label}</a>`;
     }
     const mappedAsset = assetUrlBySource.get(href);
     if (mappedAsset) {
-      return `<a class="share-download" href="${escapeAttr(mappedAsset.publicUrl)}" download${title ? ` title="${escapeAttr(title)}"` : ""}>${label}</a>`;
+      return `<a class="${CARBON_SHARE_DOWNLOAD_CLASS}" href="${escapeAttr(mappedAsset.publicUrl)}" download${title ? ` title="${escapeAttr(title)}"` : ""}>${label}</a>`;
     }
     if (mappedLink?.kind === "note-link" || isLikelyLocalMarkdownLink(href)) {
       return renderMissingLink(label);
     }
-    return `<a href="${escapeAttr(href)}"${title ? ` title="${escapeAttr(title)}"` : ""} target="_blank" rel="noreferrer">${label}</a>`;
+    return `<a class="${CARBON_LINK_CLASS}" data-href="${escapeAttr(href)}" href="${escapeAttr(href)}"${title ? ` title="${escapeAttr(title)}"` : ""} target="_blank" rel="noreferrer">${label}</a>`;
   };
 
   renderer.image = ({ href, title, text }) => {
@@ -270,7 +325,7 @@ export function buildRenderedHtml(input: {
     const src = asset?.publicUrl ?? href;
     const alt = escapeAttr(text);
     const caption = title ? `<figcaption>${escapeHtml(title)}</figcaption>` : "";
-    return `<figure class="share-embed"><img src="${escapeAttr(src)}" alt="${alt}" loading="lazy" />${caption}</figure>`;
+    return `<figure class="${CARBON_SHARE_EMBED_CLASS}"><div class="${CARBON_IMAGE_NODE_CLASS}"><div class="${CARBON_IMAGE_FRAME_CLASS}"><img class="${CARBON_IMAGE_EMBED_CLASS}" src="${escapeAttr(src)}" alt="${alt}" loading="lazy" /></div></div>${caption}</figure>`;
   };
 
   const bodyHtml = marked.parse(markdownWithDirectives, {
@@ -280,5 +335,11 @@ export function buildRenderedHtml(input: {
     renderer,
   });
 
-  return buildDocumentTemplate(input.title, bodyHtml);
+  let resolvedBodyHtml = bodyHtml;
+  for (const [placeholder, html] of directiveHtml) {
+    resolvedBodyHtml = resolvedBodyHtml.replaceAll(placeholder, html);
+    resolvedBodyHtml = resolvedBodyHtml.replaceAll(escapeHtml(placeholder), html);
+  }
+
+  return buildDocumentTemplate(input.title, resolvedBodyHtml);
 }
