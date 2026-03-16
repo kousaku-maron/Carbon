@@ -9,7 +9,7 @@ import {
   CARBON_MISSING_IMAGE_ASSET_CLASS,
   CARBON_MISSING_LINK_CLASS,
 } from "@carbon/rendering";
-import { buildRenderedHtml } from "./share-render";
+import { buildRenderedHtml, buildRevokedHtml } from "./share-render";
 
 describe("buildRenderedHtml", () => {
   it("renders unpublished markdown note links as tooltip text", () => {
@@ -164,5 +164,15 @@ describe("buildRenderedHtml", () => {
 
     expect(html).toContain("<title>公開タイトル | Carbon</title>");
     expect(html).toContain('meta property="og:title" content="公開タイトル | Carbon"');
+  });
+
+  it("renders a custom revoked share page", () => {
+    const html = buildRevokedHtml();
+
+    expect(html).toContain("<title>Share unavailable | Carbon</title>");
+    expect(html).toContain('meta name="robots" content="noindex, nofollow, noarchive"');
+    expect(html).toContain('<div class="badge">410 Gone</div>');
+    expect(html).toContain("<h1>This share has been revoked.</h1>");
+    expect(html).toContain("ask the author for a new share link");
   });
 });

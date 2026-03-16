@@ -4,7 +4,7 @@ import { assets } from "../db/schema/app";
 import { sharedDocumentAssets, sharedDocumentRevisions, sharedDocuments } from "../db/schema/share";
 import { createAuth } from "./auth";
 import { createDb, type Database } from "./db";
-import { buildRenderedHtml, type ShareAssetRenderItem, type ShareLinkManifestItem, type ShareWarning } from "./share-render";
+import { buildRenderedHtml, buildRevokedHtml, type ShareAssetRenderItem, type ShareLinkManifestItem, type ShareWarning } from "./share-render";
 import { buildCarbonAssetWarning, mergeShareWarnings } from "./share-warnings";
 
 type Bindings = {
@@ -730,7 +730,11 @@ sharePublicApp.get("/:shareToken/assets/:assetId", async (c) => {
     .where(eq(sharedDocuments.shareToken, shareToken));
 
   if (!share) return c.json({ error: "Share not found" }, 404);
-  if (share.status === "revoked") return c.body(null, 410);
+  if (share.status === "revoked") {
+    return c.html(buildRevokedHtml(), 410, {
+      "X-Robots-Tag": "noindex, nofollow, noarchive",
+    });
+  }
   if (!share.currentRevisionId) return c.json({ error: "Share revision missing" }, 404);
 
   const [asset] = await createDb(c.env.DATABASE_URL)
