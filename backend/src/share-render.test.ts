@@ -138,11 +138,11 @@ describe("buildRenderedHtml", () => {
       ogImageUrl: "https://example.com/assets/og-image.png",
     });
 
-    expect(html).toContain("<title>Carbon | abc.md</title>");
+    expect(html).toContain("<title>abc.md | Carbon</title>");
     expect(html).toContain('rel="icon" type="image/png" href="data:image/png;base64,');
     expect(html).toContain('meta name="description" content="abc.md これは共有ページの説明文です。リンクや装飾を含んでも自然な description にしたいです。"');
     expect(html).toContain('meta name="robots" content="noindex, nofollow, noarchive"');
-    expect(html).toContain('meta property="og:title" content="Carbon | abc.md"');
+    expect(html).toContain('meta property="og:title" content="abc.md | Carbon"');
     expect(html).toContain('meta property="og:site_name" content="Carbon"');
     expect(html).toContain('meta property="og:url" content="https://example.com/s/st_123/abc"');
     expect(html).toContain('meta property="og:image" content="https://example.com/assets/og-image.png"');
@@ -162,7 +162,7 @@ describe("buildRenderedHtml", () => {
       links: [],
     });
 
-    expect(html).toContain("<title>Carbon | 公開タイトル</title>");
-    expect(html).toContain('meta property="og:title" content="Carbon | 公開タイトル"');
+    expect(html).toContain("<title>公開タイトル | Carbon</title>");
+    expect(html).toContain('meta property="og:title" content="公開タイトル | Carbon"');
   });
 });

@@ -39,10 +39,10 @@ describe("wrapOgText", () => {
 
   it("uses the first h1 for OGP titles when available", () => {
     expect(buildSharePageTitle(resolveShareTitle("# 公開タイトル\n\n本文", "abc.md"))).toBe(
-      "Carbon | 公開タイトル",
+      "公開タイトル | Carbon",
     );
     expect(buildSharePageTitle(resolveShareTitle("本文だけです", "abc.md"))).toBe(
-      "Carbon | abc.md",
+      "abc.md | Carbon",
     );
   });
 });

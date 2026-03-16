@@ -33,15 +33,25 @@ async function loadCarbonIcon(): Promise<CanvasImageSource | null> {
   }
 }
 
-function drawEllipse(
+function drawRoundedRect(
   ctx: CanvasRenderingContext2D,
   x: number,
   y: number,
   width: number,
   height: number,
+  radius: number,
 ) {
+  const clampedRadius = Math.max(0, Math.min(radius, width / 2, height / 2));
   ctx.beginPath();
-  ctx.ellipse(x + width / 2, y + height / 2, width / 2, height / 2, 0, 0, Math.PI * 2);
+  ctx.moveTo(x + clampedRadius, y);
+  ctx.lineTo(x + width - clampedRadius, y);
+  ctx.arcTo(x + width, y, x + width, y + clampedRadius, clampedRadius);
+  ctx.lineTo(x + width, y + height - clampedRadius);
+  ctx.arcTo(x + width, y + height, x + width - clampedRadius, y + height, clampedRadius);
+  ctx.lineTo(x + clampedRadius, y + height);
+  ctx.arcTo(x, y + height, x, y + height - clampedRadius, clampedRadius);
+  ctx.lineTo(x, y + clampedRadius);
+  ctx.arcTo(x, y, x + clampedRadius, y, clampedRadius);
   ctx.closePath();
 }
 
@@ -186,7 +196,7 @@ export async function renderShareOgImageBlob(input: {
   ctx.textBaseline = "middle";
   ctx.fillText("Carbon", 104, 76);
 
-  const title = buildSharePageTitle(resolveShareTitle(input.markdownBody, input.title)).replace(/^Carbon \|\s*/, "");
+  const title = buildSharePageTitle(resolveShareTitle(input.markdownBody, input.title)).replace(/\s*\|\s*Carbon$/, "");
   const description = buildShareDescription(input.markdownBody);
 
   ctx.fillStyle = "#0f172a";
@@ -212,7 +222,7 @@ export async function renderShareOgImageBlob(input: {
   const buttonHeight = 68;
   const buttonY = SHARE_OG_IMAGE_HEIGHT - 122;
   ctx.fillStyle = "#000000";
-  drawEllipse(ctx, 52, buttonY, buttonWidth, buttonHeight);
+  drawRoundedRect(ctx, 52, buttonY, buttonWidth, buttonHeight, buttonHeight / 2);
   ctx.fill();
 
   ctx.fillStyle = "#ffffff";
