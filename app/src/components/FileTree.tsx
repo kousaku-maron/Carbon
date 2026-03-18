@@ -1,8 +1,11 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { isImagePath, isPdfPath, isVideoPath } from "../lib/file-kind";
+import { useCopyFeedback } from "../lib/hooks/use-copy-feedback";
 import { getParentPath, isPathInside, pathsEqual } from "../lib/path-utils";
+import { buildNotePathClipboardItem } from "../lib/tiptap/carbon-link-extension";
 import type { TreeNode } from "../lib/types";
 import { ContextMenu, type ContextMenuItem } from "./ContextMenu";
+import { Toast } from "./Toast";
 
 /** Pending inline-input operation. */
 type PendingAction =
@@ -145,6 +148,21 @@ export function FileTree(props: FileTreeCallbacks & {
     null,
   );
   const dragRef = useRef<DragState>({ sourcePath: null });
+  const { copied, showCopied, dismissCopied } = useCopyFeedback<"path">(1500);
+
+  const copyNodePath = useCallback((node: TreeNode) => {
+    const copyPromise = node.kind === "folder"
+      ? navigator.clipboard.writeText(node.path)
+      : navigator.clipboard
+          .write([buildNotePathClipboardItem(node.path, node.id)])
+          .catch(() => navigator.clipboard.writeText(node.path));
+
+    copyPromise
+      .then(() => {
+        showCopied("path");
+      })
+      .catch(() => undefined);
+  }, [showCopied]);
 
   function openNewMenu(e: React.MouseEvent, parentPath: string) {
     e.preventDefault();
@@ -185,6 +203,10 @@ export function FileTree(props: FileTreeCallbacks & {
             setPendingAction({ type: "newFolder", parentPath: node.path }),
         },
         {
+          label: "Copy Path",
+          onClick: () => copyNodePath(node),
+        },
+        {
           label: "Rename",
           onClick: () => setPendingAction({ type: "rename", node }),
         },
@@ -203,6 +225,10 @@ export function FileTree(props: FileTreeCallbacks & {
       x: e.clientX,
       y: e.clientY,
       items: [
+        {
+          label: "Copy Path",
+          onClick: () => copyNodePath(node),
+        },
         {
           label: "Rename",
           onClick: () => setPendingAction({ type: "rename", node }),
@@ -295,6 +321,7 @@ export function FileTree(props: FileTreeCallbacks & {
           onClose={() => setContextMenu(null)}
         />
       )}
+      {copied && <Toast message="Path copied" onClose={dismissCopied} />}
     </>
   );
 }
