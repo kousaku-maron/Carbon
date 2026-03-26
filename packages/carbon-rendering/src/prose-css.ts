@@ -39,7 +39,7 @@ export const carbonProseCss = `
 .${CARBON_PROSE_CLASS} h1 {
   font-size: 1.75rem;
   font-weight: 700;
-  margin: 1.5rem 0 0.75rem;
+  margin: 2.25rem 0 0.9rem;
   color: #37352f;
   line-height: 1.2;
 }
@@ -47,7 +47,7 @@ export const carbonProseCss = `
 .${CARBON_PROSE_CLASS} h2 {
   font-size: 1.35rem;
   font-weight: 600;
-  margin: 1.25rem 0 0.6rem;
+  margin: 1.75rem 0 0.75rem;
   color: #37352f;
   line-height: 1.2;
 }
@@ -55,9 +55,15 @@ export const carbonProseCss = `
 .${CARBON_PROSE_CLASS} h3 {
   font-size: 1.1rem;
   font-weight: 600;
-  margin: 1rem 0 0.5rem;
+  margin: 1.35rem 0 0.55rem;
   color: #37352f;
   line-height: 1.2;
+}
+
+.${CARBON_PROSE_CLASS} h1 + *,
+.${CARBON_PROSE_CLASS} h2 + *,
+.${CARBON_PROSE_CLASS} h3 + * {
+  margin-top: 0;
 }
 
 .${CARBON_PROSE_CLASS} p {
