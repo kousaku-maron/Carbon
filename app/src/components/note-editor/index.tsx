@@ -6,6 +6,7 @@ import { openUrl } from "@tauri-apps/plugin-opener";
 import StarterKit from "@tiptap/starter-kit";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createShare, listShares, republishShare, revokeShare } from "../../lib/api";
+import { CarbonCodeBlock } from "../../lib/tiptap/carbon-code-block-extension";
 import { CarbonImage } from "../../lib/tiptap/carbon-image-extension";
 import { CarbonLink, buildNotePathClipboardItem, type NoteLinkSuggestionItem } from "../../lib/tiptap/carbon-link-extension";
 import { CarbonPdf } from "../../lib/tiptap/carbon-pdf-extension";
@@ -151,7 +152,8 @@ export function NoteEditor(props: NoteEditorProps) {
   const editor = useEditor(
     {
       extensions: [
-        StarterKit.configure({ link: false }),
+        StarterKit.configure({ link: false, codeBlock: false }),
+        CarbonCodeBlock.configure({ languageClassPrefix: "language-" }),
         CarbonLink.configure({
           openOnClick: true,
           autolink: true,

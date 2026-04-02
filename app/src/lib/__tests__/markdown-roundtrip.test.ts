@@ -2,6 +2,7 @@ import { TaskItem, TaskList } from "@tiptap/extension-list";
 import { MarkdownManager } from "@tiptap/markdown";
 import StarterKit from "@tiptap/starter-kit";
 import { describe, expect, it } from "vitest";
+import { CarbonCodeBlock } from "../tiptap/carbon-code-block-extension";
 import { CarbonImage } from "../tiptap/carbon-image-extension";
 import { CarbonLink } from "../tiptap/carbon-link-extension";
 import { CarbonPdf } from "../tiptap/carbon-pdf-extension";
@@ -16,9 +17,10 @@ const markdownManager = new MarkdownManager({
   extensions: [
     StarterKit.configure({
       heading: { levels: [1, 2, 3, 4, 5, 6] },
-      codeBlock: { languageClassPrefix: "language-" },
+      codeBlock: false,
       link: false,
     }),
+    CarbonCodeBlock.configure({ languageClassPrefix: "language-" }),
     CarbonLink.configure({
       openOnClick: false,
       autolink: true,

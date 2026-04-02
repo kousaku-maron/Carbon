@@ -1499,6 +1499,63 @@ button:disabled {
   margin: 0 auto;
 }
 
+.note-editor-content .tiptap .carbon-code-block {
+  position: relative;
+  margin: 0.75rem 0;
+}
+
+.note-editor-content .tiptap .carbon-code-block-toolbar {
+  position: absolute;
+  top: 0.55rem;
+  right: 0.6rem;
+  left: 0.75rem;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.note-editor-content .tiptap .carbon-code-block-language {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #9b9a97;
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.note-editor-content .tiptap .carbon-code-block-copy-btn {
+  border: 1px solid #d8d5cf;
+  background: rgba(255, 255, 255, 0.9);
+  color: #6f6c66;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  backdrop-filter: blur(4px);
+}
+
+.note-editor-content .tiptap .carbon-code-block-copy-btn:hover {
+  background: #ffffff;
+  color: #37352f;
+}
+
+.note-editor-content .tiptap .carbon-code-block-copy-btn:focus-visible {
+  outline: 2px solid rgba(35, 131, 226, 0.24);
+  outline-offset: 2px;
+}
+
+.note-editor-content .tiptap .carbon-code-block > pre {
+  margin: 0;
+  padding-top: 2.2rem;
+}
+
+.note-editor-content .tiptap .carbon-code-block > pre > code {
+  display: block;
+}
+
 /* Task list styles */
 .note-editor-content .tiptap ul[data-type="taskList"] li label:hover span {
   border-color: #b9b6af;
