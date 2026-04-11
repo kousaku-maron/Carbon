@@ -10,7 +10,7 @@ import { CarbonCodeBlock } from "../../lib/tiptap/carbon-code-block-extension";
 import { CarbonImage } from "../../lib/tiptap/carbon-image-extension";
 import { CarbonLink, buildNotePathClipboardItem, type NoteLinkSuggestionItem } from "../../lib/tiptap/carbon-link-extension";
 import { CarbonPdf } from "../../lib/tiptap/carbon-pdf-extension";
-import { CarbonSearch, getCarbonSearchMatchCount } from "../../lib/tiptap/carbon-search-extension";
+import { CarbonSearch } from "../../lib/tiptap/carbon-search-extension";
 import { CarbonVideo } from "../../lib/tiptap/carbon-video-extension";
 import { API_BASE_URL } from "../../lib/api";
 import { ENABLE_CLOUD_IMAGE_UPLOAD } from "../../lib/app-config";
@@ -28,6 +28,7 @@ import { buildNoteLinkSuggestions } from "./build-note-link-suggestions";
 import { ShareConfirmDialog } from "../share/ShareConfirmDialog";
 import { NoteViewHeader } from "../note-view-header";
 import { Toast } from "../Toast";
+import { useNoteSearch } from "./use-note-search";
 import { useEditorZoom } from "./use-editor-zoom";
 import { useImageDropUpload } from "./use-image-drop-upload";
 import { useMediaPreview } from "./use-media-preview";
@@ -62,8 +63,6 @@ export function NoteEditor(props: NoteEditorProps) {
   } = props;
   const { copied, showCopied, dismissCopied } = useCopyFeedback<"markdown" | "path">(1500);
   const { editorContentStyle, zoomIndicatorVisible, zoomPercent } = useEditorZoom();
-  const editorContentRef = useRef<HTMLDivElement>(null);
-  const searchInputRef = useRef<HTMLInputElement>(null);
   const {
     preview,
     videoPreviewRef,
@@ -78,9 +77,6 @@ export function NoteEditor(props: NoteEditorProps) {
   const [sharePendingAction, setSharePendingAction] = useState<null | "publishing" | "republishing" | "revoking">(null);
   const [shareMessage, setShareMessage] = useState("");
   const [shareConfirmOpen, setShareConfirmOpen] = useState(false);
-  const [isSearchOpen, setIsSearchOpen] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [searchMatchCount, setSearchMatchCount] = useState(0);
   const shareBusy = sharePendingAction !== null;
   const shareProgressMessage =
     sharePendingAction === "revoking"
@@ -242,148 +238,22 @@ export function NoteEditor(props: NoteEditorProps) {
     [note.body, note.path, vaultPath],
   );
 
-  const syncSearchMatchCount = useCallback((nextEditor = editor) => {
-    if (!nextEditor) {
-      setSearchMatchCount(0);
-      return;
-    }
-    setSearchMatchCount(getCarbonSearchMatchCount(nextEditor.state));
-  }, [editor]);
-
-  useEffect(() => {
-    if (!editor) return;
-
-    const handleTransaction = () => {
-      syncSearchMatchCount(editor);
-    };
-
-    handleTransaction();
-    editor.on("transaction", handleTransaction);
-    return () => {
-      editor.off("transaction", handleTransaction);
-    };
-  }, [editor, syncSearchMatchCount]);
-
-  const focusSearchInput = useCallback(() => {
-    window.requestAnimationFrame(() => {
-      searchInputRef.current?.focus();
-      searchInputRef.current?.select();
-    });
-  }, []);
-
-  const scrollSearchSelectionIntoView = useCallback(() => {
-    const container = editorContentRef.current;
-    if (!editor || !container) return;
-
-    window.requestAnimationFrame(() => {
-      const { from, to } = editor.state.selection;
-      if (from === to) return;
-
-      try {
-        const start = editor.view.coordsAtPos(from);
-        const end = editor.view.coordsAtPos(to);
-        const containerRect = container.getBoundingClientRect();
-        const topPadding = 88;
-        const bottomPadding = 40;
-        const selectionTop = Math.min(start.top, end.top);
-        const selectionBottom = Math.max(start.bottom, end.bottom);
-
-        if (selectionTop < containerRect.top + topPadding) {
-          container.scrollTop += selectionTop - (containerRect.top + topPadding);
-          return;
-        }
-
-        if (selectionBottom > containerRect.bottom - bottomPadding) {
-          container.scrollTop += selectionBottom - (containerRect.bottom - bottomPadding);
-        }
-      } catch {
-        // Ignore transient position lookup failures during document updates.
-      }
-    });
-  }, [editor]);
-
-  const applySearchQuery = useCallback((query: string, revealMatch = true) => {
-    setSearchQuery(query);
-    if (!editor) return;
-    editor.commands.setCarbonSearchQuery(query);
-    if (query && revealMatch) {
-      const previousSelection = {
-        from: editor.state.selection.from,
-        to: editor.state.selection.to,
-      };
-      editor.commands.findNextMatch();
-      if (
-        editor.state.selection.from !== previousSelection.from ||
-        editor.state.selection.to !== previousSelection.to
-      ) {
-        scrollSearchSelectionIntoView();
-      }
-    }
-    if (!query) {
-      setSearchMatchCount(0);
-    }
-  }, [editor, scrollSearchSelectionIntoView]);
-
-  const openSearch = useCallback((seedQuery?: string) => {
-    const nextQuery = seedQuery ?? searchQuery;
-    setIsSearchOpen(true);
-    if (nextQuery) {
-      editor?.commands.setCarbonSearchQuery(nextQuery);
-    }
-    focusSearchInput();
-  }, [editor, focusSearchInput, searchQuery]);
-
-  const closeSearch = useCallback(() => {
-    setIsSearchOpen(false);
-    setSearchMatchCount(0);
-    if (!editor) return;
-    editor.commands.clearCarbonSearch();
-    editor.commands.focus();
-  }, [editor]);
-
-  const getSelectedSearchSeed = useCallback(() => {
-    if (!editor) return "";
-    const { from, to, empty } = editor.state.selection;
-    if (empty) return "";
-    return editor.state.doc.textBetween(from, to, "\n", "\n").trim();
-  }, [editor]);
-
-  const handleFindNext = useCallback(() => {
-    if (!editor || !searchQuery) return;
-    const previousSelection = {
-      from: editor.state.selection.from,
-      to: editor.state.selection.to,
-    };
-    editor.commands.findNextMatch();
-    if (
-      editor.state.selection.from !== previousSelection.from ||
-      editor.state.selection.to !== previousSelection.to
-    ) {
-      scrollSearchSelectionIntoView();
-    }
-  }, [editor, scrollSearchSelectionIntoView, searchQuery]);
-
-  const handleFindPrevious = useCallback(() => {
-    if (!editor || !searchQuery) return;
-    const previousSelection = {
-      from: editor.state.selection.from,
-      to: editor.state.selection.to,
-    };
-    editor.commands.findPreviousMatch();
-    if (
-      editor.state.selection.from !== previousSelection.from ||
-      editor.state.selection.to !== previousSelection.to
-    ) {
-      scrollSearchSelectionIntoView();
-    }
-  }, [editor, scrollSearchSelectionIntoView, searchQuery]);
-
-  useEffect(() => {
-    setIsSearchOpen(false);
-    setSearchQuery("");
-    setSearchMatchCount(0);
-    editor?.commands.clearCarbonSearch();
-  }, [note.docKey]);
+  const {
+    editorContentRef,
+    searchInputRef,
+    isSearchOpen,
+    searchMatchIndex,
+    searchMatchCount,
+    searchQuery,
+    applySearchQuery,
+    closeSearch,
+    handleFindNext,
+    handleFindPrevious,
+    handleSearchInputKeyDown,
+  } = useNoteSearch({
+    editor,
+    noteDocKey: note.docKey,
+  });
 
   const buildCurrentShareFormData = useCallback(async () => {
     const markdownBody = editor?.getMarkdown() ?? note.body;
@@ -485,34 +355,6 @@ export function NoteEditor(props: NoteEditorProps) {
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, [editor, handleCopyPath]);
 
-  useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      const hasPrimaryModifier = event.metaKey || event.ctrlKey;
-      if (!hasPrimaryModifier || event.altKey || event.shiftKey) return;
-      if (event.isComposing || event.key.toLowerCase() !== "f") return;
-
-      const active = document.activeElement;
-      if (
-        (active instanceof HTMLInputElement ||
-          active instanceof HTMLTextAreaElement ||
-          active instanceof HTMLSelectElement) &&
-        active !== searchInputRef.current
-      ) {
-        return;
-      }
-
-      event.preventDefault();
-      const seedQuery = searchQuery || getSelectedSearchSeed();
-      if (seedQuery && seedQuery !== searchQuery) {
-        applySearchQuery(seedQuery);
-      }
-      openSearch(seedQuery);
-    };
-
-    document.addEventListener("keydown", handleKeyDown);
-    return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [applySearchQuery, getSelectedSearchSeed, openSearch, searchQuery]);
-
   return (
     <div className="note-editor">
       <NoteViewHeader
@@ -554,21 +396,7 @@ export function NoteEditor(props: NoteEditorProps) {
             className="note-editor-search-input"
             value={searchQuery}
             onChange={(event) => applySearchQuery(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === "Escape") {
-                event.preventDefault();
-                closeSearch();
-                return;
-              }
-              if (event.key === "Enter") {
-                event.preventDefault();
-                if (event.shiftKey) {
-                  handleFindPrevious();
-                } else {
-                  handleFindNext();
-                }
-              }
-            }}
+            onKeyDown={handleSearchInputKeyDown}
             placeholder="Search text"
             spellCheck={false}
             autoCapitalize="off"
@@ -578,7 +406,7 @@ export function NoteEditor(props: NoteEditorProps) {
             {searchQuery ? (
               <>
                 <div className="note-editor-search-meta" aria-live="polite">
-                  {searchMatchCount > 0 ? `${searchMatchCount} matches` : "No results"}
+                  {searchMatchCount > 0 ? `${searchMatchIndex} of ${searchMatchCount}` : "No results"}
                 </div>
                 <button
                   type="button"
