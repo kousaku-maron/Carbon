@@ -1404,7 +1404,48 @@ button:disabled {
 }
 
 .note-editor-content {
+  --editor-scale: 1;
   --editor-scroll-bottom-space: clamp(14rem, 48vh, 26rem);
+  --editor-body-font-size: calc(0.95rem * var(--editor-scale));
+  --editor-body-line-height: 1.75;
+  --editor-content-max-width: calc(720px * var(--editor-scale));
+  --editor-heading-1-size: calc(1.75rem * var(--editor-scale));
+  --editor-heading-2-size: calc(1.35rem * var(--editor-scale));
+  --editor-heading-3-size: calc(1.1rem * var(--editor-scale));
+  --editor-heading-1-margin-top: calc(3rem * var(--editor-scale));
+  --editor-heading-1-margin-bottom: calc(1.1rem * var(--editor-scale));
+  --editor-heading-2-margin-top: calc(2.4rem * var(--editor-scale));
+  --editor-heading-2-margin-bottom: calc(0.95rem * var(--editor-scale));
+  --editor-heading-3-margin-top: calc(2rem * var(--editor-scale));
+  --editor-heading-3-margin-bottom: calc(0.8rem * var(--editor-scale));
+  --editor-block-gap: calc(0.75rem * var(--editor-scale));
+  --editor-inline-gap: calc(0.5rem * var(--editor-scale));
+  --editor-list-padding-left: calc(1.5rem * var(--editor-scale));
+  --editor-code-padding-y: calc(0.75rem * var(--editor-scale));
+  --editor-code-padding-x: calc(1rem * var(--editor-scale));
+  --editor-code-font-size: calc(0.85rem * var(--editor-scale));
+  --editor-inline-code-padding-y: calc(0.15rem * var(--editor-scale));
+  --editor-inline-code-padding-x: calc(0.35rem * var(--editor-scale));
+  --editor-inline-code-radius: calc(4px * var(--editor-scale));
+  --editor-blockquote-padding-left: calc(1rem * var(--editor-scale));
+  --editor-hr-margin: calc(1.5rem * var(--editor-scale));
+  --editor-figure-gap: calc(0.9rem * var(--editor-scale));
+  --editor-figcaption-gap: calc(0.45rem * var(--editor-scale));
+  --editor-figcaption-font-size: calc(0.82rem * var(--editor-scale));
+  --editor-table-cell-padding-y: calc(0.65rem * var(--editor-scale));
+  --editor-table-cell-padding-x: calc(0.8rem * var(--editor-scale));
+  --editor-toolbar-offset-top: calc(0.55rem * var(--editor-scale));
+  --editor-toolbar-offset-side: calc(0.75rem * var(--editor-scale));
+  --editor-toolbar-offset-right: calc(0.6rem * var(--editor-scale));
+  --editor-toolbar-gap: calc(0.75rem * var(--editor-scale));
+  --editor-toolbar-language-size: calc(0.72rem * var(--editor-scale));
+  --editor-toolbar-button-size: calc(28px * var(--editor-scale));
+  --editor-toolbar-button-radius: calc(6px * var(--editor-scale));
+  --editor-pre-toolbar-padding-top: calc(2.2rem * var(--editor-scale));
+  --editor-media-button-offset: calc(0.55rem * var(--editor-scale));
+  --editor-media-button-width: calc(2.55rem * var(--editor-scale));
+  --editor-media-button-height: calc(1.8rem * var(--editor-scale));
+  --editor-media-button-radius: calc(0.55rem * var(--editor-scale));
   flex: 1;
   overflow-y: auto;
   padding: 1.25rem 1.25rem var(--editor-scroll-bottom-space);
@@ -1574,28 +1615,176 @@ button:disabled {
 
 .note-editor-content .tiptap {
   outline: none;
-  zoom: var(--editor-zoom, 1);
   flex: 1;
-  max-width: 720px;
+  max-width: var(--editor-content-max-width);
   width: 100%;
   margin: 0 auto;
+  font-size: var(--editor-body-font-size);
+  line-height: var(--editor-body-line-height);
+}
+
+.note-editor-content .tiptap h1 {
+  font-size: var(--editor-heading-1-size);
+  margin: var(--editor-heading-1-margin-top) 0 var(--editor-heading-1-margin-bottom);
+}
+
+.note-editor-content .tiptap h2 {
+  font-size: var(--editor-heading-2-size);
+  margin: var(--editor-heading-2-margin-top) 0 var(--editor-heading-2-margin-bottom);
+}
+
+.note-editor-content .tiptap h3 {
+  font-size: var(--editor-heading-3-size);
+  margin: var(--editor-heading-3-margin-top) 0 var(--editor-heading-3-margin-bottom);
+}
+
+.note-editor-content .tiptap p {
+  margin: var(--editor-inline-gap) 0;
+}
+
+.note-editor-content .tiptap ul,
+.note-editor-content .tiptap ol {
+  padding-left: var(--editor-list-padding-left);
+  margin: var(--editor-inline-gap) 0;
+}
+
+.note-editor-content .tiptap li {
+  margin: calc(0.15rem * var(--editor-scale)) 0;
+}
+
+.note-editor-content .tiptap blockquote {
+  margin: var(--editor-block-gap) 0;
+  padding: calc(0.25rem * var(--editor-scale)) 0 calc(0.25rem * var(--editor-scale)) var(--editor-blockquote-padding-left);
+}
+
+.note-editor-content .tiptap pre {
+  margin: var(--editor-block-gap) 0;
+  padding: var(--editor-code-padding-y) var(--editor-code-padding-x);
+}
+
+.note-editor-content .tiptap pre code {
+  font-size: var(--editor-code-font-size);
+}
+
+.note-editor-content .tiptap code {
+  padding: var(--editor-inline-code-padding-y) var(--editor-inline-code-padding-x);
+  border-radius: var(--editor-inline-code-radius);
+}
+
+.note-editor-content .tiptap hr {
+  margin: var(--editor-hr-margin) 0;
+}
+
+.note-editor-content .tiptap table {
+  margin: calc(1rem * var(--editor-scale)) 0;
+}
+
+.note-editor-content .tiptap th,
+.note-editor-content .tiptap td {
+  padding: var(--editor-table-cell-padding-y) var(--editor-table-cell-padding-x);
+}
+
+.note-editor-content .tiptap figure {
+  margin: var(--editor-figure-gap) 0;
+}
+
+.note-editor-content .tiptap figcaption {
+  margin-top: var(--editor-figcaption-gap);
+  font-size: var(--editor-figcaption-font-size);
+}
+
+.note-editor-content .tiptap ul[data-type="taskList"] li {
+  gap: calc(0.55rem * var(--editor-scale));
+  padding: calc(0.14rem * var(--editor-scale)) 0;
+}
+
+.note-editor-content .tiptap ul[data-type="taskList"] li label,
+.note-editor-content .tiptap ul[data-type="taskList"] li label span {
+  width: calc(1.05rem * var(--editor-scale));
+  height: calc(1.05rem * var(--editor-scale));
+}
+
+.note-editor-content .tiptap ul[data-type="taskList"] li label {
+  margin-top: calc(0.26rem * var(--editor-scale));
+}
+
+.note-editor-content .tiptap ul[data-type="taskList"] li label span {
+  border-radius: calc(0.28rem * var(--editor-scale));
+}
+
+.note-editor-content .tiptap ul[data-type="taskList"] li input[type="checkbox"]:checked + span::after {
+  left: calc(0.31rem * var(--editor-scale));
+  top: calc(0.11rem * var(--editor-scale));
+  width: calc(0.24rem * var(--editor-scale));
+  height: calc(0.48rem * var(--editor-scale));
+  border-width: 0 calc(0.12rem * var(--editor-scale)) calc(0.12rem * var(--editor-scale)) 0;
+}
+
+.note-editor-content .tiptap ul[data-type="taskList"] li > div > ul[data-type="taskList"] {
+  margin-top: calc(0.08rem * var(--editor-scale));
+  padding-left: calc(1.6rem * var(--editor-scale));
+}
+
+.note-editor-content .tiptap .carbon-image-node,
+.note-editor-content .tiptap .carbon-video-node,
+.note-editor-content .tiptap .carbon-pdf-node {
+  margin: var(--editor-block-gap) 0;
+}
+
+.note-editor-content .tiptap .carbon-file-card {
+  gap: calc(1rem * var(--editor-scale));
+  padding: calc(0.95rem * var(--editor-scale)) calc(1rem * var(--editor-scale));
+  border-radius: calc(0.9rem * var(--editor-scale));
+}
+
+.note-editor-content .tiptap .carbon-file-card-preview {
+  width: calc(104px * var(--editor-scale));
+  height: calc(136px * var(--editor-scale));
+  border-radius: calc(0.7rem * var(--editor-scale));
+}
+
+.note-editor-content .tiptap .carbon-file-card-kind {
+  margin-bottom: calc(0.28rem * var(--editor-scale));
+  padding: calc(0.12rem * var(--editor-scale)) calc(0.42rem * var(--editor-scale));
+  font-size: calc(0.68rem * var(--editor-scale));
+}
+
+.note-editor-content .tiptap .carbon-file-card-title {
+  font-size: calc(0.86rem * var(--editor-scale));
+}
+
+.note-editor-content .tiptap .carbon-file-card-action.carbon-share-download,
+.note-editor-content .tiptap .carbon-file-card-action.carbon-share-open {
+  gap: calc(0.5rem * var(--editor-scale));
+  padding: calc(0.42rem * var(--editor-scale)) calc(0.72rem * var(--editor-scale));
+}
+
+.note-editor-content .tiptap .carbon-missing-asset {
+  min-height: calc(96px * var(--editor-scale));
+  padding: calc(18px * var(--editor-scale));
+  border-radius: calc(14px * var(--editor-scale));
+  font-size: calc(14px * var(--editor-scale));
+}
+
+.note-editor-content .tiptap .carbon-missing-asset.carbon-missing-image-asset {
+  min-height: calc(220px * var(--editor-scale));
 }
 
 .note-editor-content .tiptap .carbon-code-block {
   position: relative;
-  margin: 0.75rem 0;
+  margin: var(--editor-block-gap) 0;
 }
 
 .note-editor-content .tiptap .carbon-code-block-toolbar {
   position: absolute;
-  top: 0.55rem;
-  right: 0.6rem;
-  left: 0.75rem;
+  top: var(--editor-toolbar-offset-top);
+  right: var(--editor-toolbar-offset-right);
+  left: var(--editor-toolbar-offset-side);
   z-index: 1;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 0.75rem;
+  gap: var(--editor-toolbar-gap);
 }
 
 .note-editor-content .tiptap .carbon-code-block-language {
@@ -1604,7 +1793,7 @@ button:disabled {
   text-overflow: ellipsis;
   white-space: nowrap;
   color: #9b9a97;
-  font-size: 0.72rem;
+  font-size: var(--editor-toolbar-language-size);
   letter-spacing: 0.04em;
   text-transform: uppercase;
 }
@@ -1613,9 +1802,9 @@ button:disabled {
   border: 1px solid #d8d5cf;
   background: rgba(255, 255, 255, 0.9);
   color: #6f6c66;
-  width: 28px;
-  height: 28px;
-  border-radius: 6px;
+  width: var(--editor-toolbar-button-size);
+  height: var(--editor-toolbar-button-size);
+  border-radius: var(--editor-toolbar-button-radius);
   backdrop-filter: blur(4px);
 }
 
@@ -1631,7 +1820,7 @@ button:disabled {
 
 .note-editor-content .tiptap .carbon-code-block > pre {
   margin: 0;
-  padding-top: 2.2rem;
+  padding-top: var(--editor-pre-toolbar-padding-top);
 }
 
 .note-editor-content .tiptap .carbon-code-block > pre > code {

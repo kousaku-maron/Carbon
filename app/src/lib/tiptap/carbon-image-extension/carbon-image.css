@@ -31,16 +31,16 @@
 
 .note-editor-content .tiptap .carbon-image-expand-btn {
   position: absolute;
-  top: 0.55rem;
-  right: 0.55rem;
+  top: var(--editor-media-button-offset, 0.55rem);
+  right: var(--editor-media-button-offset, 0.55rem);
   z-index: 2;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 2.55rem;
-  height: 1.8rem;
+  width: var(--editor-media-button-width, 2.55rem);
+  height: var(--editor-media-button-height, 1.8rem);
   border: none;
-  border-radius: 0.55rem;
+  border-radius: var(--editor-media-button-radius, 0.55rem);
   background: rgba(32, 32, 32, 0.72);
   color: #ffffff;
   cursor: pointer;

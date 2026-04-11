@@ -101,12 +101,11 @@ export function useEditorZoom() {
   }, [handleZoomIn, handleZoomOut]);
 
   const editorContentStyle = useMemo<CSSProperties>(
-    () => ({ ["--editor-zoom" as any]: editorZoom.toString() }) as CSSProperties,
+    () => ({ ["--editor-scale" as any]: editorZoom.toString() }) as CSSProperties,
     [editorZoom],
   );
 
   return {
-    editorZoom,
     editorContentStyle,
     zoomIndicatorVisible,
     zoomPercent: Math.round(editorZoom * 100),
