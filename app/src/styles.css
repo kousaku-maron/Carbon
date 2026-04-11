@@ -743,6 +743,88 @@ button:disabled {
   flex-shrink: 0;
 }
 
+.note-editor-searchbar {
+  position: absolute;
+  top: 52px;
+  right: 1.25rem;
+  z-index: 12;
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  width: min(360px, calc(100% - 2.5rem));
+  min-height: 48px;
+  padding: 0.35rem 0.45rem 0.35rem 0.75rem;
+  border: 1px solid rgba(205, 202, 194, 0.92);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 10px 24px rgba(20, 18, 15, 0.12), 0 2px 6px rgba(20, 18, 15, 0.06);
+  backdrop-filter: blur(10px);
+  flex-shrink: 0;
+}
+
+.note-editor-search-input {
+  min-width: 0;
+  flex: 1;
+  height: 36px;
+  padding: 0 0.1rem;
+  border: none;
+  background: transparent;
+  color: #37352f;
+  outline: none;
+  font-size: 0.95rem;
+}
+
+.note-editor-search-input:focus {
+  box-shadow: none;
+}
+
+.note-editor-search-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.15rem;
+  padding-left: 0.55rem;
+}
+
+.note-editor-search-meta {
+  min-width: 72px;
+  color: #787774;
+  font-size: 0.76rem;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.note-editor-search-btn,
+.note-editor-search-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: #7b776e;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+}
+
+.note-editor-search-btn:hover,
+.note-editor-search-close:hover {
+  background: #f1f1ef;
+  color: #37352f;
+}
+
+.note-editor-search-btn:disabled {
+  opacity: 0.48;
+  cursor: default;
+}
+
+.note-editor-search-btn svg,
+.note-editor-search-close svg {
+  display: block;
+}
+
 .note-editor-breadcrumbs {
   display: flex;
   align-items: center;
