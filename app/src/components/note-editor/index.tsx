@@ -62,7 +62,7 @@ export function NoteEditor(props: NoteEditorProps) {
     onMenuOpenChange,
   } = props;
   const { copied, showCopied, dismissCopied } = useCopyFeedback<"markdown" | "path">(1500);
-  const { editorContentStyle, zoomIndicatorVisible, zoomPercent } = useEditorZoom();
+  const { editorZoom, editorContentStyle, zoomIndicatorVisible, zoomPercent } = useEditorZoom();
   const {
     preview,
     videoPreviewRef,
@@ -252,6 +252,7 @@ export function NoteEditor(props: NoteEditorProps) {
     handleSearchInputKeyDown,
   } = useNoteSearch({
     editor,
+    editorZoom,
     noteDocKey: note.docKey,
   });
 

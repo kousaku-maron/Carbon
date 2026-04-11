@@ -10,10 +10,11 @@ import { getCarbonSearchMatchStatus } from "../../lib/tiptap/carbon-search-exten
 
 type UseNoteSearchOptions = {
   editor: Editor | null;
+  editorZoom: number;
   noteDocKey: number;
 };
 
-export function useNoteSearch({ editor, noteDocKey }: UseNoteSearchOptions) {
+export function useNoteSearch({ editor, editorZoom, noteDocKey }: UseNoteSearchOptions) {
   const editorContentRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const searchResizeRafRef = useRef<number | null>(null);
@@ -74,18 +75,18 @@ export function useNoteSearch({ editor, noteDocKey }: UseNoteSearchOptions) {
         const selectionBottom = Math.max(start.bottom, end.bottom);
 
         if (selectionTop < containerRect.top + topPadding) {
-          container.scrollTop += selectionTop - (containerRect.top + topPadding);
+          container.scrollTop += (selectionTop - (containerRect.top + topPadding)) / editorZoom;
           return;
         }
 
         if (selectionBottom > containerRect.bottom - bottomPadding) {
-          container.scrollTop += selectionBottom - (containerRect.bottom - bottomPadding);
+          container.scrollTop += (selectionBottom - (containerRect.bottom - bottomPadding)) / editorZoom;
         }
       } catch {
         // Ignore transient position lookup failures during document updates.
       }
     });
-  }, [editor]);
+  }, [editor, editorZoom]);
 
   const runSearchNavigation = useCallback((navigate: () => void) => {
     if (!editor || !searchQuery) return;

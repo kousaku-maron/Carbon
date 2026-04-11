@@ -106,6 +106,7 @@ export function useEditorZoom() {
   );
 
   return {
+    editorZoom,
     editorContentStyle,
     zoomIndicatorVisible,
     zoomPercent: Math.round(editorZoom * 100),
