@@ -307,8 +307,17 @@ export function NoteEditor(props: NoteEditorProps) {
     if (!editor) return;
     editor.commands.setCarbonSearchQuery(query);
     if (query && revealMatch) {
+      const previousSelection = {
+        from: editor.state.selection.from,
+        to: editor.state.selection.to,
+      };
       editor.commands.findNextMatch();
-      scrollSearchSelectionIntoView();
+      if (
+        editor.state.selection.from !== previousSelection.from ||
+        editor.state.selection.to !== previousSelection.to
+      ) {
+        scrollSearchSelectionIntoView();
+      }
     }
     if (!query) {
       setSearchMatchCount(0);
@@ -341,14 +350,32 @@ export function NoteEditor(props: NoteEditorProps) {
 
   const handleFindNext = useCallback(() => {
     if (!editor || !searchQuery) return;
+    const previousSelection = {
+      from: editor.state.selection.from,
+      to: editor.state.selection.to,
+    };
     editor.commands.findNextMatch();
-    scrollSearchSelectionIntoView();
+    if (
+      editor.state.selection.from !== previousSelection.from ||
+      editor.state.selection.to !== previousSelection.to
+    ) {
+      scrollSearchSelectionIntoView();
+    }
   }, [editor, scrollSearchSelectionIntoView, searchQuery]);
 
   const handleFindPrevious = useCallback(() => {
     if (!editor || !searchQuery) return;
+    const previousSelection = {
+      from: editor.state.selection.from,
+      to: editor.state.selection.to,
+    };
     editor.commands.findPreviousMatch();
-    scrollSearchSelectionIntoView();
+    if (
+      editor.state.selection.from !== previousSelection.from ||
+      editor.state.selection.to !== previousSelection.to
+    ) {
+      scrollSearchSelectionIntoView();
+    }
   }, [editor, scrollSearchSelectionIntoView, searchQuery]);
 
   useEffect(() => {

@@ -55,12 +55,12 @@ export const CarbonSearch = Extension.create({
 
       findNextMatch:
         () =>
-        ({ state, dispatch }) =>
+        ({ state, dispatch }: { state: EditorState; dispatch?: ((tr: any) => void) | undefined }) =>
           findNextCommand(state, dispatch),
 
       findPreviousMatch:
         () =>
-        ({ state, dispatch }) =>
+        ({ state, dispatch }: { state: EditorState; dispatch?: ((tr: any) => void) | undefined }) =>
           findPrevCommand(state, dispatch),
     };
   },
