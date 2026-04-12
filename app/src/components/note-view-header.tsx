@@ -30,6 +30,10 @@ type NoteViewHeaderProps = {
   menuOpen: boolean;
   onMenuOpenChange: (open: boolean) => void;
   shareActions?: ShareActions;
+  pdfExportActions?: {
+    busy: boolean;
+    onExport: () => void;
+  };
 };
 
 export function NoteViewHeader(props: NoteViewHeaderProps) {
@@ -43,6 +47,7 @@ export function NoteViewHeader(props: NoteViewHeaderProps) {
     menuOpen,
     onMenuOpenChange,
     shareActions,
+    pdfExportActions,
   } = props;
   const menuRef = useRef<HTMLDivElement>(null);
   const shareMenuRef = useRef<HTMLDivElement>(null);
@@ -283,6 +288,19 @@ export function NoteViewHeader(props: NoteViewHeaderProps) {
                 </span>
               </button>
             </div>
+            <button
+              type="button"
+              className="note-header-menu-item"
+              onClick={() => {
+                onMenuOpenChange(false);
+                pdfExportActions?.onExport();
+              }}
+              disabled={pdfExportActions?.busy}
+            >
+              <span className="note-header-menu-item-label">
+                {pdfExportActions?.busy ? "Exporting PDF..." : "Export PDF"}
+              </span>
+            </button>
           </div>
         ) : null}
       </div>

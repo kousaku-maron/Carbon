@@ -17,6 +17,7 @@ import { ENABLE_CLOUD_IMAGE_UPLOAD } from "../../lib/app-config";
 import { debounce } from "../../lib/debounce";
 import { useCopyFeedback } from "../../lib/hooks/use-copy-feedback";
 import { resolveRelativePath, validateLinkTarget } from "../../lib/link-utils";
+import { formatPdfExportError, startNotePdfExport } from "../../lib/pdf-export";
 import { analyzeShareInput } from "../../lib/share/analyze-share-input";
 import { buildShareFormData } from "../../lib/share/build-share-form-data";
 import { formatShareError } from "../../lib/share/format-share-error";
@@ -76,6 +77,11 @@ export function NoteEditor(props: NoteEditorProps) {
   const [shareLoading, setShareLoading] = useState(true);
   const [sharePendingAction, setSharePendingAction] = useState<null | "publishing" | "republishing" | "revoking">(null);
   const [shareMessage, setShareMessage] = useState("");
+  const [pdfExportPending, setPdfExportPending] = useState(false);
+  const [pdfExportNotice, setPdfExportNotice] = useState<null | {
+    kind: "success" | "error";
+    message: string;
+  }>(null);
   const [shareConfirmOpen, setShareConfirmOpen] = useState(false);
   const shareBusy = sharePendingAction !== null;
   const shareProgressMessage =
@@ -150,6 +156,18 @@ export function NoteEditor(props: NoteEditorProps) {
       window.clearTimeout(timeoutId);
     };
   }, [shareMessage]);
+
+  useEffect(() => {
+    if (!pdfExportNotice || pdfExportNotice.kind !== "success") return;
+
+    const timeoutId = window.setTimeout(() => {
+      setPdfExportNotice(null);
+    }, 2400);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [pdfExportNotice]);
 
   const editor = useEditor(
     {
@@ -316,6 +334,28 @@ export function NoteEditor(props: NoteEditorProps) {
       setShareMessage("Public link copied");
     });
   }, [shareSummary]);
+  const handleExportPdf = useCallback(async () => {
+    if (pdfExportPending) return;
+    setPdfExportPending(true);
+    setPdfExportNotice(null);
+
+    try {
+      const targetPath = await startNotePdfExport({
+        noteId: note.id,
+        notePath: note.path,
+        noteName: note.name,
+        vaultPath,
+        markdownBody: editor?.getMarkdown() ?? note.body,
+      });
+      setPdfExportNotice({ kind: "success", message: `PDF saved: ${targetPath}` });
+    } catch (cause) {
+      const message = formatPdfExportError(cause);
+      console.error("[pdf-export]", message, cause);
+      setPdfExportNotice({ kind: "error", message });
+    } finally {
+      setPdfExportPending(false);
+    }
+  }, [editor, note.body, note.id, note.name, note.path, pdfExportPending, vaultPath]);
   const { handleContentDragOver, handleContentDrop } = useImageDropUpload(
     editor,
     ENABLE_CLOUD_IMAGE_UPLOAD,
@@ -366,6 +406,12 @@ export function NoteEditor(props: NoteEditorProps) {
         copied={copied}
         menuOpen={menuOpen}
         onMenuOpenChange={onMenuOpenChange}
+        pdfExportActions={{
+          busy: pdfExportPending,
+          onExport: () => {
+            void handleExportPdf();
+          },
+        }}
         shareActions={
           shareLoading
             ? {
@@ -471,8 +517,17 @@ export function NoteEditor(props: NoteEditorProps) {
       {shareProgressMessage ? (
         <Toast message={shareProgressMessage} dismissible={false} loading />
       ) : null}
+      {pdfExportPending ? (
+        <Toast message="Exporting PDF..." dismissible={false} loading />
+      ) : null}
       {shareMessage ? (
         <Toast message={shareMessage} onClose={() => setShareMessage("")} />
+      ) : null}
+      {pdfExportNotice ? (
+        <Toast
+          message={pdfExportNotice.message}
+          onClose={() => setPdfExportNotice(null)}
+        />
       ) : null}
       {shareConfirmOpen ? (
         <ShareConfirmDialog

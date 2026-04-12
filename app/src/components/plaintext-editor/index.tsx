@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { debounce } from "../../lib/debounce";
 import { useCopyFeedback } from "../../lib/hooks/use-copy-feedback";
+import { formatPdfExportError, startNotePdfExport } from "../../lib/pdf-export";
 import { formatMarkdownForCopy } from "../../lib/tiptap/markdown";
 import { buildNotePathClipboardItem } from "../../lib/tiptap/carbon-link-extension";
 import type { NoteContent, NoteViewMode } from "../../lib/types";
@@ -11,6 +12,7 @@ type PlainTextEditorProps = {
   note: NoteContent;
   onSave: (path: string, content: string) => Promise<void>;
   onBufferChange?: (path: string, content: string) => void;
+  vaultPath: string;
   viewMode: NoteViewMode;
   onViewModeChange: (mode: NoteViewMode) => void;
   menuOpen: boolean;
@@ -22,18 +24,32 @@ export function PlainTextEditor(props: PlainTextEditorProps) {
     note,
     onSave,
     onBufferChange,
+    vaultPath,
     viewMode,
     onViewModeChange,
     menuOpen,
     onMenuOpenChange,
   } = props;
   const [value, setValue] = useState(note.body);
+  const [pdfExportPending, setPdfExportPending] = useState(false);
+  const [pdfExportNotice, setPdfExportNotice] = useState<null | {
+    kind: "success" | "error";
+    message: string;
+  }>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const { copied, showCopied, dismissCopied } = useCopyFeedback<"markdown" | "path">(1500);
 
   useEffect(() => {
     setValue(note.body);
   }, [note.body, note.docKey]);
+
+  useEffect(() => {
+    if (!pdfExportNotice || pdfExportNotice.kind !== "success") return;
+    const timeoutId = window.setTimeout(() => {
+      setPdfExportNotice(null);
+    }, 2400);
+    return () => window.clearTimeout(timeoutId);
+  }, [pdfExportNotice]);
 
   const debouncedSave = useMemo(
     () =>
@@ -79,6 +95,29 @@ export function PlainTextEditor(props: PlainTextEditorProps) {
     onViewModeChange(mode);
   }, [debouncedSave, onViewModeChange]);
 
+  const handleExportPdf = useCallback(async () => {
+    if (pdfExportPending) return;
+    setPdfExportPending(true);
+    setPdfExportNotice(null);
+
+    try {
+      const targetPath = await startNotePdfExport({
+        noteId: note.id,
+        notePath: note.path,
+        noteName: note.name,
+        vaultPath,
+        markdownBody: value,
+      });
+      setPdfExportNotice({ kind: "success", message: `PDF saved: ${targetPath}` });
+    } catch (cause) {
+      const message = formatPdfExportError(cause);
+      console.error("[pdf-export]", message, cause);
+      setPdfExportNotice({ kind: "error", message });
+    } finally {
+      setPdfExportPending(false);
+    }
+  }, [note.id, note.name, note.path, pdfExportPending, value, vaultPath]);
+
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key !== "c" || !event.metaKey || event.shiftKey || event.altKey) return;
@@ -106,6 +145,12 @@ export function PlainTextEditor(props: PlainTextEditorProps) {
         copied={copied}
         menuOpen={menuOpen}
         onMenuOpenChange={onMenuOpenChange}
+        pdfExportActions={{
+          busy: pdfExportPending,
+          onExport: () => {
+            void handleExportPdf();
+          },
+        }}
       />
       <div className="note-editor-content note-editor-content--plaintext">
         <div className="plaintext-editor-shell">
@@ -122,6 +167,15 @@ export function PlainTextEditor(props: PlainTextEditorProps) {
         <Toast
           message={copied === "path" ? "Path copied" : "Markdown copied"}
           onClose={dismissCopied}
+        />
+      ) : null}
+      {pdfExportPending ? (
+        <Toast message="Exporting PDF..." dismissible={false} loading />
+      ) : null}
+      {pdfExportNotice ? (
+        <Toast
+          message={pdfExportNotice.message}
+          onClose={() => setPdfExportNotice(null)}
         />
       ) : null}
     </div>

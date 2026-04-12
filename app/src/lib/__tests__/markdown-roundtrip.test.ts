@@ -7,6 +7,7 @@ import { CarbonImage } from "../tiptap/carbon-image-extension";
 import { CarbonLink } from "../tiptap/carbon-link-extension";
 import { CarbonPdf } from "../tiptap/carbon-pdf-extension";
 import { CarbonVideo } from "../tiptap/carbon-video-extension";
+import { transformMarkdownForPdfExport } from "../tiptap/markdown";
 import { fixtures } from "./markdown-fixtures";
 
 const markdownManager = new MarkdownManager({
@@ -149,5 +150,77 @@ describe("Local PDF serialization", () => {
     expect(normalizeMarkdown(output)).toBe(
       ':::pdf {src="../docs/demo.pdf" title="demo.pdf"} :::',
     );
+  });
+});
+
+describe("PDF export markdown transform", () => {
+  it("converts local image markdown into a file URL", () => {
+    const output = transformMarkdownForPdfExport({
+      markdown: "![agent](../Projects/Panasonic/assets/agent_with_current.png)",
+      currentNotePath: "/vault/notes/daily/today.md",
+      vaultPath: "/vault",
+    });
+
+    expect(normalizeMarkdown(output)).toBe(
+      "![agent](file:///vault/notes/Projects/Panasonic/assets/agent_with_current.png)",
+    );
+  });
+
+  it("renders vault-external local image markdown as literal text", () => {
+    const output = transformMarkdownForPdfExport({
+      markdown: "![agent](../../../outside/agent_with_current.png)",
+      currentNotePath: "/vault/notes/daily/today.md",
+      vaultPath: "/vault",
+    });
+
+    expect(normalizeMarkdown(output)).toBe(
+      "\\!\\[agent\\]\\(\\.\\./\\.\\./\\.\\./outside/agent\\_with\\_current\\.png\\)",
+    );
+  });
+
+  it("preserves remote image markdown", () => {
+    const output = transformMarkdownForPdfExport({
+      markdown: "![cover](https://example.com/cover.png)",
+      currentNotePath: "/vault/notes/daily/today.md",
+      vaultPath: "/vault",
+    });
+
+    expect(normalizeMarkdown(output)).toBe(
+      "![cover](https://example.com/cover.png)",
+    );
+  });
+
+  it("renders carbon asset image markdown as literal text", () => {
+    const output = transformMarkdownForPdfExport({
+      markdown: "![uploaded](carbon://asset/as_123)",
+      currentNotePath: "/vault/notes/daily/today.md",
+      vaultPath: "/vault",
+    });
+
+    expect(normalizeMarkdown(output)).toBe(
+      "\\!\\[uploaded\\]\\(carbon://asset/as\\_123\\)",
+    );
+  });
+
+  it("preserves embedded video and pdf directives for static PDF rendering", () => {
+    const output = transformMarkdownForPdfExport({
+      markdown: [
+        "# Demo",
+        "",
+        ':::video {src="../assets/demo.mp4" title="demo.mp4"} :::',
+        "",
+        ':::pdf {src="../docs/demo.pdf" title="demo.pdf"} :::',
+        "",
+        "After",
+      ].join("\n"),
+      currentNotePath: "/vault/notes/daily/today.md",
+      vaultPath: "/vault",
+    });
+
+    const normalized = normalizeMarkdown(output);
+    expect(normalized).toContain("# Demo");
+    expect(normalized).toContain(':::video {src="../assets/demo.mp4" title="demo.mp4"} :::');
+    expect(normalized).toContain(':::pdf {src="../docs/demo.pdf" title="demo.pdf"} :::');
+    expect(normalized).toContain("After");
   });
 });

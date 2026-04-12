@@ -79,6 +79,20 @@ describe("buildRenderedHtml", () => {
     expect(html).toContain("<div><p>Todo</p></div>");
   });
 
+  it("renders nested markdown task lists", () => {
+    const html = buildRenderedHtml({
+      title: "Spec",
+      markdownBody: "- [ ] Parent\n  - [x] Child",
+      assets: [],
+      links: [],
+    });
+
+    expect(html).toContain('<ul data-type="taskList">');
+    expect(html).toContain("<div><p>Parent</p><ul data-type=\"taskList\">");
+    expect(html).toContain('<li data-checked="true">');
+    expect(html).toContain("<div><p>Child</p></div>");
+  });
+
   it("renders pdf directives as download cards", () => {
     const html = buildRenderedHtml({
       title: "Spec",
@@ -106,6 +120,49 @@ describe("buildRenderedHtml", () => {
     expect(html).toContain("<p>After</p>");
   });
 
+  it("renders pdf directives as static link-style labels in pdf mode", () => {
+    const html = buildRenderedHtml({
+      title: "Spec",
+      markdownBody: ':::pdf {src="../docs/demo.pdf" title="demo.pdf"} :::',
+      assets: [
+        {
+          kind: "pdf",
+          sourceRef: "../docs/demo.pdf",
+          title: "demo.pdf",
+          publicUrl: "https://example.com/assets/demo.pdf",
+          previewImageUrl: "https://example.com/assets/demo-preview.png",
+        },
+      ],
+      links: [],
+      mode: "pdf",
+    });
+
+    expect(html).toContain(`class="${CARBON_LINK_CLASS}"`);
+    expect(html).not.toContain(`class="${CARBON_LINK_CLASS} ${CARBON_INTERNAL_LINK_CLASS}"`);
+    expect(html).toContain(">demo.pdf</span>");
+    expect(html).not.toContain(`<div class="${CARBON_FILE_CARD_CLASS}"`);
+  });
+
+  it("renders note links as static internal-link style labels in pdf mode", () => {
+    const html = buildRenderedHtml({
+      title: "Spec",
+      markdownBody: "[Other note](docs/other.md)",
+      assets: [],
+      links: [
+        {
+          href: "docs/other.md",
+          kind: "note-link",
+          targetNotePath: "docs/other.md",
+        },
+      ],
+      mode: "pdf",
+    });
+
+    expect(html).toContain(`class="${CARBON_LINK_CLASS} ${CARBON_INTERNAL_LINK_CLASS}"`);
+    expect(html).toContain(">Other note</span>");
+    expect(html).not.toContain("<a ");
+  });
+
   it("renders video directives without figcaption and keeps the video block structure", () => {
     const html = buildRenderedHtml({
       title: "Spec",
@@ -126,6 +183,28 @@ describe("buildRenderedHtml", () => {
     expect(html).not.toContain("<p><figure");
     expect(html).toContain("<p>Before</p>");
     expect(html).toContain("<p>After</p>");
+  });
+
+  it("renders video directives as static link-style labels in pdf mode", () => {
+    const html = buildRenderedHtml({
+      title: "Spec",
+      markdownBody: ':::video {src="../videos/demo.mp4" title="demo.mp4"} :::',
+      assets: [
+        {
+          kind: "video",
+          sourceRef: "../videos/demo.mp4",
+          title: "demo.mp4",
+          publicUrl: "https://example.com/assets/demo.mp4",
+        },
+      ],
+      links: [],
+      mode: "pdf",
+    });
+
+    expect(html).toContain(`class="${CARBON_LINK_CLASS}"`);
+    expect(html).not.toContain(`class="${CARBON_LINK_CLASS} ${CARBON_INTERNAL_LINK_CLASS}"`);
+    expect(html).toContain(">demo.mp4</span>");
+    expect(html).not.toContain("<video");
   });
 
   it("renders rich metadata for title, description, and favicon", () => {

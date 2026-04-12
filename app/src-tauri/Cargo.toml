@@ -10,6 +10,7 @@ tauri-build = { version = "2", features = [] }
 
 [dependencies]
 tauri = { version = "2", features = [] }
+serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tauri-plugin-store = "2.4"
 tauri-plugin-dialog = "2.7"
@@ -19,6 +20,8 @@ tauri-plugin-http = "2.5"
 tauri-plugin-os = "2.3"
 tauri-plugin-opener = "2.5"
 tauri-plugin-process = "2.3"
+tokio = { version = "1", features = ["sync", "time"] }
+uuid = { version = "1", features = ["v4"] }
 
 [features]
 default = ["custom-protocol"]
@@ -26,3 +29,11 @@ custom-protocol = ["tauri/custom-protocol"]
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 tauri-plugin-updater = "2.10"
+
+[target.'cfg(target_os = "macos")'.dependencies]
+block2 = "0.6"
+objc2 = "0.6"
+objc2-app-kit = { version = "0.3.2", features = ["NSGraphics", "NSResponder", "NSView", "NSWindow"] }
+objc2-core-foundation = { version = "0.3.2", features = ["CFCGTypes", "objc2"] }
+objc2-foundation = { version = "0.3.2", features = ["NSDictionary", "block2", "NSData", "NSError", "NSObject", "NSString", "NSURL", "NSURLRequest"] }
+objc2-web-kit = { version = "0.3.2", features = ["WKContentWorld", "WKFrameInfo", "WKNavigation", "WKNavigationAction", "WKNavigationDelegate", "WKPDFConfiguration", "WKScriptMessage", "WKScriptMessageHandler", "WKUserContentController", "WKWebView", "WKWebViewConfiguration", "block2", "objc2-app-kit", "objc2-core-foundation"] }

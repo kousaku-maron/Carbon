@@ -225,6 +225,7 @@ export function WorkspaceRoute() {
               note={activeNoteSnapshot ?? activeNote}
               onSave={handleSaveNote}
               onBufferChange={handleEditorBufferChange}
+              vaultPath={vaultPath}
               viewMode={activeNoteViewMode}
               onViewModeChange={handleViewModeChange}
               menuOpen={noteMenuOpen}
