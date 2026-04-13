@@ -22,23 +22,26 @@ use std::{
 use block2::{DynBlock, RcBlock};
 #[cfg(target_os = "macos")]
 use objc2_app_kit::{
-    NSBackingStoreType, NSWindow, NSWindowAnimationBehavior, NSWindowStyleMask,
+    NSBackingStoreType, NSPaperOrientation, NSPrintInfo, NSPrintJobSavingURL,
+    NSPrintOperation, NSPrintSaveJob, NSPrintingPaginationMode, NSWindow,
+    NSWindowAnimationBehavior, NSWindowStyleMask,
 };
 #[cfg(target_os = "macos")]
 use objc2::{
-    define_class, msg_send, rc::Retained, runtime::ProtocolObject, DefinedClass, MainThreadOnly,
+    define_class, msg_send, rc::Retained, runtime::ProtocolObject, AnyThread, DefinedClass,
+    MainThreadOnly,
 };
 #[cfg(target_os = "macos")]
 use objc2_core_foundation::{CGPoint, CGRect, CGSize};
 #[cfg(target_os = "macos")]
 use objc2_foundation::{
-    MainThreadMarker, NSData, NSError, NSObject, NSObjectProtocol, NSString, NSURL,
+    MainThreadMarker, NSError, NSObject, NSObjectProtocol, NSString, NSURL,
 };
 #[cfg(target_os = "macos")]
 use objc2_web_kit::{
     WKNavigation, WKNavigationAction, WKNavigationActionPolicy, WKNavigationDelegate,
-    WKPDFConfiguration, WKScriptMessage, WKScriptMessageHandler, WKUserContentController,
-    WKWebView, WKWebViewConfiguration,
+    WKScriptMessage, WKScriptMessageHandler, WKUserContentController, WKWebView,
+    WKWebViewConfiguration,
 };
 
 const PDF_EXPORT_TIMEOUT: Duration = Duration::from_secs(30);
@@ -48,11 +51,13 @@ const PDF_EXPORT_READY_HANDLER_NAME: &str = "carbonPdfReady";
 const PDF_EXPORT_ERROR_HANDLER_NAME: &str = "carbonPdfError";
 
 #[cfg(target_os = "macos")]
-const PDF_EXPORT_WEBVIEW_WIDTH: f64 = 900.0;
+const PDF_EXPORT_PAGE_WIDTH: f64 = 595.0;
 #[cfg(target_os = "macos")]
-const PDF_EXPORT_WEBVIEW_HEIGHT: f64 = 1200.0;
+const PDF_EXPORT_PAGE_HEIGHT: f64 = 842.0;
 #[cfg(target_os = "macos")]
-const PDF_EXPORT_WINDOW_ALPHA: f64 = 0.01;
+const PDF_EXPORT_HOST_WINDOW_ORIGIN_X: f64 = 48.0;
+#[cfg(target_os = "macos")]
+const PDF_EXPORT_HOST_WINDOW_ORIGIN_Y: f64 = 48.0;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -60,6 +65,7 @@ pub struct NotePdfExportRequest {
     pub note_name: String,
     pub vault_path: String,
     pub html_document: String,
+    pub output_path: String,
 }
 
 fn sanitize_pdf_file_name(name: &str) -> String {
@@ -138,17 +144,6 @@ fn format_write_error(error: std::io::Error, target_path: &Path, stage: &str) ->
     )
 }
 
-fn write_pdf_atomically(target_path: &Path, bytes: &[u8]) -> Result<(), String> {
-    let temp_path = build_temp_pdf_path(target_path)?;
-
-    fs::write(&temp_path, bytes).map_err(|error| format_write_error(error, &temp_path, "write"))?;
-
-    fs::rename(&temp_path, target_path).map_err(|error| {
-        let _ = fs::remove_file(&temp_path);
-        format_write_error(error, target_path, "finalize")
-    })
-}
-
 #[cfg(test)]
 mod tests {
     use super::{find_available_pdf_output_path, sanitize_pdf_file_name};
@@ -188,7 +183,7 @@ mod tests {
 }
 
 #[cfg(target_os = "macos")]
-type PdfExportResultSender = Arc<Mutex<Option<oneshot::Sender<Result<Vec<u8>, String>>>>>;
+type PdfExportResultSender = Arc<Mutex<Option<oneshot::Sender<Result<(), String>>>>>;
 
 #[cfg(target_os = "macos")]
 struct NativePdfExportSession {
@@ -196,7 +191,9 @@ struct NativePdfExportSession {
     user_content_controller: Retained<WKUserContentController>,
     webview: Retained<WKWebView>,
     delegate: Retained<PdfExportNavigationDelegate>,
+    print_operation: Option<Retained<NSPrintOperation>>,
     html_path: PathBuf,
+    output_path: PathBuf,
 }
 
 #[cfg(target_os = "macos")]
@@ -206,6 +203,7 @@ thread_local! {
 
 #[cfg(target_os = "macos")]
 struct PdfExportNavigationDelegateIvars {
+    app_handle: AppHandle,
     export_id: String,
     result_sender: PdfExportResultSender,
     started: Cell<bool>,
@@ -278,9 +276,9 @@ define_class!(
         ) {
             let name = message.name().to_string();
             if name == PDF_EXPORT_READY_HANDLER_NAME {
-                if let Some(web_view) = message.webView() {
+                if message.webView().is_some() {
                     start_pdf_render(
-                        &web_view,
+                        self.ivars().app_handle.clone(),
                         self.ivars().export_id.clone(),
                         self.ivars().result_sender.clone(),
                     );
@@ -309,11 +307,13 @@ define_class!(
 #[cfg(target_os = "macos")]
 impl PdfExportNavigationDelegate {
     fn new(
+        app_handle: AppHandle,
         export_id: String,
         result_sender: PdfExportResultSender,
         mtm: MainThreadMarker,
     ) -> Retained<Self> {
         let delegate = Self::alloc(mtm).set_ivars(PdfExportNavigationDelegateIvars {
+            app_handle,
             export_id,
             result_sender,
             started: Cell::new(false),
@@ -335,7 +335,7 @@ impl PdfExportNavigationDelegate {
 fn finish_native_pdf_export(
     export_id: &str,
     result_sender: &PdfExportResultSender,
-    result: Result<Vec<u8>, String>,
+    result: Result<(), String>,
 ) {
     let session = PDF_EXPORT_SESSIONS.with(|sessions| sessions.borrow_mut().remove(export_id));
 
@@ -353,6 +353,7 @@ fn finish_native_pdf_export(
         }
         let _ = fs::remove_file(&session.html_path);
         drop(session.user_content_controller);
+        drop(session.print_operation);
         drop(session.window);
         drop(session.delegate);
         drop(session.webview);
@@ -381,6 +382,7 @@ fn cleanup_native_pdf_export(export_id: &str) {
             session.window.orderOut(None);
         }
         let _ = fs::remove_file(&session.html_path);
+        drop(session.print_operation);
     }
 }
 
@@ -417,37 +419,164 @@ fn await_pdf_ready_signal(
 }
 
 #[cfg(target_os = "macos")]
-fn start_pdf_render(web_view: &WKWebView, export_id: String, result_sender: PdfExportResultSender) {
-    let Some(mtm) = MainThreadMarker::new() else {
+fn start_pdf_render(app_handle: AppHandle, export_id: String, result_sender: PdfExportResultSender) {
+    std::thread::spawn(move || {
+        std::thread::sleep(Duration::from_millis(10));
+        let app_handle_for_main = app_handle.clone();
+        let export_id_for_main = export_id.clone();
+        let result_sender_for_main = result_sender.clone();
+        let _ = app_handle.run_on_main_thread(move || {
+            start_pdf_render_on_main_thread(
+                app_handle_for_main,
+                export_id_for_main,
+                result_sender_for_main,
+            );
+        });
+    });
+}
+
+#[cfg(target_os = "macos")]
+fn start_pdf_render_on_main_thread(
+    app_handle: AppHandle,
+    export_id: String,
+    result_sender: PdfExportResultSender,
+) {
+    let session_state = PDF_EXPORT_SESSIONS.with(|sessions| {
+        sessions
+            .borrow()
+            .get(&export_id)
+            .map(|session| {
+                (
+                    session.window.clone(),
+                    session.webview.clone(),
+                    session.output_path.clone(),
+                )
+            })
+    });
+
+    let Some((window, web_view, output_path)) = session_state else {
         finish_native_pdf_export(
             &export_id,
             &result_sender,
-            Err("PDF export must run on the macOS main thread".to_string()),
+            Err("PDF export session lost its WebView or output path".to_string()),
         );
         return;
     };
 
-    let configuration = unsafe { WKPDFConfiguration::new(mtm) };
-    unsafe {
-        configuration.setAllowTransparentBackground(false);
-    }
+    let operation = match start_print_operation_to_pdf(&window, &web_view, &output_path) {
+        Ok(operation) => operation,
+        Err(error) => {
+            finish_native_pdf_export(&export_id, &result_sender, Err(error));
+            return;
+        }
+    };
 
-    let completion = RcBlock::new(move |data: *mut NSData, error: *mut NSError| {
-        let result = if !error.is_null() {
-            Err(unsafe { (&*error).localizedDescription().to_string() })
-        } else if data.is_null() {
-            Err("WKWebView returned no PDF data".to_string())
-        } else {
-            Ok(unsafe { (&*data).to_vec() })
-        };
-
-        finish_native_pdf_export(&export_id, &result_sender, result);
+    PDF_EXPORT_SESSIONS.with(|sessions| {
+        if let Some(session) = sessions.borrow_mut().get_mut(&export_id) {
+            session.print_operation = Some(operation);
+        }
     });
 
-    eprintln!("[pdf-export] createPDF");
-    unsafe {
-        web_view.createPDFWithConfiguration_completionHandler(Some(&configuration), &completion);
+    monitor_pdf_output_file(app_handle, export_id, output_path, result_sender);
+}
+
+#[cfg(target_os = "macos")]
+fn build_pdf_print_info(output_path: &Path) -> Result<Retained<NSPrintInfo>, String> {
+    if MainThreadMarker::new().is_none() {
+        return Err("PDF export print info must be created on the macOS main thread".to_string());
     }
+
+    let shared_print_info = NSPrintInfo::sharedPrintInfo();
+    let shared_attributes = unsafe { shared_print_info.dictionary() };
+    let print_info = unsafe { NSPrintInfo::initWithDictionary(NSPrintInfo::alloc(), &shared_attributes) };
+
+    print_info.setPaperSize(CGSize::new(PDF_EXPORT_PAGE_WIDTH, PDF_EXPORT_PAGE_HEIGHT));
+    print_info.setOrientation(NSPaperOrientation::Portrait);
+    print_info.setHorizontallyCentered(false);
+    print_info.setVerticallyCentered(false);
+    print_info.setHorizontalPagination(NSPrintingPaginationMode::Automatic);
+    print_info.setVerticalPagination(NSPrintingPaginationMode::Automatic);
+    print_info.setLeftMargin(14.0 * 72.0 / 25.4);
+    print_info.setRightMargin(14.0 * 72.0 / 25.4);
+    print_info.setTopMargin(16.0 * 72.0 / 25.4);
+    print_info.setBottomMargin(18.0 * 72.0 / 25.4);
+    unsafe {
+        print_info.setJobDisposition(NSPrintSaveJob);
+    }
+    let dictionary = unsafe { print_info.dictionary() };
+    let output_url = NSURL::fileURLWithPath(&NSString::from_str(&output_path.to_string_lossy()));
+    unsafe {
+        dictionary.insert(NSPrintJobSavingURL, output_url.as_ref());
+    }
+
+    Ok(print_info)
+}
+
+#[cfg(target_os = "macos")]
+fn start_print_operation_to_pdf(
+    window: &NSWindow,
+    web_view: &WKWebView,
+    output_path: &Path,
+) -> Result<Retained<NSPrintOperation>, String> {
+    let print_info = build_pdf_print_info(output_path)?;
+    let operation = unsafe { web_view.printOperationWithPrintInfo(&print_info) };
+    operation.setShowsPrintPanel(false);
+    operation.setShowsProgressPanel(false);
+    operation.setCanSpawnSeparateThread(true);
+
+    eprintln!("[pdf-export] run print modal operation");
+    unsafe {
+        operation.runOperationModalForWindow_delegate_didRunSelector_contextInfo(
+            window,
+            None,
+            None,
+            std::ptr::null_mut(),
+        );
+    }
+
+    Ok(operation)
+}
+
+#[cfg(target_os = "macos")]
+fn monitor_pdf_output_file(
+    app_handle: AppHandle,
+    export_id: String,
+    output_path: PathBuf,
+    result_sender: PdfExportResultSender,
+) {
+    std::thread::spawn(move || {
+        let mut last_non_zero_size = None;
+        let mut stable_count = 0;
+
+        for _ in 0..300 {
+            if let Ok(metadata) = fs::metadata(&output_path) {
+                let size = metadata.len();
+                if size > 0 {
+                    if Some(size) == last_non_zero_size {
+                        stable_count += 1;
+                    } else {
+                        last_non_zero_size = Some(size);
+                        stable_count = 0;
+                    }
+
+                    if stable_count >= 2 {
+                        let export_id_for_main = export_id.clone();
+                        let result_sender_for_main = result_sender.clone();
+                        let _ = app_handle.run_on_main_thread(move || {
+                            finish_native_pdf_export(
+                                &export_id_for_main,
+                                &result_sender_for_main,
+                                Ok(()),
+                            );
+                        });
+                        return;
+                    }
+                }
+            }
+
+            std::thread::sleep(Duration::from_millis(100));
+        }
+    });
 }
 
 fn handle_navigation_action(
@@ -469,10 +598,13 @@ fn create_pdf_host_window(
         NSWindow::initWithContentRect_styleMask_backing_defer(
             NSWindow::alloc(mtm),
             CGRect::new(
-                CGPoint::ZERO,
-                CGSize::new(PDF_EXPORT_WEBVIEW_WIDTH, PDF_EXPORT_WEBVIEW_HEIGHT),
+                CGPoint::new(
+                    PDF_EXPORT_HOST_WINDOW_ORIGIN_X,
+                    PDF_EXPORT_HOST_WINDOW_ORIGIN_Y,
+                ),
+                CGSize::new(PDF_EXPORT_PAGE_WIDTH, PDF_EXPORT_PAGE_HEIGHT),
             ),
-            NSWindowStyleMask::Borderless,
+            NSWindowStyleMask::Titled,
             NSBackingStoreType::Buffered,
             false,
         )
@@ -485,21 +617,22 @@ fn create_pdf_host_window(
     window.setExcludedFromWindowsMenu(true);
     window.setHasShadow(false);
     window.setOpaque(false);
-    window.setAlphaValue(PDF_EXPORT_WINDOW_ALPHA);
+    window.setAlphaValue(0.0);
     window.setIgnoresMouseEvents(true);
     window.setAnimationBehavior(NSWindowAnimationBehavior::None);
     window.setContentView(Some(web_view));
-    window.orderFrontRegardless();
+    window.makeKeyAndOrderFront(None);
 
     window
 }
 
 #[cfg(target_os = "macos")]
 fn start_native_pdf_export(
+    app_handle: AppHandle,
     export_id: String,
     request: NotePdfExportRequest,
     html_path: PathBuf,
-    sender: oneshot::Sender<Result<Vec<u8>, String>>,
+    sender: oneshot::Sender<Result<(), String>>,
 ) {
     let Some(mtm) = MainThreadMarker::new() else {
         let _ = fs::remove_file(&html_path);
@@ -516,7 +649,7 @@ fn start_native_pdf_export(
             WKWebView::alloc(mtm),
             CGRect::new(
                 CGPoint::ZERO,
-                CGSize::new(PDF_EXPORT_WEBVIEW_WIDTH, PDF_EXPORT_WEBVIEW_HEIGHT),
+                CGSize::new(PDF_EXPORT_PAGE_WIDTH, PDF_EXPORT_PAGE_HEIGHT),
             ),
             &configuration,
         )
@@ -524,9 +657,15 @@ fn start_native_pdf_export(
     let window = create_pdf_host_window(mtm, &web_view);
 
     let result_sender = Arc::new(Mutex::new(Some(sender)));
-    let delegate = PdfExportNavigationDelegate::new(export_id.clone(), result_sender.clone(), mtm);
+    let delegate = PdfExportNavigationDelegate::new(
+        app_handle,
+        export_id.clone(),
+        result_sender.clone(),
+        mtm,
+    );
 
     unsafe {
+        web_view.setMediaType(Some(&NSString::from_str("print")));
         user_content_controller.addScriptMessageHandler_name(
             ProtocolObject::from_ref(&*delegate),
             &NSString::from_str(PDF_EXPORT_READY_HANDLER_NAME),
@@ -546,7 +685,9 @@ fn start_native_pdf_export(
                 user_content_controller: user_content_controller.clone(),
                 webview: web_view.clone(),
                 delegate: delegate.clone(),
+                print_operation: None,
                 html_path: html_path.clone(),
+                output_path: PathBuf::from(&request.output_path),
             },
         );
     });
@@ -572,21 +713,22 @@ fn start_native_pdf_export(
 }
 
 #[cfg(target_os = "macos")]
-async fn render_pdf_bytes(
+async fn render_pdf_to_path(
     app: AppHandle,
     request: NotePdfExportRequest,
-) -> Result<Vec<u8>, String> {
+) -> Result<(), String> {
     let export_id = Uuid::new_v4().to_string();
     let export_id_for_render = export_id.clone();
-    let (sender, receiver) = oneshot::channel::<Result<Vec<u8>, String>>();
+    let (sender, receiver) = oneshot::channel::<Result<(), String>>();
     let html_path = build_temp_html_path();
     let html_path_for_cleanup = html_path.clone();
 
     fs::write(&html_path, &request.html_document)
         .map_err(|error| format!("Failed to prepare the PDF document HTML: {error}"))?;
 
+    let app_for_main_thread = app.clone();
     app.run_on_main_thread(move || {
-        start_native_pdf_export(export_id_for_render, request, html_path, sender);
+        start_native_pdf_export(app_for_main_thread, export_id_for_render, request, html_path, sender);
     })
     .map_err(|error| {
         let _ = fs::remove_file(&html_path_for_cleanup);
@@ -604,10 +746,10 @@ async fn render_pdf_bytes(
 }
 
 #[cfg(not(target_os = "macos"))]
-async fn render_pdf_bytes(
+async fn render_pdf_to_path(
     _app: AppHandle,
     _request: NotePdfExportRequest,
-) -> Result<Vec<u8>, String> {
+) -> Result<(), String> {
     // TODO: Windows should use WebView2 PrintToPdfAsync.
     // TODO: Linux should use a WebKitGTK/GTK export path.
     Err("PDF export is currently implemented only on macOS.".to_string())
@@ -619,10 +761,19 @@ pub async fn start_note_pdf_export(
     request: NotePdfExportRequest,
 ) -> Result<String, String> {
     let output_path = build_pdf_output_path(&app, &request)?;
+    let temp_output_path = build_temp_pdf_path(&output_path)?;
     let output_path_string = output_path.to_string_lossy().into_owned();
 
-    let pdf_bytes = render_pdf_bytes(app.clone(), request).await?;
-    write_pdf_atomically(&output_path, &pdf_bytes)?;
+    let native_request = NotePdfExportRequest {
+        output_path: temp_output_path.to_string_lossy().into_owned(),
+        ..request
+    };
+
+    render_pdf_to_path(app.clone(), native_request).await?;
+    fs::rename(&temp_output_path, &output_path).map_err(|error| {
+        let _ = fs::remove_file(&temp_output_path);
+        format_write_error(error, &output_path, "finalize")
+    })?;
 
     Ok(output_path_string)
 }

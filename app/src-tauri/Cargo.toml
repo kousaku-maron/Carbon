@@ -33,7 +33,7 @@ tauri-plugin-updater = "2.10"
 [target.'cfg(target_os = "macos")'.dependencies]
 block2 = "0.6"
 objc2 = "0.6"
-objc2-app-kit = { version = "0.3.2", features = ["NSGraphics", "NSResponder", "NSView", "NSWindow"] }
+objc2-app-kit = { version = "0.3.2", features = ["NSGraphics", "NSPrintInfo", "NSPrintOperation", "NSResponder", "NSView", "NSWindow"] }
 objc2-core-foundation = { version = "0.3.2", features = ["CFCGTypes", "objc2"] }
 objc2-foundation = { version = "0.3.2", features = ["NSDictionary", "block2", "NSData", "NSError", "NSObject", "NSString", "NSURL", "NSURLRequest"] }
 objc2-web-kit = { version = "0.3.2", features = ["WKContentWorld", "WKFrameInfo", "WKNavigation", "WKNavigationAction", "WKNavigationDelegate", "WKPDFConfiguration", "WKScriptMessage", "WKScriptMessageHandler", "WKUserContentController", "WKWebView", "WKWebViewConfiguration", "block2", "objc2-app-kit", "objc2-core-foundation"] }

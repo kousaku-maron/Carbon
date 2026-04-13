@@ -18,6 +18,7 @@ type NativeNotePdfExportRequest = {
   noteName: string;
   vaultPath: string;
   htmlDocument: string;
+  outputPath: string;
 };
 
 const PDF_DOCUMENT_CSS = `
@@ -147,6 +148,7 @@ export async function startNotePdfExport(request: NotePdfExportRequest): Promise
       noteName: request.noteName,
       vaultPath: request.vaultPath,
       htmlDocument,
+      outputPath: "",
     } satisfies NativeNotePdfExportRequest,
   });
 }
