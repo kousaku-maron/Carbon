@@ -1,0 +1,51 @@
+.slash-command-suggestion {
+  min-width: 240px;
+  max-width: 360px;
+  max-height: 240px;
+  overflow-y: auto;
+  background: #ffffff;
+  border: 1px solid #e3e2e0;
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(15, 15, 15, 0.1), 0 0 0 1px rgba(15, 15, 15, 0.04);
+  padding: 0.3rem;
+  display: flex;
+  flex-direction: column;
+}
+
+.slash-command-suggestion-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  width: 100%;
+  padding: 0.45rem 0.65rem;
+  border: none;
+  border-radius: 5px;
+  background: transparent;
+  color: #37352f;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+
+.slash-command-suggestion-item:hover,
+.slash-command-suggestion-item.active {
+  background: #f1f1ef;
+}
+
+.slash-command-suggestion-title {
+  font-size: 0.82rem;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.slash-command-suggestion-description {
+  font-size: 0.7rem;
+  color: #9b9a97;
+  white-space: nowrap;
+}
+
+.slash-command-suggestion-empty {
+  padding: 0.5rem 0.65rem;
+  color: #b4b4b0;
+  font-size: 0.8rem;
+}

@@ -65,6 +65,11 @@ export const fixtures: MarkdownFixture[] = [
     input: "1. First\n2. Second\n3. Third",
     expected: "1. First\n2. Second\n3. Third",
   },
+  {
+    name: "gfm table",
+    input: "| A | B |\n| --- | --- |\n| 1 | 2 |",
+    expected: "\n| A   | B   |\n| --- | --- |\n| 1   | 2   |",
+  },
 
   // ── Task lists ────────────────────────────────────────────────
   {

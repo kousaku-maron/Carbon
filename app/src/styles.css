@@ -1405,6 +1405,7 @@ button:disabled {
 
 .note-editor-content {
   --editor-scale: 1;
+  --editor-surface-color: #ffffff;
   --editor-scroll-bottom-space: clamp(14rem, 48vh, 26rem);
   --editor-body-font-size: calc(0.95rem * var(--editor-scale));
   --editor-body-line-height: 1.75;
@@ -1447,6 +1448,7 @@ button:disabled {
   --editor-media-button-height: calc(1.8rem * var(--editor-scale));
   --editor-media-button-radius: calc(0.55rem * var(--editor-scale));
   flex: 1;
+  position: relative;
   overflow-y: auto;
   padding: 1.25rem 1.25rem var(--editor-scroll-bottom-space);
   display: flex;
@@ -1682,6 +1684,266 @@ button:disabled {
 .note-editor-content .tiptap th,
 .note-editor-content .tiptap td {
   padding: var(--editor-table-cell-padding-y) var(--editor-table-cell-padding-x);
+}
+
+.note-editor-table-side-handle {
+  position: absolute;
+  z-index: 12;
+  border: none;
+  background: transparent;
+  appearance: none;
+  padding: 0;
+  margin: 0;
+  cursor: pointer;
+  user-select: none;
+  overflow: visible;
+}
+
+.note-editor-table-side-handle:hover,
+.note-editor-table-side-handle:active,
+.note-editor-table-side-handle.is-hovered,
+.note-editor-table-side-handle.is-selected {
+  border: none;
+  background: transparent;
+  box-shadow: none;
+}
+
+.note-editor-table-side-handle--row {
+  border-radius: calc(0.5rem * var(--editor-scale));
+}
+
+.note-editor-table-side-handle--column {
+  border-radius: 999px;
+}
+
+.note-editor-table-side-handle--table {
+  border-radius: 999px;
+}
+
+.note-editor-table-side-handle-line,
+.note-editor-table-side-handle-pill,
+.note-editor-table-side-handle-dots {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+}
+
+.note-editor-table-side-handle-line {
+  border-radius: 999px;
+  background: rgba(156, 154, 151, 0.92);
+  transform: translate(-50%, -50%);
+  opacity: 1;
+  visibility: visible;
+}
+
+.note-editor-table-side-handle--column .note-editor-table-side-handle-line {
+  width: calc(1.3rem * var(--editor-scale));
+  height: 1.5px;
+  background:
+    linear-gradient(
+      to right,
+      var(--editor-surface-color) 0,
+      var(--editor-surface-color) 4px,
+      rgba(156, 154, 151, 0.92) 4px,
+      rgba(156, 154, 151, 0.92) calc(100% - 4px),
+      var(--editor-surface-color) calc(100% - 4px),
+      var(--editor-surface-color) 100%
+    );
+}
+
+.note-editor-table-side-handle--row .note-editor-table-side-handle-line {
+  width: 1.5px;
+  height: calc(1.3rem * var(--editor-scale));
+  background:
+    linear-gradient(
+      to bottom,
+      var(--editor-surface-color) 0,
+      var(--editor-surface-color) 4px,
+      rgba(156, 154, 151, 0.92) 4px,
+      rgba(156, 154, 151, 0.92) calc(100% - 4px),
+      var(--editor-surface-color) calc(100% - 4px),
+      var(--editor-surface-color) 100%
+    );
+}
+
+.note-editor-table-side-handle--table .note-editor-table-side-handle-line {
+  width: calc(0.4rem * var(--editor-scale));
+  height: calc(0.4rem * var(--editor-scale));
+}
+
+.note-editor-table-side-handle-pill {
+  opacity: 0;
+  visibility: hidden;
+  border-radius: 999px;
+  background: #ffffff;
+  border: 1px solid rgba(55, 53, 47, 0.14);
+  transform: translate(-50%, -50%);
+}
+
+.note-editor-table-side-handle--column .note-editor-table-side-handle-pill {
+  width: calc(1.9rem * var(--editor-scale));
+  height: calc(0.95rem * var(--editor-scale));
+}
+
+.note-editor-table-side-handle--row .note-editor-table-side-handle-pill {
+  width: calc(0.95rem * var(--editor-scale));
+  height: calc(2rem * var(--editor-scale));
+}
+
+.note-editor-table-side-handle--table .note-editor-table-side-handle-pill {
+  width: calc(1.05rem * var(--editor-scale));
+  height: calc(1.05rem * var(--editor-scale));
+}
+
+.note-editor-table-side-handle-dots {
+  width: calc(0.18rem * var(--editor-scale));
+  height: calc(0.18rem * var(--editor-scale));
+  border-radius: 999px;
+  background: rgba(120, 116, 110, 0.9);
+  transform: translate(-50%, -50%);
+}
+
+.note-editor-table-side-handle--column .note-editor-table-side-handle-dots {
+  box-shadow:
+    calc(-0.35rem * var(--editor-scale)) 0 0 rgba(120, 116, 110, 0.9),
+    calc(0.35rem * var(--editor-scale)) 0 0 rgba(120, 116, 110, 0.9);
+}
+
+.note-editor-table-side-handle--row .note-editor-table-side-handle-dots {
+  box-shadow:
+    0 calc(-0.36rem * var(--editor-scale)) 0 rgba(120, 116, 110, 0.9),
+    0 calc(0.36rem * var(--editor-scale)) 0 rgba(120, 116, 110, 0.9);
+}
+
+.note-editor-table-side-handle--table .note-editor-table-side-handle-dots {
+  box-shadow:
+    calc(-0.28rem * var(--editor-scale)) 0 0 rgba(120, 116, 110, 0.9),
+    calc(0.28rem * var(--editor-scale)) 0 0 rgba(120, 116, 110, 0.9);
+}
+
+.note-editor-table-side-handle:hover .note-editor-table-side-handle-line,
+.note-editor-table-side-handle.is-hovered .note-editor-table-side-handle-line,
+.note-editor-table-side-handle.is-selected .note-editor-table-side-handle-line {
+  opacity: 0;
+  visibility: hidden;
+}
+
+.note-editor-table-side-handle:hover .note-editor-table-side-handle-pill,
+.note-editor-table-side-handle.is-hovered .note-editor-table-side-handle-pill,
+.note-editor-table-side-handle.is-selected .note-editor-table-side-handle-pill {
+  opacity: 1;
+  visibility: visible;
+}
+
+.note-editor-table-side-handle:focus-visible {
+  outline: 2px solid rgba(44, 124, 246, 0.34);
+  outline-offset: 2px;
+}
+
+.note-editor-table-handle-menu {
+  z-index: 20;
+  min-width: 0;
+  width: max-content;
+  padding: 0.18rem;
+}
+
+.note-editor-table-handle-menu--row {
+  transform: translate(0, -50%);
+}
+
+.note-editor-table-handle-menu--column {
+  transform: translate(-50%, 0);
+}
+
+.note-editor-table-handle-menu--table {
+  transform: none;
+}
+
+.note-editor-content .tiptap td.note-editor-table-cell--hover-row,
+.note-editor-content .tiptap th.note-editor-table-cell--hover-row,
+.note-editor-content .tiptap td.note-editor-table-cell--hover-column,
+.note-editor-content .tiptap th.note-editor-table-cell--hover-column {
+  background: rgba(55, 53, 47, 0.035);
+}
+
+.note-editor-content .tiptap td.note-editor-table-cell--selected-row,
+.note-editor-content .tiptap th.note-editor-table-cell--selected-row,
+.note-editor-content .tiptap td.note-editor-table-cell--selected-column,
+.note-editor-content .tiptap th.note-editor-table-cell--selected-column {
+  background: rgba(44, 124, 246, 0.08);
+}
+
+.note-editor-table-hover-add {
+  position: absolute;
+  z-index: 12;
+  border: 1px solid rgba(55, 53, 47, 0.14);
+  border-radius: calc(0.34rem * var(--editor-scale));
+  background: rgba(255, 255, 255, 0.98);
+  color: #8b867f;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  font-size: calc(1.45rem * var(--editor-scale));
+  font-weight: 400;
+  line-height: 1;
+  cursor: pointer;
+  user-select: none;
+  transition:
+    background 160ms ease,
+    border-color 160ms ease,
+    box-shadow 160ms ease,
+    color 160ms ease,
+    transform 160ms ease;
+}
+
+.note-editor-table-hover-rail {
+  position: absolute;
+  z-index: 11;
+  background: transparent;
+}
+
+.note-editor-table-hover-rail--row {
+  height: calc(4rem * var(--editor-scale));
+}
+
+.note-editor-table-hover-rail--column {
+  width: calc(4rem * var(--editor-scale));
+}
+
+.note-editor-table-hover-rail--row .note-editor-table-hover-add--row {
+  left: calc(0.14rem * var(--editor-scale));
+  right: calc(0.14rem * var(--editor-scale));
+  top: calc(1.05rem * var(--editor-scale));
+  height: calc(1.85rem * var(--editor-scale));
+  transform: none;
+}
+
+.note-editor-table-hover-rail--column .note-editor-table-hover-add--column {
+  left: calc(1.05rem * var(--editor-scale));
+  top: calc(0.14rem * var(--editor-scale));
+  bottom: calc(0.14rem * var(--editor-scale));
+  width: calc(1.85rem * var(--editor-scale));
+  transform: none;
+}
+
+.note-editor-table-hover-add:hover {
+  background: #ffffff;
+  border-color: rgba(55, 53, 47, 0.18);
+  color: #6d675f;
+}
+
+.note-editor-table-hover-rail--row .note-editor-table-hover-add--row:hover {
+  transform: translateY(-1px);
+}
+
+.note-editor-table-hover-rail--column .note-editor-table-hover-add--column:hover {
+  transform: translateX(-1px);
+}
+
+.note-editor-table-hover-add:focus-visible {
+  outline: 2px solid rgba(44, 124, 246, 0.34);
+  outline-offset: 2px;
 }
 
 .note-editor-content .tiptap figure {

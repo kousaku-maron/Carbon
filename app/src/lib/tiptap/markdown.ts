@@ -8,6 +8,7 @@
 
 import type { AnyExtension, JSONContent } from "@tiptap/core";
 import { TaskItem, TaskList } from "@tiptap/extension-list";
+import { TableKit } from "@tiptap/extension-table";
 import { MarkdownManager } from "@tiptap/markdown";
 import StarterKit from "@tiptap/starter-kit";
 import { resolveRelativePath } from "../link-utils";
@@ -142,6 +143,7 @@ function buildCarbonMarkdownExtensions(): AnyExtension[] {
         rel: null,
       },
     }),
+    TableKit,
     TaskList,
     TaskItem.configure({ nested: true }),
     CarbonImage.configure({ inline: false }),

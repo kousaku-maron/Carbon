@@ -1,4 +1,5 @@
 import { TaskItem, TaskList } from "@tiptap/extension-list";
+import { TableKit } from "@tiptap/extension-table";
 import { MarkdownManager } from "@tiptap/markdown";
 import StarterKit from "@tiptap/starter-kit";
 import { describe, expect, it } from "vitest";
@@ -31,6 +32,7 @@ const markdownManager = new MarkdownManager({
         rel: null,
       },
     }),
+    TableKit,
     TaskList,
     TaskItem.configure({ nested: true }),
     CarbonImage.configure({ inline: false }),
@@ -222,5 +224,24 @@ describe("PDF export markdown transform", () => {
     expect(normalized).toContain(':::video {src="../assets/demo.mp4" title="demo.mp4"} :::');
     expect(normalized).toContain(':::pdf {src="../docs/demo.pdf" title="demo.pdf"} :::');
     expect(normalized).toContain("After");
+  });
+
+  it("preserves markdown tables for static PDF rendering", () => {
+    const output = transformMarkdownForPdfExport({
+      markdown: [
+        "# Demo",
+        "",
+        "| A | B |",
+        "| --- | --- |",
+        "| 1 | 2 |",
+      ].join("\n"),
+      currentNotePath: "/vault/notes/daily/today.md",
+      vaultPath: "/vault",
+    });
+
+    const normalized = normalizeMarkdown(output);
+    expect(normalized).toContain("| A   | B   |");
+    expect(normalized).toContain("| --- | --- |");
+    expect(normalized).toContain("| 1   | 2   |");
   });
 });
