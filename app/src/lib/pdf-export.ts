@@ -24,6 +24,8 @@ type NativeNotePdfExportRequest = {
 const PDF_DOCUMENT_CSS = `
 html {
   background: #ffffff;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
 }
 
 body {
@@ -31,6 +33,8 @@ body {
   background: #ffffff;
   color: #37352f;
   font-family: "IBM Plex Sans", "Noto Sans JP", sans-serif;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
 }
 
 .pdf-export-page {
@@ -38,12 +42,25 @@ body {
   padding: 24px 0;
   background: #fff;
   color: #37352f;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
 }
 
 .pdf-export-document {
-  width: min(100%, 180mm);
+  /* Keep the content column a few pixels inside the printable area.
+     WebKit PDF export can clip the outermost right border on full-width blocks. */
+  width: min(calc(100% - 3px), 180mm);
   margin: 0 auto;
   padding: 0;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+.pdf-export-document,
+.pdf-export-document *,
+.pdf-export-document *::before,
+.pdf-export-document *::after {
+  box-sizing: border-box;
 }
 
 @page {

@@ -230,6 +230,10 @@ export const carbonProseCss = `
   vertical-align: top;
 }
 
+.${CARBON_PROSE_CLASS} th {
+  background: #f5f5f4;
+}
+
 .${CARBON_PROSE_CLASS} figure {
   margin: 0.9rem 0;
 }

@@ -1686,10 +1686,6 @@ button:disabled {
   padding: var(--editor-table-cell-padding-y) var(--editor-table-cell-padding-x);
 }
 
-.note-editor-content .tiptap th {
-  background: #f5f5f4;
-}
-
 .note-editor-table-side-handle {
   position: absolute;
   z-index: 12;

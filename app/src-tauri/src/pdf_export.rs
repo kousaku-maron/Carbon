@@ -496,10 +496,10 @@ fn build_pdf_print_info(output_path: &Path) -> Result<Retained<NSPrintInfo>, Str
     print_info.setVerticallyCentered(false);
     print_info.setHorizontalPagination(NSPrintingPaginationMode::Automatic);
     print_info.setVerticalPagination(NSPrintingPaginationMode::Automatic);
-    print_info.setLeftMargin(14.0 * 72.0 / 25.4);
-    print_info.setRightMargin(14.0 * 72.0 / 25.4);
-    print_info.setTopMargin(16.0 * 72.0 / 25.4);
-    print_info.setBottomMargin(18.0 * 72.0 / 25.4);
+    print_info.setLeftMargin(0.0);
+    print_info.setRightMargin(0.0);
+    print_info.setTopMargin(0.0);
+    print_info.setBottomMargin(0.0);
     unsafe {
         print_info.setJobDisposition(NSPrintSaveJob);
     }
