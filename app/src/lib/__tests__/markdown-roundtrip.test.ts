@@ -1,5 +1,4 @@
 import { TaskItem, TaskList } from "@tiptap/extension-list";
-import { TableKit } from "@tiptap/extension-table";
 import { MarkdownManager } from "@tiptap/markdown";
 import StarterKit from "@tiptap/starter-kit";
 import { describe, expect, it } from "vitest";
@@ -7,6 +6,7 @@ import { CarbonCodeBlock } from "../tiptap/carbon-code-block-extension";
 import { CarbonImage } from "../tiptap/carbon-image-extension";
 import { CarbonLink } from "../tiptap/carbon-link-extension";
 import { CarbonPdf } from "../tiptap/carbon-pdf-extension";
+import { CarbonTable } from "../tiptap/carbon-table-extension";
 import { CarbonVideo } from "../tiptap/carbon-video-extension";
 import { transformMarkdownForPdfExport } from "../tiptap/markdown";
 import { fixtures } from "./markdown-fixtures";
@@ -32,7 +32,7 @@ const markdownManager = new MarkdownManager({
         rel: null,
       },
     }),
-    TableKit,
+    CarbonTable,
     TaskList,
     TaskItem.configure({ nested: true }),
     CarbonImage.configure({ inline: false }),

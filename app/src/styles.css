@@ -1686,6 +1686,10 @@ button:disabled {
   padding: var(--editor-table-cell-padding-y) var(--editor-table-cell-padding-x);
 }
 
+.note-editor-content .tiptap th {
+  background: #f5f5f4;
+}
+
 .note-editor-table-side-handle {
   position: absolute;
   z-index: 12;
@@ -1857,6 +1861,19 @@ button:disabled {
 
 .note-editor-table-handle-menu--table {
   transform: none;
+}
+
+.note-editor-table-handle-menu .note-header-menu-item {
+  gap: 0.5rem;
+}
+
+.note-editor-table-menu-item-icon {
+  display: inline-flex;
+  width: 16px;
+  min-width: 16px;
+  align-items: center;
+  justify-content: center;
+  color: currentColor;
 }
 
 .note-editor-content .tiptap td.note-editor-table-cell--hover-row,

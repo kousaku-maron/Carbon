@@ -8,7 +8,6 @@
 
 import type { AnyExtension, JSONContent } from "@tiptap/core";
 import { TaskItem, TaskList } from "@tiptap/extension-list";
-import { TableKit } from "@tiptap/extension-table";
 import { MarkdownManager } from "@tiptap/markdown";
 import StarterKit from "@tiptap/starter-kit";
 import { resolveRelativePath } from "../link-utils";
@@ -17,6 +16,7 @@ import { CarbonCodeBlock } from "./carbon-code-block-extension";
 import { CarbonImage } from "./carbon-image-extension";
 import { CarbonLink } from "./carbon-link-extension";
 import { CarbonPdf } from "./carbon-pdf-extension";
+import { CarbonTable } from "./carbon-table-extension";
 import { CarbonVideo } from "./carbon-video-extension";
 // ── Clipboard formatting ────────────────────────────────────────
 
@@ -96,24 +96,31 @@ export function formatMarkdownForCopy(md: string): string {
   return result;
 }
 
+export function serializeMarkdownContent(content: JSONContent | JSONContent[]): string {
+  return CARBON_MARKDOWN_MANAGER.serialize({
+    type: "doc",
+    content: Array.isArray(content) ? content : [content],
+  }).trim();
+}
+
 type TransformMarkdownForPdfExportInput = {
   markdown: string;
   currentNotePath: string;
   vaultPath: string;
 };
 
-const PDF_EXPORT_MARKDOWN_MANAGER = createCarbonMarkdownManager();
+const CARBON_MARKDOWN_MANAGER = createCarbonMarkdownManager();
 
 export function transformMarkdownForPdfExport(input: TransformMarkdownForPdfExportInput): string {
   const normalized = input.markdown.replace(/\r\n?/g, "\n");
-  const parsed = PDF_EXPORT_MARKDOWN_MANAGER.parse(normalized);
+  const parsed = CARBON_MARKDOWN_MANAGER.parse(normalized);
   const transformed = transformPdfExportNode(parsed, input);
 
   if (!transformed) {
     return "";
   }
 
-  return PDF_EXPORT_MARKDOWN_MANAGER.serialize(transformed).trim();
+  return CARBON_MARKDOWN_MANAGER.serialize(transformed).trim();
 }
 
 function createCarbonMarkdownManager(): MarkdownManager {
@@ -143,7 +150,7 @@ function buildCarbonMarkdownExtensions(): AnyExtension[] {
         rel: null,
       },
     }),
-    TableKit,
+    CarbonTable,
     TaskList,
     TaskItem.configure({ nested: true }),
     CarbonImage.configure({ inline: false }),

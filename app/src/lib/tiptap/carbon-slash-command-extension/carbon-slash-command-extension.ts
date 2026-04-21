@@ -63,15 +63,16 @@ function positionPopup(
 ) {
   const rect = clientRect?.();
   if (!rect) return;
+  const popupHeight = Math.min(el.offsetHeight || POPUP_MAX_HEIGHT, POPUP_MAX_HEIGHT);
   const left = Math.max(
     0,
     Math.min(rect.left, window.innerWidth - POPUP_MAX_WIDTH - 8),
   );
   const fitsBelow =
-    rect.bottom + GAP + POPUP_MAX_HEIGHT <= window.innerHeight;
+    rect.bottom + GAP + popupHeight <= window.innerHeight;
   const top = fitsBelow
     ? rect.bottom + GAP
-    : rect.top - POPUP_MAX_HEIGHT - GAP;
+    : rect.top - popupHeight - GAP;
   el.style.left = `${left}px`;
   el.style.top = `${Math.max(0, top)}px`;
 }
