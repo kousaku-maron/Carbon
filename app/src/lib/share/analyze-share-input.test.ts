@@ -79,6 +79,28 @@ describe("analyzeShareInput", () => {
     ]);
   });
 
+  it("treats leading-slash references as vault-absolute paths", () => {
+    const result = analyzeShareInput({
+      noteId: "docs/guide.md",
+      notePath: "/vault/docs/guide.md",
+      vaultPath: "/vault",
+      markdownBody: [
+        "![asset](/.carbon/assets/demo.png)",
+        "[Root note](/root.md)",
+      ].join("\n"),
+    });
+
+    expect(result.localUploads).toHaveLength(1);
+    expect(result.localUploads[0]?.absolutePath).toBe("/vault/.carbon/assets/demo.png");
+    expect(result.metadata.linkManifest).toEqual([
+      {
+        href: "/root.md",
+        kind: "note-link",
+        targetNotePath: "root.md",
+      },
+    ]);
+  });
+
   it("keeps image carbon assets in the manifest without treating them as local uploads", () => {
     const result = analyzeShareInput({
       noteId: "docs/guide.md",

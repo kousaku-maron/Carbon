@@ -10,7 +10,7 @@ import type { AnyExtension, JSONContent } from "@tiptap/core";
 import { TaskItem, TaskList } from "@tiptap/extension-list";
 import { MarkdownManager } from "@tiptap/markdown";
 import StarterKit from "@tiptap/starter-kit";
-import { resolveRelativePath } from "../link-utils";
+import { resolveRelativePath, resolveVaultLocalPath } from "../link-utils";
 import { isPathInside } from "../path-utils";
 import { CarbonCodeBlock } from "./carbon-code-block-extension";
 import { CarbonImage } from "./carbon-image-extension";
@@ -280,9 +280,9 @@ function resolvePdfExportLocalImageUrl(
 ): string | null {
   if (!isPdfExportLocalImageHref(href)) return null;
 
-  const absolutePath = isAbsolutePath(href)
+  const absolutePath = isAbsolutePath(href) && !href.startsWith("/")
     ? href
-    : resolveRelativePath(options.currentNotePath, href);
+    : resolveVaultLocalPath(options.currentNotePath, href, options.vaultPath);
 
   if (!isPathInside(absolutePath, options.vaultPath)) {
     return null;

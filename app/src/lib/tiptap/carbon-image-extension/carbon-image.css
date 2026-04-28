@@ -24,11 +24,6 @@
   outline-offset: 2px;
 }
 
-.note-editor-content .tiptap .carbon-image-embed.carbon-image-uploading {
-  opacity: 0.6;
-  animation: carbon-image-pulse 1.5s ease-in-out infinite;
-}
-
 .note-editor-content .tiptap .carbon-image-expand-btn {
   position: absolute;
   top: var(--editor-media-button-offset, 0.55rem);

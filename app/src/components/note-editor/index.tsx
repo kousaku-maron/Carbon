@@ -15,7 +15,6 @@ import { CarbonSearch } from "../../lib/tiptap/carbon-search-extension";
 import { CarbonSlashCommand } from "../../lib/tiptap/carbon-slash-command-extension";
 import { CarbonVideo } from "../../lib/tiptap/carbon-video-extension";
 import { API_BASE_URL } from "../../lib/api";
-import { ENABLE_CLOUD_IMAGE_UPLOAD } from "../../lib/app-config";
 import { debounce } from "../../lib/debounce";
 import { useCopyFeedback } from "../../lib/hooks/use-copy-feedback";
 import { resolveRelativePath, validateLinkTarget } from "../../lib/link-utils";
@@ -111,6 +110,7 @@ export function NoteEditor(props: NoteEditorProps) {
     onNavigateToNote,
     onLinkError,
     onBufferChange,
+    onSave,
     debouncedSave,
     noteIndex,
   });
@@ -119,11 +119,12 @@ export function NoteEditor(props: NoteEditorProps) {
       onNavigateToNote,
       onLinkError,
       onBufferChange,
+      onSave,
       debouncedSave,
       noteIndex,
     };
     return () => latestRef.current.debouncedSave.cancel();
-  }, [onNavigateToNote, onLinkError, onBufferChange, debouncedSave, noteIndex]);
+  }, [onNavigateToNote, onLinkError, onBufferChange, onSave, debouncedSave, noteIndex]);
 
   useEffect(() => {
     let cancelled = false;
@@ -226,9 +227,17 @@ export function NoteEditor(props: NoteEditorProps) {
         CarbonImage.configure({
           inline: false,
           apiUrl: API_BASE_URL,
-          uploadEnabled: ENABLE_CLOUD_IMAGE_UPLOAD,
+          uploadEnabled: true,
+          vaultPath,
           currentNotePath: note.path,
           onPreviewImage: openImagePreview,
+          onPersistMarkdown: (markdown) => {
+            latestRef.current.debouncedSave.cancel();
+            latestRef.current.onBufferChange?.(note.path, markdown);
+            latestRef.current.onSave(note.path, markdown).catch(() => {
+              console.error(`[NoteEditor] save failed (${note.path})`);
+            });
+          },
         }),
         CarbonVideo.configure({
           currentNotePath: note.path,
@@ -388,7 +397,7 @@ export function NoteEditor(props: NoteEditorProps) {
   }, [editor, note.body, note.id, note.name, note.path, pdfExportPending, vaultPath]);
   const { handleContentDragOver, handleContentDrop } = useImageDropUpload(
     editor,
-    ENABLE_CLOUD_IMAGE_UPLOAD,
+    true,
   );
 
   const handleCopyMarkdown = useCallback(() => {

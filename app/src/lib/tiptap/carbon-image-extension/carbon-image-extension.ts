@@ -3,31 +3,34 @@ import type { ImageOptions } from "@tiptap/extension-image";
 import type { Editor } from "@tiptap/core";
 import { readFile } from "@tauri-apps/plugin-fs";
 import { Plugin, PluginKey } from "@tiptap/pm/state";
-import { Decoration, DecorationSet } from "@tiptap/pm/view";
 import { ReactNodeViewRenderer } from "@tiptap/react";
 import { getImageMimeType, isImagePath } from "../../file-kind";
-import { resolveRelativePath } from "../../link-utils";
+import { resolveVaultLocalPath } from "../../link-utils";
 import { CarbonImageNodeView } from "./carbon-image-node-view";
 import { compressImage } from "./image-compression";
 import { parseAssetUri, buildAssetLoadingImage, buildAssetResolveErrorImage } from "./asset-utils";
-import { uploadAsset, cacheUrl, resolveAndCache } from "./asset-client";
+import { resolveAndCache } from "./asset-client";
+import { saveImageToVaultAssets } from "./local-asset-storage";
 
 export interface CarbonImageOptions extends ImageOptions {
   /** Enable built-in image compression before upload. */
   compress: boolean;
-  /** API base URL. When set, upload and resolve are handled internally. */
+  /** API base URL. When set, carbon://asset references are resolved internally. */
   apiUrl: string | null;
   /** Allow image upload via drag-and-drop / paste. */
   uploadEnabled: boolean;
+  /** Absolute path of the active vault. Dropped images are copied below this path. */
+  vaultPath: string | null;
   /** Absolute path of current note. Used to resolve relative local image paths. */
   currentNotePath: string | null;
   /** Interval (ms) for periodic re-resolve of signed URLs. 0 to disable. */
   resolveInterval: number;
   /** Open a preview modal for the rendered image. */
   onPreviewImage: ((payload: { src: string; alt: string }) => void) | null;
+  /** Persist editor markdown immediately after async local image insertion. */
+  onPersistMarkdown: ((markdown: string) => void) | null;
 }
 
-const uploadDecoPluginKey = new PluginKey<Set<string>>("carbonImageUploadDeco");
 const localResolvePluginKey = new PluginKey("carbonLocalImageResolve");
 
 type ImageEditorStorage = {
@@ -99,8 +102,8 @@ function isLocalImageSource(src: string): boolean {
  * `carbon://asset/...` references. The `src` is a short-lived signed URL
  * for display only.
  *
- * When `apiUrl` is set the extension handles image upload, URL resolution,
- * and periodic signed-URL refresh internally.
+ * Local image inserts are saved into the vault. When `apiUrl` is set, existing
+ * `carbon://asset/...` references are resolved for backward compatibility.
  *
  * Includes custom Markdown parse/serialize rules so that `@tiptap/markdown`
  * can round-trip `carbon://asset/...` URIs without loss.
@@ -114,9 +117,11 @@ export const CarbonImage = Image.extend<CarbonImageOptions>({
       compress: true,
       apiUrl: null,
       uploadEnabled: true,
+      vaultPath: null,
       currentNotePath: null,
       resolveInterval: 4 * 60 * 1000,
       onPreviewImage: null,
+      onPersistMarkdown: null,
     } as CarbonImageOptions;
   },
 
@@ -133,7 +138,13 @@ export const CarbonImage = Image.extend<CarbonImageOptions>({
       resolveTimer: null as ReturnType<typeof setInterval> | null,
       localPreviewUrls: new Set<string>(),
       canUpload(): boolean {
-        return Boolean(extension.options.apiUrl && extension.options.uploadEnabled);
+        return Boolean(
+          extension.options.uploadEnabled &&
+          (
+            extension.options.vaultPath &&
+            extension.options.currentNotePath
+          ),
+        );
       },
 
       async prepareUploadFile(file: File): Promise<File> {
@@ -146,82 +157,53 @@ export const CarbonImage = Image.extend<CarbonImageOptions>({
         }
       },
 
-      /** Insert preview, upload to API, replace with signed URL. */
+      /** Save/insert an image from drag-and-drop or paste. */
       async uploadImage(
         editor: any,
         file: File,
         insertPos?: number,
       ): Promise<void> {
-        const { apiUrl, uploadEnabled } = extension.options;
-        if (!apiUrl || !uploadEnabled) return;
+        const { currentNotePath, uploadEnabled, vaultPath } = extension.options;
+        if (!uploadEnabled) return;
+        if (!vaultPath || !currentNotePath) return;
 
-        const blobUrl = URL.createObjectURL(file);
+        await this.insertLocalImage(editor, file, vaultPath, insertPos);
+      },
 
-        // Insert preview image immediately.
-        const pos = insertPos ?? editor.state.selection.anchor;
-        editor
-          .chain()
-          .focus()
-          .insertContentAt(pos, {
-            type: "image",
-            attrs: {
-              src: blobUrl,
-              alt: file.name,
-              "data-asset-uri": null,
-              "data-asset-error": false,
-            },
-          })
-          .run();
-
-        // Mark this blobUrl as uploading so the decoration plugin shows the overlay.
-        {
-          const tr = editor.state.tr;
-          tr.setMeta(uploadDecoPluginKey, { type: "add", blobUrl });
-          tr.setMeta("addToHistory", false);
-          editor.view.dispatch(tr);
-        }
-
+      async insertLocalImage(
+        editor: any,
+        file: File,
+        vaultPath: string,
+        insertPos?: number,
+      ): Promise<void> {
         try {
-          const result = await uploadAsset(apiUrl, file);
+          const result = await saveImageToVaultAssets({
+            file,
+            vaultPath,
+          });
 
-          // Cache the signed URL for future resolve cycles.
-          cacheUrl(result.assetId, result.signedUrl, result.expiresAt);
-
-          // Replace blob URL with signed URL + set data-asset-uri.
-          // The decoration disappears automatically because src no longer matches.
-          const { doc } = editor.state;
-          let found = false;
-          doc.descendants((node: any, nodePos: number) => {
-            if (found) return false;
-            if (node.type.name === "image" && node.attrs.src === blobUrl) {
-              found = true;
-              const tr = editor.state.tr.setNodeMarkup(nodePos, undefined, {
-                ...node.attrs,
-                src: result.signedUrl,
-                "data-asset-uri": result.assetUri,
+          const pos = insertPos ?? editor.state.selection.anchor;
+          editor
+            .chain()
+            .focus()
+            .insertContentAt(pos, {
+              type: "image",
+              attrs: {
+                src: result.markdownPath,
+                alt: file.name,
+                "data-local-src": result.markdownPath,
+                "data-asset-uri": null,
                 "data-asset-error": false,
-              });
-              tr.setMeta(uploadDecoPluginKey, { type: "remove", blobUrl });
-              editor.view.dispatch(tr);
-              return false;
-            }
-          });
-        } catch (err) {
-          console.error("Image upload failed:", err);
+              },
+            })
+            .run();
 
-          // Remove the failed placeholder image.
-          const { doc } = editor.state;
-          doc.descendants((node: any, nodePos: number) => {
-            if (node.type.name === "image" && node.attrs.src === blobUrl) {
-              const tr = editor.state.tr.delete(nodePos, nodePos + node.nodeSize);
-              tr.setMeta("addToHistory", false);
-              tr.setMeta(uploadDecoPluginKey, { type: "remove", blobUrl });
-              editor.view.dispatch(tr);
-              return false;
-            }
-          });
-        } finally {
-          URL.revokeObjectURL(blobUrl);
+          const markdown = typeof editor.getMarkdown === "function" ? editor.getMarkdown() : "";
+          if (markdown) {
+            extension.options.onPersistMarkdown?.(markdown);
+          }
+        } catch (err) {
+          console.error("Image save failed:", err);
         }
       },
 
@@ -335,8 +317,8 @@ export const CarbonImage = Image.extend<CarbonImageOptions>({
       },
 
       async resolveLocalImages(editor: any): Promise<void> {
-        const { currentNotePath } = extension.options;
-        if (!currentNotePath) return;
+        const { currentNotePath, vaultPath } = extension.options;
+        if (!currentNotePath || !vaultPath) return;
 
         const targets: Array<{
           pos: number;
@@ -361,9 +343,9 @@ export const CarbonImage = Image.extend<CarbonImageOptions>({
             // Already resolved to local blob preview.
             if (src.startsWith("blob:") && localSrcFromAttr) return;
 
-            const absolutePath = isAbsolutePath(localSrc)
+            const absolutePath = isAbsolutePath(localSrc) && !localSrc.startsWith("/")
               ? localSrc
-              : resolveRelativePath(currentNotePath, localSrc);
+              : resolveVaultLocalPath(currentNotePath, localSrc, vaultPath);
             if (!isImagePath(absolutePath)) return;
 
             targets.push({ pos, attrs, localSrc, absolutePath });
@@ -469,7 +451,7 @@ export const CarbonImage = Image.extend<CarbonImageOptions>({
       }),
     );
 
-    if (this.options.apiUrl) {
+    if (this.options.vaultPath && this.options.currentNotePath) {
       const handleImageInsert = (file: File, pos?: number) => {
         void this.storage.uploadImage(this.editor, file, pos);
       };
@@ -481,7 +463,6 @@ export const CarbonImage = Image.extend<CarbonImageOptions>({
           props: {
             handleDrop: (view, event, _slice, moved) => {
               if (moved) return false;
-              if (!this.options.apiUrl) return false;
 
               const files = event.dataTransfer?.files;
               if (!files || files.length === 0) return false;
@@ -508,8 +489,6 @@ export const CarbonImage = Image.extend<CarbonImageOptions>({
               return true;
             },
             handlePaste: (_view, event) => {
-              if (!this.options.apiUrl) return false;
-
               const files = event.clipboardData?.files;
               if (!files || files.length === 0) return false;
 
@@ -527,49 +506,6 @@ export const CarbonImage = Image.extend<CarbonImageOptions>({
                 void this.storage.prepareUploadFile(file).then((f: File) => handleImageInsert(f));
               }
               return true;
-            },
-          },
-        }),
-      );
-
-      // Upload progress decoration.
-      plugins.push(
-        new Plugin({
-          key: uploadDecoPluginKey,
-          state: {
-            init() {
-              return new Set<string>();
-            },
-            apply(tr, prev) {
-              const meta = tr.getMeta(uploadDecoPluginKey) as
-                | { type: "add" | "remove"; blobUrl: string }
-                | undefined;
-              if (!meta) return prev;
-              const next = new Set(prev);
-              if (meta.type === "add") next.add(meta.blobUrl);
-              if (meta.type === "remove") next.delete(meta.blobUrl);
-              return next;
-            },
-          },
-          props: {
-            decorations(state) {
-              const blobUrls = uploadDecoPluginKey.getState(state);
-              if (!blobUrls || blobUrls.size === 0) return DecorationSet.empty;
-              const decos: Decoration[] = [];
-              state.doc.descendants((node, pos) => {
-                if (
-                  node.type.name === "image" &&
-                  typeof node.attrs.src === "string" &&
-                  blobUrls.has(node.attrs.src)
-                ) {
-                  decos.push(
-                    Decoration.node(pos, pos + node.nodeSize, {
-                      class: "carbon-image-uploading",
-                    }),
-                  );
-                }
-              });
-              return DecorationSet.create(state.doc, decos);
             },
           },
         }),

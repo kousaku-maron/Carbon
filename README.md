@@ -85,8 +85,8 @@ cp .env.example .env
 必要に応じて `VITE_API_BASE_URL` を変更してください。  
 通常は開発時 `http://localhost:8787` です。
 
-画像のドラッグ&ドロップ / ペースト時のクラウドアップロードはデフォルトで無効です。  
-有効化したい場合は `app/.env` で `VITE_ENABLE_CLOUD_IMAGE_UPLOAD=true` を指定してください。
+画像のドラッグ&ドロップ / ペースト時は、Vault 内の `.carbon/assets/` に画像ファイルを保存し、ノートには `/.carbon/assets/...` 形式の Vault ルート基準 Markdown 画像リンクを挿入します。  
+既存の `carbon://asset/...` 画像参照の表示解決は互換性のため残しています。
 
 ## 開発起動
 

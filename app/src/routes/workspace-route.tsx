@@ -14,7 +14,6 @@ import { UnsupportedFileViewer } from "../components/UnsupportedFileViewer";
 import { VideoViewer } from "../components/VideoViewer";
 import { VaultSelector } from "../components/VaultSelector";
 import { signOut } from "../lib/api";
-import { ENABLE_CLOUD_IMAGE_UPLOAD } from "../lib/app-config";
 import { isImagePath, isPdfPath, isVideoPath } from "../lib/file-kind";
 import type { NoteViewMode } from "../lib/types";
 import { pickVaultFolder, useVault } from "../lib/vault";
@@ -103,7 +102,6 @@ export function WorkspaceRoute() {
 
       const target = e.target;
       if (
-        ENABLE_CLOUD_IMAGE_UPLOAD &&
         target instanceof Element &&
         target.closest(".tiptap, .ProseMirror")
       ) {

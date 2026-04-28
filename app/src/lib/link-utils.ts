@@ -1,4 +1,4 @@
-import { getParentPath, isPathInside, pathsEqual, toPosix } from "./path-utils";
+import { getParentPath, isPathInside, joinPath, pathsEqual, toPosix } from "./path-utils";
 import type { TreeNode } from "./types";
 
 function splitHashFromHref(href: string): { pathPart: string; hash: string } {
@@ -115,6 +115,27 @@ export function resolveRelativePath(
   }
 
   return buildAbsolutePath(root, segments);
+}
+
+/**
+ * Resolve a local Markdown href for vault files.
+ * A leading slash means vault-root absolute, not filesystem-root absolute.
+ */
+export function resolveVaultLocalPath(
+  currentNotePath: string,
+  href: string,
+  vaultPath: string,
+): string {
+  const { pathPart } = splitHashFromHref(href);
+
+  if (pathPart.startsWith("/") && !pathPart.startsWith("//")) {
+    return pathPart
+      .split("/")
+      .filter(Boolean)
+      .reduce((parent, segment) => joinPath(parent, segment), vaultPath);
+  }
+
+  return resolveRelativePath(currentNotePath, href);
 }
 
 /**

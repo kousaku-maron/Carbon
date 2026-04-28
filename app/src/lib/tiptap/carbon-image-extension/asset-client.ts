@@ -1,14 +1,5 @@
 import { getCachedToken } from "../../api/auth";
 
-// ── Types ──────────────────────────────────────────────────────
-
-export type UploadResult = {
-  assetId: string;
-  assetUri: string;
-  signedUrl: string;
-  expiresAt: string;
-};
-
 type ResolvedAsset = {
   assetId: string;
   url: string;
@@ -51,18 +42,6 @@ async function assetFetch<T>(
   }
 }
 
-// ── Upload ─────────────────────────────────────────────────────
-
-export async function uploadAsset(apiUrl: string, file: Blob): Promise<UploadResult> {
-  const formData = new FormData();
-  formData.append("file", file);
-  return assetFetch<UploadResult>(apiUrl, "/api/assets", {
-    method: "POST",
-    body: formData,
-    timeout: 60_000,
-  });
-}
-
 // ── Resolve ────────────────────────────────────────────────────
 
 async function resolveAssets(apiUrl: string, assetIds: string[]): Promise<ResolvedAsset[]> {
@@ -80,7 +59,7 @@ async function resolveAssets(apiUrl: string, assetIds: string[]): Promise<Resolv
 const urlCache = new Map<string, { url: string; expiresAt: number }>();
 const REFRESH_MARGIN_MS = 60_000;
 
-export function cacheUrl(assetId: string, url: string, expiresAt: string): void {
+function cacheUrl(assetId: string, url: string, expiresAt: string): void {
   urlCache.set(assetId, { url, expiresAt: new Date(expiresAt).getTime() });
 }
 

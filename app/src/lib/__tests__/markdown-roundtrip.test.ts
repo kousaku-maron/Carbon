@@ -110,6 +110,26 @@ describe("Asset image serialization", () => {
       '![with title](https://example.com/image.png "My title")',
     );
   });
+
+  it("persists vault-absolute local image paths", () => {
+    const output = markdownManager.serialize({
+      type: "doc",
+      content: [
+        {
+          type: "image",
+          attrs: {
+            src: "blob:https://example.com/preview-image",
+            alt: "preview",
+            "data-local-src": "/.carbon/assets/demo.png",
+          },
+        },
+      ],
+    });
+
+    expect(normalizeMarkdown(output)).toBe(
+      "![preview](/.carbon/assets/demo.png)",
+    );
+  });
 });
 
 describe("Local video serialization", () => {
@@ -165,6 +185,18 @@ describe("PDF export markdown transform", () => {
 
     expect(normalizeMarkdown(output)).toBe(
       "![agent](file:///vault/notes/Projects/Panasonic/assets/agent_with_current.png)",
+    );
+  });
+
+  it("converts vault-absolute local image markdown into a file URL", () => {
+    const output = transformMarkdownForPdfExport({
+      markdown: "![agent](/.carbon/assets/agent_with_current.png)",
+      currentNotePath: "/vault/notes/daily/today.md",
+      vaultPath: "/vault",
+    });
+
+    expect(normalizeMarkdown(output)).toBe(
+      "![agent](file:///vault/.carbon/assets/agent_with_current.png)",
     );
   });
 

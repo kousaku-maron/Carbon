@@ -1,6 +1,6 @@
 import { resolveShareTitle } from "@carbon/rendering";
 import { getImageMimeType, getVideoMimeType, isImagePath, isMarkdownPath, isPdfPath, isVideoPath } from "../file-kind";
-import { resolveRelativePath } from "../link-utils";
+import { resolveVaultLocalPath } from "../link-utils";
 import { getBaseName, isPathInside } from "../path-utils";
 import type { ShareAnalysis, ShareAssetManifestItem, ShareLinkManifestItem, ShareWarning } from "./types";
 
@@ -36,9 +36,9 @@ function isLocalReference(src: string): boolean {
   return !hasUriScheme(src) || isWindowsAbsolutePath(src);
 }
 
-function resolveLocalAbsolutePath(currentNotePath: string, href: string): string {
-  if (href.startsWith("/") || isWindowsAbsolutePath(href)) return href;
-  return resolveRelativePath(currentNotePath, href);
+function resolveLocalAbsolutePath(currentNotePath: string, href: string, vaultPath: string): string {
+  if (isWindowsAbsolutePath(href)) return href;
+  return resolveVaultLocalPath(currentNotePath, href, vaultPath);
 }
 
 function getMimeType(path: string): string {
@@ -96,7 +96,7 @@ export function analyzeShareInput(options: AnalyzeShareInputOptions): ShareAnaly
   }
 
   function addLocalAsset(sourceRef: string, title: string | null | undefined) {
-    const absolutePath = resolveLocalAbsolutePath(options.notePath, sourceRef);
+    const absolutePath = resolveLocalAbsolutePath(options.notePath, sourceRef, options.vaultPath);
     if (!isPathInside(absolutePath, options.vaultPath)) {
       addWarning({
         code: "OUTSIDE_VAULT_ASSET",
@@ -198,7 +198,7 @@ export function analyzeShareInput(options: AnalyzeShareInputOptions): ShareAnaly
     }
     if (!isLocalReference(href)) continue;
 
-    const absolutePath = resolveLocalAbsolutePath(options.notePath, href);
+    const absolutePath = resolveLocalAbsolutePath(options.notePath, href, options.vaultPath);
     if (!isPathInside(absolutePath, options.vaultPath)) {
       addWarning({
         code: "OUTSIDE_VAULT_LINK",
