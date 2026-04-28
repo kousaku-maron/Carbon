@@ -3,12 +3,19 @@ import { readFile } from "@tauri-apps/plugin-fs";
 import { Plugin, PluginKey } from "@tiptap/pm/state";
 import { ReactNodeViewRenderer } from "@tiptap/react";
 import { getVideoMimeType, isVideoPath } from "../../file-kind";
-import { resolveRelativePath } from "../../link-utils";
+import { resolveVaultLocalPath } from "../../link-utils";
+import { saveFileToVaultAssets } from "../vault-asset-storage";
 import { CarbonVideoNodeView } from "./carbon-video-node-view";
 
 export interface CarbonVideoOptions {
+  /** Allow video insertion via drag-and-drop / paste. */
+  uploadEnabled: boolean;
+  /** Absolute path of the active vault. Dropped videos are copied below this path. */
+  vaultPath: string | null;
   /** Absolute path of current note. Used to resolve relative local video paths. */
   currentNotePath: string | null;
+  /** Persist editor markdown immediately after async local video insertion. */
+  onPersistMarkdown: ((markdown: string) => void) | null;
   onPreviewVideo: ((payload: {
     src: string;
     title: string;
@@ -82,7 +89,10 @@ export const CarbonVideo = Node.create<CarbonVideoOptions>({
 
   addOptions() {
     return {
+      uploadEnabled: true,
+      vaultPath: null,
       currentNotePath: null,
+      onPersistMarkdown: null,
       onPreviewVideo: null,
     } as CarbonVideoOptions;
   },
@@ -93,9 +103,56 @@ export const CarbonVideo = Node.create<CarbonVideoOptions>({
     return {
       localPreviewUrls: new Set<string>(),
 
+      canInsertAsset(): boolean {
+        return Boolean(
+          extension.options.uploadEnabled &&
+          extension.options.vaultPath &&
+          extension.options.currentNotePath,
+        );
+      },
+
+      async insertVideoAsset(
+        editor: any,
+        file: File,
+        insertPos?: number,
+      ): Promise<void> {
+        const { uploadEnabled, vaultPath } = extension.options;
+        if (!uploadEnabled || !vaultPath) return;
+
+        try {
+          const result = await saveFileToVaultAssets({
+            file,
+            vaultPath,
+          });
+
+          const title = file.name || getPathLabel(result.markdownPath);
+          const pos = insertPos ?? editor.state.selection.anchor;
+          editor
+            .chain()
+            .focus()
+            .insertContentAt(pos, {
+              type: "video",
+              attrs: {
+                src: result.markdownPath,
+                title,
+                "data-local-src": result.markdownPath,
+                "data-local-error": false,
+              },
+            })
+            .run();
+
+          const markdown = typeof editor.getMarkdown === "function" ? editor.getMarkdown() : "";
+          if (markdown) {
+            extension.options.onPersistMarkdown?.(markdown);
+          }
+        } catch (err) {
+          console.error("Video save failed:", err);
+        }
+      },
+
       async resolveLocalVideos(editor: any): Promise<void> {
-        const { currentNotePath } = extension.options;
-        if (!currentNotePath) return;
+        const { currentNotePath, vaultPath } = extension.options;
+        if (!currentNotePath || !vaultPath) return;
 
         const targets: Array<{
           pos: number;
@@ -119,9 +176,9 @@ export const CarbonVideo = Node.create<CarbonVideoOptions>({
 
             if (src.startsWith("blob:") && localSrcFromAttr) return;
 
-            const absolutePath = isAbsolutePath(localSrc)
+            const absolutePath = isAbsolutePath(localSrc) && !localSrc.startsWith("/")
               ? localSrc
-              : resolveRelativePath(currentNotePath, localSrc);
+              : resolveVaultLocalPath(currentNotePath, localSrc, vaultPath);
             if (!isVideoPath(absolutePath)) return;
 
             targets.push({ pos, attrs, localSrc, absolutePath });
@@ -239,9 +296,49 @@ export const CarbonVideo = Node.create<CarbonVideoOptions>({
           };
         },
         props: {
+          handleDrop: (view, event, _slice, moved) => {
+            if (moved) return false;
+
+            const files = event.dataTransfer?.files;
+            if (!files || files.length === 0) return false;
+
+            const videoFiles = Array.from(files).filter((file) =>
+              file.type.startsWith("video/") || isVideoPath(file.name),
+            );
+            if (videoFiles.length === 0) return false;
+            if (!this.storage.canInsertAsset()) {
+              event.preventDefault();
+              return true;
+            }
+
+            event.preventDefault();
+            const dropPos = view.posAtCoords({
+              left: event.clientX,
+              top: event.clientY,
+            })?.pos;
+            for (const file of videoFiles) {
+              void this.storage.insertVideoAsset(this.editor, file, dropPos);
+            }
+            return true;
+          },
           handlePaste: (view, event) => {
             const files = event.clipboardData?.files;
-            if (files && files.length > 0) return false;
+            if (files && files.length > 0) {
+              const videoFiles = Array.from(files).filter((file) =>
+                file.type.startsWith("video/") || isVideoPath(file.name),
+              );
+              if (videoFiles.length === 0) return false;
+              if (!this.storage.canInsertAsset()) {
+                event.preventDefault();
+                return true;
+              }
+
+              event.preventDefault();
+              for (const file of videoFiles) {
+                void this.storage.insertVideoAsset(this.editor, file);
+              }
+              return true;
+            }
 
             const text = event.clipboardData?.getData("text/plain")?.trim();
             if (!text || text.includes("\n")) return false;

@@ -35,7 +35,7 @@ import { Toast } from "../Toast";
 import { useTableControls } from "./use-table-controls";
 import { useNoteSearch } from "./use-note-search";
 import { useEditorZoom } from "./use-editor-zoom";
-import { useImageDropUpload } from "./use-image-drop-upload";
+import { useAssetDropInsert } from "./use-asset-drop-insert";
 import { useMediaPreview } from "./use-media-preview";
 
 type NoteEditorProps = {
@@ -240,7 +240,16 @@ export function NoteEditor(props: NoteEditorProps) {
           },
         }),
         CarbonVideo.configure({
+          uploadEnabled: true,
+          vaultPath,
           currentNotePath: note.path,
+          onPersistMarkdown: (markdown) => {
+            latestRef.current.debouncedSave.cancel();
+            latestRef.current.onBufferChange?.(note.path, markdown);
+            latestRef.current.onSave(note.path, markdown).catch(() => {
+              console.error(`[NoteEditor] save failed (${note.path})`);
+            });
+          },
           onPreviewVideo: openVideoPreview,
         }),
         CarbonPdf.configure({
@@ -395,7 +404,7 @@ export function NoteEditor(props: NoteEditorProps) {
       setPdfExportPending(false);
     }
   }, [editor, note.body, note.id, note.name, note.path, pdfExportPending, vaultPath]);
-  const { handleContentDragOver, handleContentDrop } = useImageDropUpload(
+  const { handleContentDragOver, handleContentDrop } = useAssetDropInsert(
     editor,
     true,
   );

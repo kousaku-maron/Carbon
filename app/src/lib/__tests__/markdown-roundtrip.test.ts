@@ -152,6 +152,26 @@ describe("Local video serialization", () => {
       ':::video {src="../assets/demo.mp4" title="demo.mp4"} :::',
     );
   });
+
+  it("persists vault-absolute local video paths", () => {
+    const output = markdownManager.serialize({
+      type: "doc",
+      content: [
+        {
+          type: "video",
+          attrs: {
+            src: "blob:https://example.com/preview-video",
+            title: "demo.mp4",
+            "data-local-src": "/.carbon/assets/demo.mp4",
+          },
+        },
+      ],
+    });
+
+    expect(normalizeMarkdown(output)).toBe(
+      ':::video {src="/.carbon/assets/demo.mp4" title="demo.mp4"} :::',
+    );
+  });
 });
 
 describe("Local PDF serialization", () => {

@@ -1,6 +1,5 @@
 import Image from "@tiptap/extension-image";
 import type { ImageOptions } from "@tiptap/extension-image";
-import type { Editor } from "@tiptap/core";
 import { readFile } from "@tauri-apps/plugin-fs";
 import { Plugin, PluginKey } from "@tiptap/pm/state";
 import { ReactNodeViewRenderer } from "@tiptap/react";
@@ -10,7 +9,7 @@ import { CarbonImageNodeView } from "./carbon-image-node-view";
 import { compressImage } from "./image-compression";
 import { parseAssetUri, buildAssetLoadingImage, buildAssetResolveErrorImage } from "./asset-utils";
 import { resolveAndCache } from "./asset-client";
-import { saveImageToVaultAssets } from "./local-asset-storage";
+import { saveFileToVaultAssets } from "../vault-asset-storage";
 
 export interface CarbonImageOptions extends ImageOptions {
   /** Enable built-in image compression before upload. */
@@ -32,48 +31,6 @@ export interface CarbonImageOptions extends ImageOptions {
 }
 
 const localResolvePluginKey = new PluginKey("carbonLocalImageResolve");
-
-type ImageEditorStorage = {
-  canUpload?: () => boolean;
-  prepareUploadFile?: (file: File) => Promise<File>;
-  uploadImage?: (editor: Editor, file: File, pos?: number) => Promise<void>;
-};
-
-export function getDroppedImageFiles(
-  files: ArrayLike<File> | Iterable<File> | null | undefined,
-): File[] {
-  if (!files) return [];
-  return Array.from(files).filter((file) => file.type.startsWith("image/"));
-}
-
-export function hasDroppedImageFiles(
-  dataTransfer: Pick<DataTransfer, "files"> | null | undefined,
-): boolean {
-  return getDroppedImageFiles(dataTransfer?.files).length > 0;
-}
-
-export async function appendDroppedImages(
-  editor: Editor,
-  files: ArrayLike<File> | Iterable<File> | null | undefined,
-): Promise<boolean> {
-  const imageFiles = getDroppedImageFiles(files);
-  if (imageFiles.length === 0) return false;
-
-  const imageStorage = (editor.storage as { image?: ImageEditorStorage }).image;
-  if (!imageStorage?.canUpload?.()) return false;
-  if (!imageStorage?.uploadImage) return false;
-
-  const insertPos = editor.state.doc.content.size;
-  const prepareUploadFile =
-    imageStorage.prepareUploadFile ?? ((file: File) => Promise.resolve(file));
-
-  for (const file of imageFiles) {
-    const preparedFile = await prepareUploadFile(file);
-    await imageStorage.uploadImage(editor, preparedFile, insertPos);
-  }
-
-  return true;
-}
 
 function isWindowsAbsolutePath(path: string): boolean {
   return /^[A-Za-z]:[\\/]/.test(path);
@@ -177,7 +134,7 @@ export const CarbonImage = Image.extend<CarbonImageOptions>({
         insertPos?: number,
       ): Promise<void> {
         try {
-          const result = await saveImageToVaultAssets({
+          const result = await saveFileToVaultAssets({
             file,
             vaultPath,
           });

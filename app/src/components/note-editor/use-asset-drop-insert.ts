@@ -1,15 +1,15 @@
 import type { Editor } from "@tiptap/core";
 import { type DragEvent as ReactDragEvent, useCallback } from "react";
-import { appendDroppedImages, hasDroppedImageFiles } from "../../lib/tiptap/carbon-image-extension";
+import { appendDroppedAssets, hasDroppedAssetFiles } from "../../lib/tiptap/asset-drop";
 
 function isEditorContentTarget(target: EventTarget | null) {
   return target instanceof Element && target.closest(".tiptap, .ProseMirror");
 }
 
-export function useImageDropUpload(editor: Editor | null, enabled: boolean) {
+export function useAssetDropInsert(editor: Editor | null, enabled: boolean) {
   const handleContentDragOver = useCallback((event: ReactDragEvent<HTMLDivElement>) => {
     if (!enabled) {
-      if (hasDroppedImageFiles(event.dataTransfer)) {
+      if (hasDroppedAssetFiles(event.dataTransfer)) {
         event.preventDefault();
         event.dataTransfer.dropEffect = "none";
       }
@@ -19,7 +19,7 @@ export function useImageDropUpload(editor: Editor | null, enabled: boolean) {
       return;
     }
 
-    if (!hasDroppedImageFiles(event.dataTransfer)) return;
+    if (!hasDroppedAssetFiles(event.dataTransfer)) return;
 
     event.preventDefault();
     event.dataTransfer.dropEffect = "copy";
@@ -27,7 +27,7 @@ export function useImageDropUpload(editor: Editor | null, enabled: boolean) {
 
   const handleContentDrop = useCallback((event: ReactDragEvent<HTMLDivElement>) => {
     if (!enabled) {
-      if (hasDroppedImageFiles(event.dataTransfer)) {
+      if (hasDroppedAssetFiles(event.dataTransfer)) {
         event.preventDefault();
       }
       return;
@@ -37,10 +37,10 @@ export function useImageDropUpload(editor: Editor | null, enabled: boolean) {
       return;
     }
 
-    if (!hasDroppedImageFiles(event.dataTransfer)) return;
+    if (!hasDroppedAssetFiles(event.dataTransfer)) return;
 
     event.preventDefault();
-    void appendDroppedImages(editor, event.dataTransfer?.files);
+    void appendDroppedAssets(editor, event.dataTransfer?.files);
   }, [editor, enabled]);
 
   return {
