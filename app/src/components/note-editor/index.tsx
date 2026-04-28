@@ -253,7 +253,16 @@ export function NoteEditor(props: NoteEditorProps) {
           onPreviewVideo: openVideoPreview,
         }),
         CarbonPdf.configure({
+          uploadEnabled: true,
+          vaultPath,
           currentNotePath: note.path,
+          onPersistMarkdown: (markdown) => {
+            latestRef.current.debouncedSave.cancel();
+            latestRef.current.onBufferChange?.(note.path, markdown);
+            latestRef.current.onSave(note.path, markdown).catch(() => {
+              console.error(`[NoteEditor] save failed (${note.path})`);
+            });
+          },
           onPreviewPdf: openPdfPreview,
         }),
         CarbonSearch,
@@ -605,6 +614,7 @@ export function NoteEditor(props: NoteEditorProps) {
         />
       ) : null}
       <MediaPreviewHost
+        vaultPath={vaultPath}
         notePath={note.path}
         preview={preview}
         videoPreviewRef={videoPreviewRef}

@@ -1,11 +1,12 @@
 import { readFile } from "@tauri-apps/plugin-fs";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { PDFDocumentProxy, RenderTask } from "pdfjs-dist";
-import { resolveRelativePath } from "../lib/link-utils";
+import { resolveRelativePath, resolveVaultLocalPath } from "../lib/link-utils";
 
 type PdfDeckProps = {
   sourcePath: string;
   currentNotePath?: string | null;
+  vaultPath?: string | null;
   compact?: boolean;
   darkBackground?: boolean;
   onDarkBackgroundChange?: (value: boolean) => void;
@@ -30,8 +31,16 @@ function isAbsolutePath(path: string): boolean {
   return path.startsWith("/") || isWindowsAbsolutePath(path);
 }
 
-function resolveSourcePath(sourcePath: string, currentNotePath: string | null | undefined): string | null {
+function resolveSourcePath(
+  sourcePath: string,
+  currentNotePath: string | null | undefined,
+  vaultPath: string | null | undefined,
+): string | null {
   if (!sourcePath) return null;
+  if (isWindowsAbsolutePath(sourcePath)) return sourcePath;
+  if (sourcePath.startsWith("/") && vaultPath && currentNotePath) {
+    return resolveVaultLocalPath(currentNotePath, sourcePath, vaultPath);
+  }
   if (isAbsolutePath(sourcePath)) return sourcePath;
   if (!currentNotePath) return null;
   return resolveRelativePath(currentNotePath, sourcePath);
@@ -89,6 +98,7 @@ export function PdfDeck(props: PdfDeckProps) {
   const {
     sourcePath,
     currentNotePath = null,
+    vaultPath = null,
     compact = false,
     darkBackground: controlledDarkBackground,
     onDarkBackgroundChange,
@@ -97,8 +107,8 @@ export function PdfDeck(props: PdfDeckProps) {
     onCompactPageChange,
   } = props;
   const resolvedPath = useMemo(
-    () => resolveSourcePath(sourcePath, currentNotePath),
-    [currentNotePath, sourcePath],
+    () => resolveSourcePath(sourcePath, currentNotePath, vaultPath),
+    [currentNotePath, sourcePath, vaultPath],
   );
   const canvasRefs = useRef(new Map<number, HTMLCanvasElement>());
   const renderTasksRef = useRef(new Map<number, RenderTask>());

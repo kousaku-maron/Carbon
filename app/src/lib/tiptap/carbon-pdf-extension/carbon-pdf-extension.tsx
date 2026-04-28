@@ -4,9 +4,13 @@ import { NodeViewWrapper, ReactNodeViewRenderer } from "@tiptap/react";
 import { useState } from "react";
 import { PdfDeck } from "../../../components/PdfDeck";
 import { isPdfPath } from "../../file-kind";
+import { saveFileToVaultAssets } from "../vault-asset-storage";
 
 export interface CarbonPdfOptions {
+  uploadEnabled: boolean;
+  vaultPath: string | null;
   currentNotePath: string | null;
+  onPersistMarkdown: ((markdown: string) => void) | null;
   onPreviewPdf: ((payload: {
     src: string;
     title: string;
@@ -73,6 +77,7 @@ function CarbonPdfNodeView(props: {
         <PdfDeck
           sourcePath={src}
           currentNotePath={props.extension.options.currentNotePath}
+          vaultPath={props.extension.options.vaultPath}
           compact
           compactPage={currentPage}
           onCompactPageChange={setCurrentPage}
@@ -103,9 +108,63 @@ export const CarbonPdf = Node.create<CarbonPdfOptions>({
 
   addOptions() {
     return {
+      uploadEnabled: true,
+      vaultPath: null,
       currentNotePath: null,
+      onPersistMarkdown: null,
       onPreviewPdf: null,
     } as CarbonPdfOptions;
+  },
+
+  addStorage() {
+    const extension = this;
+
+    return {
+      canInsertAsset(): boolean {
+        return Boolean(
+          extension.options.uploadEnabled &&
+          extension.options.vaultPath &&
+          extension.options.currentNotePath,
+        );
+      },
+
+      async insertPdfAsset(
+        editor: any,
+        file: File,
+        insertPos?: number,
+      ): Promise<void> {
+        const { uploadEnabled, vaultPath } = extension.options;
+        if (!uploadEnabled || !vaultPath) return;
+
+        try {
+          const result = await saveFileToVaultAssets({
+            file,
+            vaultPath,
+          });
+
+          const title = file.name || getPathLabel(result.markdownPath);
+          const pos = insertPos ?? editor.state.selection.anchor;
+          editor
+            .chain()
+            .focus()
+            .insertContentAt(pos, {
+              type: "pdf",
+              attrs: {
+                src: result.markdownPath,
+                title,
+              },
+            })
+            .run();
+
+          const markdown = typeof editor.getMarkdown === "function" ? editor.getMarkdown() : "";
+          if (markdown) {
+            extension.options.onPersistMarkdown?.(markdown);
+          }
+        } catch (err) {
+          console.error("PDF save failed:", err);
+        }
+      },
+    };
   },
 
   addAttributes() {
@@ -136,9 +195,49 @@ export const CarbonPdf = Node.create<CarbonPdfOptions>({
       new Plugin({
         key: localPastePluginKey,
         props: {
+          handleDrop: (view, event, _slice, moved) => {
+            if (moved) return false;
+
+            const files = event.dataTransfer?.files;
+            if (!files || files.length === 0) return false;
+
+            const pdfFiles = Array.from(files).filter((file) =>
+              file.type === "application/pdf" || isPdfPath(file.name),
+            );
+            if (pdfFiles.length === 0) return false;
+            if (!this.storage.canInsertAsset()) {
+              event.preventDefault();
+              return true;
+            }
+
+            event.preventDefault();
+            const dropPos = view.posAtCoords({
+              left: event.clientX,
+              top: event.clientY,
+            })?.pos;
+            for (const file of pdfFiles) {
+              void this.storage.insertPdfAsset(this.editor, file, dropPos);
+            }
+            return true;
+          },
           handlePaste: (view, event) => {
             const files = event.clipboardData?.files;
-            if (files && files.length > 0) return false;
+            if (files && files.length > 0) {
+              const pdfFiles = Array.from(files).filter((file) =>
+                file.type === "application/pdf" || isPdfPath(file.name),
+              );
+              if (pdfFiles.length === 0) return false;
+              if (!this.storage.canInsertAsset()) {
+                event.preventDefault();
+                return true;
+              }
+
+              event.preventDefault();
+              for (const file of pdfFiles) {
+                void this.storage.insertPdfAsset(this.editor, file);
+              }
+              return true;
+            }
 
             const text = event.clipboardData?.getData("text/plain")?.trim();
             if (!text || text.includes("\n")) return false;
@@ -156,10 +255,6 @@ export const CarbonPdf = Node.create<CarbonPdfOptions>({
         },
       }),
     ];
-  },
-
-  addStorage() {
-    return {};
   },
 
   markdownTokenName: "pdf",

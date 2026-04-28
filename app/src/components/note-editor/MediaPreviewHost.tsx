@@ -2,6 +2,7 @@ import { PdfDeck } from "../PdfDeck";
 import type { MediaPreview } from "./use-media-preview";
 
 type MediaPreviewHostProps = {
+  vaultPath: string;
   notePath: string;
   preview: MediaPreview;
   videoPreviewRef: { current: HTMLVideoElement | null };
@@ -10,7 +11,7 @@ type MediaPreviewHostProps = {
 };
 
 export function MediaPreviewHost(props: MediaPreviewHostProps) {
-  const { notePath, preview, videoPreviewRef, onClose, onPdfPageChange } = props;
+  const { vaultPath, notePath, preview, videoPreviewRef, onClose, onPdfPageChange } = props;
 
   if (!preview) return null;
 
@@ -58,6 +59,7 @@ export function MediaPreviewHost(props: MediaPreviewHostProps) {
           <PdfDeck
             sourcePath={preview.src}
             currentNotePath={notePath}
+            vaultPath={vaultPath}
             compact
             compactPage={preview.currentPage}
             onCompactPageChange={onPdfPageChange}

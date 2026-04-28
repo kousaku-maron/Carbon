@@ -14,6 +14,7 @@ function getAssetExtension(file: File): string {
   if (file.type === "video/webm") return "webm";
   if (file.type === "video/quicktime") return "mov";
   if (file.type === "video/ogg") return "ogv";
+  if (file.type === "application/pdf") return "pdf";
   const extension = getBaseName(file.name).match(/\.([A-Za-z0-9]+)$/)?.[1]?.toLowerCase();
   if (extension) return extension;
   return "bin";

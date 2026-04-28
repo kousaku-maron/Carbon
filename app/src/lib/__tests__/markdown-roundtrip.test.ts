@@ -193,6 +193,25 @@ describe("Local PDF serialization", () => {
       ':::pdf {src="../docs/demo.pdf" title="demo.pdf"} :::',
     );
   });
+
+  it("persists vault-absolute local pdf paths", () => {
+    const output = markdownManager.serialize({
+      type: "doc",
+      content: [
+        {
+          type: "pdf",
+          attrs: {
+            src: "/.carbon/assets/demo.pdf",
+            title: "demo.pdf",
+          },
+        },
+      ],
+    });
+
+    expect(normalizeMarkdown(output)).toBe(
+      ':::pdf {src="/.carbon/assets/demo.pdf" title="demo.pdf"} :::',
+    );
+  });
 });
 
 describe("PDF export markdown transform", () => {
