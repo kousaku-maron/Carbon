@@ -1,6 +1,9 @@
 import {
   CARBON_PROSE_CLASS,
   CARBON_ICON_PNG_DATA_URL,
+  CARBON_MERMAID_FALLBACK_CLASS,
+  CARBON_MERMAID_NODE_CLASS,
+  CARBON_MERMAID_SOURCE_CLASS,
   SHARE_OG_IMAGE_HEIGHT,
   SHARE_OG_IMAGE_WIDTH,
   buildRenderedMarkdownHtml,
@@ -40,6 +43,7 @@ function buildDocumentTemplate(
   noteTitle: string,
   markdownBody: string,
   bodyHtml: string,
+  mode: "share" | "pdf",
   publicUrl?: string | null,
   ogImageUrl?: string | null,
 ): string {
@@ -60,6 +64,45 @@ function buildDocumentTemplate(
     <meta property="og:image:height" content="${SHARE_OG_IMAGE_HEIGHT}" />
     <meta property="og:image:alt" content="${escapeAttr(pageTitle)}" />
     <meta name="twitter:image" content="${escapeAttr(ogImageUrl)}" />`
+    : "";
+  const mermaidScript = mode === "share" && bodyHtml.includes(CARBON_MERMAID_NODE_CLASS)
+    ? `
+    <script type="module">
+      const nodes = document.querySelectorAll(".${CARBON_MERMAID_NODE_CLASS}");
+      if (nodes.length > 0) {
+        import("https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs")
+          .then(({ default: mermaid }) => {
+            mermaid.initialize({
+              startOnLoad: false,
+              securityLevel: "strict",
+              htmlLabels: false,
+            });
+
+            nodes.forEach((node, index) => {
+              const source = node.querySelector(".${CARBON_MERMAID_SOURCE_CLASS}")?.textContent ?? "";
+              const fallback = node.querySelector(".${CARBON_MERMAID_FALLBACK_CLASS}");
+              if (!source.trim()) return;
+
+              mermaid.render(\`carbon-share-mermaid-\${index}\`, source)
+                .then(({ svg }) => {
+                  node.insertAdjacentHTML("afterbegin", svg);
+                  node.classList.add("is-rendered");
+                })
+                .catch((error) => {
+                  if (fallback) {
+                    fallback.textContent = error instanceof Error ? error.message : "Mermaid diagram could not be rendered.";
+                  }
+                });
+            });
+          })
+          .catch(() => {
+            nodes.forEach((node) => {
+              const fallback = node.querySelector(".${CARBON_MERMAID_FALLBACK_CLASS}");
+              if (fallback) fallback.textContent = "Mermaid renderer could not be loaded.";
+            });
+          });
+      }
+    </script>`
     : "";
 
   return `<!doctype html>
@@ -113,6 +156,7 @@ ${ogImageMeta}
 ${bodyHtml}
       </article>
     </main>
+${mermaidScript}
   </body>
 </html>`;
 }
@@ -246,6 +290,7 @@ export function buildRenderedHtml(input: {
       links: input.links,
       mode: input.mode ?? "share",
     }),
+    input.mode ?? "share",
     input.publicUrl,
     input.ogImageUrl,
   );

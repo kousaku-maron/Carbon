@@ -14,6 +14,9 @@ import {
   CARBON_MISSING_ASSET_CLASS,
   CARBON_MISSING_IMAGE_ASSET_CLASS,
   CARBON_MISSING_LINK_CLASS,
+  CARBON_MERMAID_FALLBACK_CLASS,
+  CARBON_MERMAID_NODE_CLASS,
+  CARBON_MERMAID_SOURCE_CLASS,
   CARBON_PDF_FRAME_CLASS,
   CARBON_PDF_NODE_CLASS,
   CARBON_PROSE_CLASS,
@@ -127,6 +130,36 @@ export const carbonProseCss = `
   padding: 0.15rem 0.35rem;
   border-radius: 4px;
   color: #eb5757;
+}
+
+.${CARBON_PROSE_CLASS} .${CARBON_MERMAID_NODE_CLASS} {
+  margin: 0.9rem 0;
+  padding: 1rem;
+  border: 1px solid #e3e2e0;
+  border-radius: 7px;
+  background: #ffffff;
+  overflow-x: auto;
+}
+
+.${CARBON_PROSE_CLASS} .${CARBON_MERMAID_NODE_CLASS} svg {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin: 0 auto;
+}
+
+.${CARBON_PROSE_CLASS} .${CARBON_MERMAID_SOURCE_CLASS} {
+  display: none;
+}
+
+.${CARBON_PROSE_CLASS} .${CARBON_MERMAID_FALLBACK_CLASS} {
+  color: #9b3b36;
+  font-size: 0.84rem;
+  text-align: center;
+}
+
+.${CARBON_PROSE_CLASS} .${CARBON_MERMAID_NODE_CLASS}.is-rendered .${CARBON_MERMAID_FALLBACK_CLASS} {
+  display: none;
 }
 
 .${CARBON_PROSE_CLASS} hr {

@@ -8,6 +8,9 @@ import {
   CARBON_MISSING_ASSET_CLASS,
   CARBON_MISSING_IMAGE_ASSET_CLASS,
   CARBON_MISSING_LINK_CLASS,
+  CARBON_MERMAID_FALLBACK_CLASS,
+  CARBON_MERMAID_NODE_CLASS,
+  CARBON_MERMAID_SOURCE_CLASS,
 } from "@carbon/rendering";
 import { buildRenderedHtml, buildRevokedHtml } from "./share-render";
 
@@ -91,6 +94,36 @@ describe("buildRenderedHtml", () => {
     expect(html).toContain("<div><p>Parent</p><ul data-type=\"taskList\">");
     expect(html).toContain('<li data-checked="true">');
     expect(html).toContain("<div><p>Child</p></div>");
+  });
+
+  it("renders mermaid code fences as diagrams on share pages", () => {
+    const html = buildRenderedHtml({
+      title: "Spec",
+      markdownBody: "```mermaid\ngraph TD\n  A[Start] --> B[Done]\n```",
+      assets: [],
+      links: [],
+    });
+
+    expect(html).toContain(`class="${CARBON_MERMAID_NODE_CLASS}"`);
+    expect(html).toContain(`class="${CARBON_MERMAID_SOURCE_CLASS}"`);
+    expect(html).toContain(`class="${CARBON_MERMAID_FALLBACK_CLASS}"`);
+    expect(html).toContain("graph TD");
+    expect(html).toContain("cdn.jsdelivr.net/npm/mermaid@11");
+    expect(html).not.toContain("<pre><code class=\"language-mermaid\">");
+  });
+
+  it("keeps mermaid code fences as source in pdf mode", () => {
+    const html = buildRenderedHtml({
+      title: "Spec",
+      markdownBody: "```mermaid\ngraph TD\n  A --> B\n```",
+      assets: [],
+      links: [],
+      mode: "pdf",
+    });
+
+    expect(html).toContain('<pre><code class="language-mermaid">graph TD');
+    expect(html).not.toContain(`class="${CARBON_MERMAID_NODE_CLASS}"`);
+    expect(html).not.toContain("cdn.jsdelivr.net/npm/mermaid@11");
   });
 
   it("renders pdf directives as download cards", () => {

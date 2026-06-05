@@ -15,6 +15,9 @@ import {
   CARBON_MISSING_ASSET_CLASS,
   CARBON_MISSING_IMAGE_ASSET_CLASS,
   CARBON_MISSING_LINK_CLASS,
+  CARBON_MERMAID_FALLBACK_CLASS,
+  CARBON_MERMAID_NODE_CLASS,
+  CARBON_MERMAID_SOURCE_CLASS,
   CARBON_PDF_FRAME_CLASS,
   CARBON_PDF_NODE_CLASS,
   CARBON_SHARE_DOWNLOAD_CLASS,
@@ -110,6 +113,19 @@ function renderMissingAsset(kind: string, label: string): string {
   }
 
   return `<div class="${CARBON_MISSING_ASSET_CLASS}">${safeLabel}</div>`;
+}
+
+function isMermaidLanguage(language: string | undefined): boolean {
+  return language?.trim().toLowerCase() === "mermaid";
+}
+
+function renderMermaidBlock(source: string, mode: RenderMode): string {
+  const escapedSource = escapeHtml(source);
+  if (mode === "pdf") {
+    return `<pre><code class="language-mermaid">${escapedSource}</code></pre>`;
+  }
+
+  return `<div class="${CARBON_MERMAID_NODE_CLASS}"><pre class="${CARBON_MERMAID_SOURCE_CLASS}">${escapedSource}</pre><div class="${CARBON_MERMAID_FALLBACK_CLASS}">Mermaid diagram could not be rendered.</div></div>`;
 }
 
 function renderCardAction(input: {
@@ -346,6 +362,15 @@ export function buildRenderedMarkdownHtml(input: BuildRenderedMarkdownHtmlInput)
     const checked = item.checked === true;
     const contentHtml = renderTaskListItemContent(item.tokens, renderer);
     return `<li data-checked="${checked ? "true" : "false"}"><label><input type="checkbox"${checked ? " checked" : ""} disabled /><span></span></label><div>${contentHtml}</div></li>`;
+  };
+
+  renderer.code = ({ text, lang }) => {
+    if (isMermaidLanguage(lang)) {
+      return renderMermaidBlock(text, mode);
+    }
+
+    const languageClass = lang ? ` class="language-${escapeAttr(lang)}"` : "";
+    return `<pre><code${languageClass}>${escapeHtml(text)}</code></pre>`;
   };
 
   renderer.link = ({ href, title, tokens }) => {
