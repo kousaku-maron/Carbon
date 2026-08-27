@@ -53,6 +53,119 @@ describe("Markdown round-trip fixtures", () => {
   });
 });
 
+describe("Table cell line breaks", () => {
+  it("parses and serializes br markup as a hard break", () => {
+    const parsed = markdownManager.parse(
+      "| A | B |\n| --- | --- |\n| one<br>two | x |",
+    );
+    const inlineContent =
+      parsed.content?.[0]?.content?.[1]?.content?.[0]?.content?.[0]?.content;
+
+    expect(inlineContent).toEqual([
+      { type: "text", text: "one" },
+      { type: "hardBreak" },
+      { type: "text", text: "two" },
+    ]);
+    expect(normalizeMarkdown(markdownManager.serialize(parsed))).toContain(
+      "one<br>two",
+    );
+  });
+
+  it("serializes an editor hard break without collapsing it to a space", () => {
+    const output = markdownManager.serialize({
+      type: "doc",
+      content: [
+        {
+          type: "table",
+          content: [
+            {
+              type: "tableRow",
+              content: [
+                {
+                  type: "tableHeader",
+                  content: [
+                    {
+                      type: "paragraph",
+                      content: [{ type: "text", text: "A" }],
+                    },
+                  ],
+                },
+              ],
+            },
+            {
+              type: "tableRow",
+              content: [
+                {
+                  type: "tableCell",
+                  content: [
+                    {
+                      type: "paragraph",
+                      content: [
+                        { type: "text", text: "one" },
+                        { type: "hardBreak" },
+                        { type: "text", text: "two" },
+                      ],
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(normalizeMarkdown(output)).toContain("one<br>two");
+  });
+
+  it("serializes separate cell blocks as a line break", () => {
+    const output = markdownManager.serialize({
+      type: "doc",
+      content: [
+        {
+          type: "table",
+          content: [
+            {
+              type: "tableRow",
+              content: [
+                {
+                  type: "tableHeader",
+                  content: [
+                    {
+                      type: "paragraph",
+                      content: [{ type: "text", text: "A" }],
+                    },
+                  ],
+                },
+              ],
+            },
+            {
+              type: "tableRow",
+              content: [
+                {
+                  type: "tableCell",
+                  content: [
+                    {
+                      type: "paragraph",
+                      content: [{ type: "text", text: "one" }],
+                    },
+                    {
+                      type: "paragraph",
+                      content: [{ type: "text", text: "two" }],
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(normalizeMarkdown(output)).toContain("one<br>two");
+  });
+});
+
 describe("Asset image serialization", () => {
   it("does not persist blob preview image URLs", () => {
     const output = markdownManager.serialize({
