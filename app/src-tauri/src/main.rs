@@ -1,5 +1,6 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod page_title;
 mod pdf_export;
 
 fn main() {
@@ -13,7 +14,10 @@ fn main() {
         .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_os::init())
         .plugin(tauri_plugin_opener::init())
-        .invoke_handler(tauri::generate_handler![pdf_export::start_note_pdf_export,])
+        .invoke_handler(tauri::generate_handler![
+            pdf_export::start_note_pdf_export,
+            page_title::fetch_page_title,
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

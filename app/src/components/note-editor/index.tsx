@@ -18,6 +18,7 @@ import { API_BASE_URL } from "../../lib/api";
 import { debounce } from "../../lib/debounce";
 import { useCopyFeedback } from "../../lib/hooks/use-copy-feedback";
 import { resolveRelativePath, validateLinkTarget } from "../../lib/link-utils";
+import { fetchPageTitle } from "../../lib/page-title";
 import { formatPdfExportError, startNotePdfExport } from "../../lib/pdf-export";
 import { analyzeShareInput } from "../../lib/share/analyze-share-input";
 import { buildShareFormData } from "../../lib/share/build-share-form-data";
@@ -26,6 +27,7 @@ import type { ShareSummary } from "../../lib/share/types";
 import { formatMarkdownForCopy } from "../../lib/tiptap/markdown";
 import type { NoteContent, NoteIndexEntry, NoteViewMode } from "../../lib/types";
 import { MediaPreviewHost } from "./MediaPreviewHost";
+import { LinkPopover } from "./LinkPopover";
 import { NOTE_EDITOR_SLASH_COMMANDS } from "./note-editor-slash-commands";
 import { TableOverlayControls } from "./TableOverlayControls";
 import { buildNoteLinkSuggestions } from "./build-note-link-suggestions";
@@ -184,6 +186,7 @@ export function NoteEditor(props: NoteEditorProps) {
           openOnClick: true,
           autolink: true,
           linkOnPaste: true,
+          resolveExternalTitle: fetchPageTitle,
           currentNotePath: note.path,
           HTMLAttributes: {
             target: null,
@@ -563,6 +566,7 @@ export function NoteEditor(props: NoteEditorProps) {
         onMouseLeave={handleEditorContentMouseLeave}
       >
         <EditorContent editor={editor} />
+        {editor ? <LinkPopover editor={editor} /> : null}
         {tableHoverControls && editor ? (
           <TableOverlayControls
             controls={tableHoverControls}

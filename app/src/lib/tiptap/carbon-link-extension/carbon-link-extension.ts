@@ -8,6 +8,10 @@ import {
   buildSuggestionConfig,
   type CarbonLinkSuggestionConfig,
 } from "./note-link-suggestion";
+import {
+  createExternalTitlePastePlugin,
+  type ExternalTitleResolver,
+} from "./external-title-paste";
 
 const CARBON_NOTE_PATH_ATTR = "data-carbon-note-path";
 
@@ -42,6 +46,8 @@ export interface CarbonLinkOptions extends LinkOptions {
   suggestion: CarbonLinkSuggestionConfig | null;
   /** Absolute path of the note currently being edited. Used to resolve pasted note paths. */
   currentNotePath: string | null;
+  /** Resolve the display title when a standalone external URL is pasted. */
+  resolveExternalTitle: ExternalTitleResolver | null;
 }
 
 /**
@@ -65,6 +71,7 @@ export const CarbonLink = Link.extend<CarbonLinkOptions>({
       onOpenExternal: null,
       suggestion: null,
       currentNotePath: null,
+      resolveExternalTitle: null,
     };
 
     return opts;
@@ -92,6 +99,12 @@ export const CarbonLink = Link.extend<CarbonLinkOptions>({
     const plugins = this.parent!().filter(
       (p) => (p as unknown as { key: string }).key !== "handleClickLink$",
     );
+
+    if (this.options.resolveExternalTitle) {
+      plugins.unshift(
+        createExternalTitlePastePlugin(this.options.resolveExternalTitle),
+      );
+    }
 
     plugins.push(
       new Plugin({
