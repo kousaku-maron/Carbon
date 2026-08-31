@@ -566,7 +566,9 @@ export function NoteEditor(props: NoteEditorProps) {
         onMouseLeave={handleEditorContentMouseLeave}
       >
         <EditorContent editor={editor} />
-        {editor ? <LinkPopover editor={editor} /> : null}
+        {editor ? (
+          <LinkPopover editor={editor} editorRootRef={editorContentRef} />
+        ) : null}
         {tableHoverControls && editor ? (
           <TableOverlayControls
             controls={tableHoverControls}

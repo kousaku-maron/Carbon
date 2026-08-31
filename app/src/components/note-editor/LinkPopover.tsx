@@ -1,5 +1,6 @@
 import { createPortal } from "react-dom";
 import type { Editor } from "@tiptap/core";
+import type { RefObject } from "react";
 import {
   useCallback,
   useEffect,
@@ -17,6 +18,7 @@ import {
 
 type LinkPopoverProps = {
   editor: Editor;
+  editorRootRef: RefObject<HTMLDivElement | null>;
 };
 
 type HoveredLink = LinkReference & {
@@ -32,7 +34,7 @@ const HIDE_DELAY_MS = 140;
 const VIEWPORT_PADDING = 12;
 const POPOVER_GAP = 8;
 
-export function LinkPopover({ editor }: LinkPopoverProps) {
+export function LinkPopover({ editor, editorRootRef }: LinkPopoverProps) {
   const popoverRef = useRef<HTMLDivElement>(null);
   const hideTimeoutRef = useRef<number | null>(null);
   const copiedTimeoutRef = useRef<number | null>(null);
@@ -88,7 +90,8 @@ export function LinkPopover({ editor }: LinkPopoverProps) {
   );
 
   useEffect(() => {
-    const root = editor.view.dom;
+    const root = editorRootRef.current;
+    if (!root) return;
 
     const handlePointerOver = (event: PointerEvent) => {
       if (editing) return;
@@ -129,7 +132,13 @@ export function LinkPopover({ editor }: LinkPopoverProps) {
       root.removeEventListener("pointerover", handlePointerOver);
       root.removeEventListener("pointerout", handlePointerOut);
     };
-  }, [clearHideTimeout, editor, editing, readHoveredLink, scheduleClose]);
+  }, [
+    clearHideTimeout,
+    editing,
+    editorRootRef,
+    readHoveredLink,
+    scheduleClose,
+  ]);
 
   const updatePosition = useCallback(() => {
     const popover = popoverRef.current;
