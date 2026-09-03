@@ -3,7 +3,6 @@ import { debounce } from "../../lib/debounce";
 import { useCopyFeedback } from "../../lib/hooks/use-copy-feedback";
 import { formatPdfExportError, startNotePdfExport } from "../../lib/pdf-export";
 import { formatMarkdownForCopy } from "../../lib/tiptap/markdown";
-import { buildNotePathClipboardItem } from "../../lib/tiptap/carbon-link-extension";
 import type { NoteContent, NoteViewMode } from "../../lib/types";
 import { Toast } from "../Toast";
 import { NoteViewHeader } from "../note-view-header";
@@ -75,14 +74,10 @@ export function PlainTextEditor(props: PlainTextEditorProps) {
   }, [showCopied, value]);
 
   const handleCopyPath = useCallback(() => {
-    const item = buildNotePathClipboardItem(note.path, note.id);
-    navigator.clipboard
-      .write([item])
-      .catch(() => navigator.clipboard.writeText(note.path))
-      .then(() => {
-        showCopied("path");
-      });
-  }, [note.id, note.path, showCopied]);
+    navigator.clipboard.writeText(note.path).then(() => {
+      showCopied("path");
+    });
+  }, [note.path, showCopied]);
 
   const handleChange = useCallback((nextValue: string) => {
     setValue(nextValue);

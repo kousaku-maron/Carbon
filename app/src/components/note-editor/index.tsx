@@ -8,7 +8,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createShare, listShares, republishShare, revokeShare } from "../../lib/api";
 import { CarbonCodeBlock } from "../../lib/tiptap/carbon-code-block-extension";
 import { CarbonImage } from "../../lib/tiptap/carbon-image-extension";
-import { CarbonLink, buildNotePathClipboardItem, type NoteLinkSuggestionItem } from "../../lib/tiptap/carbon-link-extension";
+import { CarbonLink, type NoteLinkSuggestionItem } from "../../lib/tiptap/carbon-link-extension";
 import { CarbonTable } from "../../lib/tiptap/carbon-table-extension";
 import { CarbonPdf } from "../../lib/tiptap/carbon-pdf-extension";
 import { CarbonSearch } from "../../lib/tiptap/carbon-search-extension";
@@ -430,14 +430,10 @@ export function NoteEditor(props: NoteEditorProps) {
   }, [editor, showCopied]);
 
   const handleCopyPath = useCallback(() => {
-    const item = buildNotePathClipboardItem(note.path, note.id);
-    navigator.clipboard
-      .write([item])
-      .catch(() => navigator.clipboard.writeText(note.path))
-      .then(() => {
-        showCopied("path");
-      });
-  }, [note.path, note.id, showCopied]);
+    navigator.clipboard.writeText(note.path).then(() => {
+      showCopied("path");
+    });
+  }, [note.path, showCopied]);
 
   // Cmd+C with no editor focus and no text selection → copy path
   useEffect(() => {
