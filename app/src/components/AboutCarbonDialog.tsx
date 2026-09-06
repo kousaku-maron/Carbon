@@ -8,7 +8,7 @@ export function AboutCarbonDialog(props: AboutCarbonDialogProps) {
 
   return (
     <div
-      className="share-confirm-dialog-backdrop"
+      className="modal-backdrop"
       role="dialog"
       aria-modal="true"
       aria-label="About Carbon"

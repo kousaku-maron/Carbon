@@ -14,16 +14,9 @@ import {
   CARBON_LINK_CLASS,
   CARBON_MISSING_ASSET_CLASS,
   CARBON_MISSING_IMAGE_ASSET_CLASS,
-  CARBON_MISSING_LINK_CLASS,
-  CARBON_MERMAID_FALLBACK_CLASS,
-  CARBON_MERMAID_NODE_CLASS,
-  CARBON_MERMAID_SOURCE_CLASS,
   CARBON_PDF_FRAME_CLASS,
   CARBON_PDF_NODE_CLASS,
-  CARBON_SHARE_DOWNLOAD_CLASS,
-  CARBON_SHARE_EMBED_CLASS,
-  CARBON_SHARE_OPEN_CLASS,
-  CARBON_VIDEO_EMBED_CLASS,
+  CARBON_EMBED_CLASS,
   CARBON_VIDEO_FRAME_CLASS,
   CARBON_VIDEO_NODE_CLASS,
 } from "./class-names";
@@ -43,13 +36,10 @@ export type RenderedAssetItem = {
   previewImageUrl?: string | null;
 };
 
-type RenderMode = "share" | "pdf";
-
 type BuildRenderedMarkdownHtmlInput = {
   markdownBody: string;
   assets: RenderedAssetItem[];
   links: RenderedLinkItem[];
-  mode?: RenderMode;
 };
 
 function replaceEvery(value: string, search: string, replacement: string): string {
@@ -74,8 +64,8 @@ function joinClasses(...classNames: Array<string | false | null | undefined>): s
 }
 
 function renderFigure(title: string | null | undefined, inner: string): string {
-  if (!title) return `<figure class="${CARBON_SHARE_EMBED_CLASS}">${inner}</figure>`;
-  return `<figure class="${CARBON_SHARE_EMBED_CLASS}">${inner}<figcaption>${escapeHtml(title)}</figcaption></figure>`;
+  if (!title) return `<figure class="${CARBON_EMBED_CLASS}">${inner}</figure>`;
+  return `<figure class="${CARBON_EMBED_CLASS}">${inner}<figcaption>${escapeHtml(title)}</figcaption></figure>`;
 }
 
 function parseDirectiveAttributes(raw: string): Record<string, string> {
@@ -90,11 +80,6 @@ function parseDirectiveAttributes(raw: string): Record<string, string> {
 
 function isLikelyLocalMarkdownLink(href: string): boolean {
   return /(^|\/|\\)[^/\\]+\.md(#.*)?$/i.test(href) && !/^[A-Za-z][A-Za-z\d+.-]*:/.test(href);
-}
-
-function renderMissingLink(text: string, mode: RenderMode): string {
-  const message = mode === "pdf" ? "This page is not available in PDF" : "This page is not published";
-  return `<span class="${joinClasses(CARBON_LINK_CLASS, CARBON_INTERNAL_LINK_CLASS, CARBON_MISSING_LINK_CLASS)}" data-href="" data-tooltip="${message}" aria-disabled="true" title="${message}">${text}</span>`;
 }
 
 function renderStaticLink(text: string): string {
@@ -119,61 +104,29 @@ function isMermaidLanguage(language: string | undefined): boolean {
   return language?.trim().toLowerCase() === "mermaid";
 }
 
-function renderMermaidBlock(source: string, mode: RenderMode): string {
+function renderMermaidBlock(source: string): string {
   const escapedSource = escapeHtml(source);
-  if (mode === "pdf") {
-    return `<pre><code class="language-mermaid">${escapedSource}</code></pre>`;
-  }
-
-  return `<div class="${CARBON_MERMAID_NODE_CLASS}"><pre class="${CARBON_MERMAID_SOURCE_CLASS}">${escapedSource}</pre><div class="${CARBON_MERMAID_FALLBACK_CLASS}">Mermaid diagram could not be rendered.</div></div>`;
+  return `<pre><code class="language-mermaid">${escapedSource}</code></pre>`;
 }
 
-function renderCardAction(input: {
-  mode: RenderMode;
-  href?: string | null;
-  actionLabel: string;
-  openInNewTab?: boolean;
-}) {
-  const className = joinClasses(
-    CARBON_FILE_CARD_ACTION_CLASS,
-    input.openInNewTab ? CARBON_SHARE_OPEN_CLASS : CARBON_SHARE_DOWNLOAD_CLASS,
-  );
-
-  if (input.mode === "pdf" || !input.href) {
-    return `<span class="${className}">${escapeHtml(input.actionLabel)}</span>`;
-  }
-
-  const actionAttrs = input.openInNewTab
-    ? `href="${escapeAttr(input.href)}" target="_blank" rel="noreferrer"`
-    : `href="${escapeAttr(input.href)}" download`;
-  const icon = input.openInNewTab
-    ? `<svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M6 3.75H4.75C4.2 3.75 3.75 4.2 3.75 4.75V11.25C3.75 11.8 4.2 12.25 4.75 12.25H11.25C11.8 12.25 12.25 11.8 12.25 11.25V10" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/><path d="M8.25 3.75H12.25V7.75" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/><path d="M7.75 8.25L12.25 3.75" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>`
-    : "";
-  return `<a class="${className}" ${actionAttrs}>${icon}${escapeHtml(input.actionLabel)}</a>`;
+function renderCardAction(actionLabel: string): string {
+  return `<span class="${CARBON_FILE_CARD_ACTION_CLASS}">${escapeHtml(actionLabel)}</span>`;
 }
 
 function renderDownloadCard(input: {
   kindLabel: string;
   title: string;
-  href?: string | null;
   actionLabel: string;
   previewImageUrl?: string | null;
-  openInNewTab?: boolean;
-  mode: RenderMode;
 }) {
   const preview = input.previewImageUrl
     ? `<div class="${CARBON_FILE_CARD_PREVIEW_CLASS}"><img class="${CARBON_FILE_CARD_PREVIEW_IMAGE_CLASS}" src="${escapeAttr(input.previewImageUrl)}" alt="" loading="lazy" /></div>`
     : "";
-  return `<div class="${CARBON_FILE_CARD_CLASS}">${preview}<div class="${CARBON_FILE_CARD_META_CLASS}"><div class="${CARBON_FILE_CARD_KIND_CLASS}">${escapeHtml(input.kindLabel)}</div><div class="${CARBON_FILE_CARD_TITLE_CLASS}">${escapeHtml(input.title)}</div></div>${renderCardAction({
-    mode: input.mode,
-    href: input.href,
-    actionLabel: input.actionLabel,
-    openInNewTab: input.openInNewTab,
-  })}</div>`;
+  return `<div class="${CARBON_FILE_CARD_CLASS}">${preview}<div class="${CARBON_FILE_CARD_META_CLASS}"><div class="${CARBON_FILE_CARD_KIND_CLASS}">${escapeHtml(input.kindLabel)}</div><div class="${CARBON_FILE_CARD_TITLE_CLASS}">${escapeHtml(input.title)}</div></div>${renderCardAction(input.actionLabel)}</div>`;
 }
 
 function isStandaloneBlockHtml(html: string): boolean {
-  return /^(<figure\b|<div class="(?:carbon-image-node|carbon-video-node|carbon-pdf-node|share-missing-asset))/i.test(
+  return /^(<figure\b|<div class="(?:carbon-image-node|carbon-video-node|carbon-pdf-node|carbon-missing-asset))/i.test(
     html.trim(),
   );
 }
@@ -207,11 +160,6 @@ function renderTaskListItemContent(
   }).join("");
   if (!html) return "<p></p>";
   return isBlockHtml(html) ? html : `<p>${html}</p>`;
-}
-
-function shouldSkipEmbeddedDirective(kind: string, mode: RenderMode): boolean {
-  if (mode !== "pdf") return false;
-  return false;
 }
 
 function normalizeMarkedTokens<T>(value: T): T {
@@ -248,7 +196,6 @@ function normalizeMarkedTokens<T>(value: T): T {
 }
 
 export function buildRenderedMarkdownHtml(input: BuildRenderedMarkdownHtmlInput): string {
-  const mode = input.mode ?? "share";
   const assetUrlBySource = new Map(input.assets.map((asset) => [asset.sourceRef, asset]));
   const linkByHref = new Map(input.links.map((link) => [link.href, link]));
   const directiveHtml = new Map<string, string>();
@@ -263,11 +210,6 @@ export function buildRenderedMarkdownHtml(input: BuildRenderedMarkdownHtmlInput)
       const asset = assetUrlBySource.get(src);
       const placeholder = `<!--__CARBON_RENDER_BLOCK_${directiveIndex++}__-->`;
 
-      if (shouldSkipEmbeddedDirective(kind, mode)) {
-        directiveHtml.set(placeholder, "");
-        return placeholder;
-      }
-
       if (!asset) {
         directiveHtml.set(
           placeholder,
@@ -281,9 +223,7 @@ export function buildRenderedMarkdownHtml(input: BuildRenderedMarkdownHtmlInput)
           placeholder,
           renderFigure(
             null,
-            mode === "pdf"
-              ? `<div class="${CARBON_VIDEO_NODE_CLASS}"><div class="${CARBON_VIDEO_FRAME_CLASS}">${renderStaticLink(title ?? asset.title ?? "Video")}</div></div>`
-              : `<div class="${CARBON_VIDEO_NODE_CLASS}"><div class="${CARBON_VIDEO_FRAME_CLASS}"><video class="${CARBON_VIDEO_EMBED_CLASS}" controls preload="metadata" src="${escapeAttr(asset.publicUrl ?? "")}"></video></div></div>`,
+            `<div class="${CARBON_VIDEO_NODE_CLASS}"><div class="${CARBON_VIDEO_FRAME_CLASS}">${renderStaticLink(title ?? asset.title ?? "Video")}</div></div>`,
           ),
         );
         return placeholder;
@@ -294,17 +234,7 @@ export function buildRenderedMarkdownHtml(input: BuildRenderedMarkdownHtmlInput)
           placeholder,
           renderFigure(
             null,
-            mode === "pdf"
-              ? `<div class="${CARBON_PDF_NODE_CLASS}"><div class="${CARBON_PDF_FRAME_CLASS}">${renderStaticLink(title ?? asset.title ?? "PDF")}</div></div>`
-              : `<div class="${CARBON_PDF_NODE_CLASS}"><div class="${CARBON_PDF_FRAME_CLASS}">${renderDownloadCard({
-                kindLabel: "PDF",
-                title: title ?? asset.title ?? "PDF",
-                href: asset.publicUrl,
-                actionLabel: "Open",
-                previewImageUrl: asset.previewImageUrl,
-                openInNewTab: true,
-                mode,
-              })}</div></div>`,
+            `<div class="${CARBON_PDF_NODE_CLASS}"><div class="${CARBON_PDF_FRAME_CLASS}">${renderStaticLink(title ?? asset.title ?? "PDF")}</div></div>`,
           ),
         );
         return placeholder;
@@ -317,9 +247,7 @@ export function buildRenderedMarkdownHtml(input: BuildRenderedMarkdownHtmlInput)
           renderDownloadCard({
             kindLabel: "File",
             title: title ?? asset.title ?? "File",
-            href: asset.publicUrl,
-            actionLabel: mode === "pdf" ? "Attachment" : "Download",
-            mode,
+            actionLabel: "Attachment",
           }),
         ),
       );
@@ -366,7 +294,7 @@ export function buildRenderedMarkdownHtml(input: BuildRenderedMarkdownHtmlInput)
 
   renderer.code = ({ text, lang }) => {
     if (isMermaidLanguage(lang)) {
-      return renderMermaidBlock(text, mode);
+      return renderMermaidBlock(text);
     }
 
     const languageClass = lang ? ` class="language-${escapeAttr(lang)}"` : "";
@@ -381,11 +309,11 @@ export function buildRenderedMarkdownHtml(input: BuildRenderedMarkdownHtmlInput)
         mappedLink.kind === "note-link"
           ? joinClasses(CARBON_LINK_CLASS, CARBON_INTERNAL_LINK_CLASS)
           : CARBON_LINK_CLASS;
-      const attrs = mode === "pdf" && mappedLink.kind !== "external-link"
-        ? ""
-        : ` data-href="${escapeAttr(mappedLink.publicUrl)}" href="${escapeAttr(mappedLink.publicUrl)}"`;
+      const attrs = mappedLink.kind === "external-link"
+        ? ` data-href="${escapeAttr(mappedLink.publicUrl)}" href="${escapeAttr(mappedLink.publicUrl)}"`
+        : "";
       const target = mappedLink.kind === "external-link" ? ' target="_blank" rel="noreferrer"' : "";
-      if (mode === "pdf" && mappedLink.kind !== "external-link") {
+      if (mappedLink.kind !== "external-link") {
         return mappedLink.kind === "note-link"
           ? renderStaticInternalLink(label)
           : renderStaticLink(label);
@@ -393,20 +321,15 @@ export function buildRenderedMarkdownHtml(input: BuildRenderedMarkdownHtmlInput)
       return `<a class="${className}"${attrs}${title ? ` title="${escapeAttr(title)}"` : ""}${target}>${label}</a>`;
     }
 
-    const mappedAsset = assetUrlBySource.get(href);
-    if (mappedAsset?.publicUrl && mode !== "pdf") {
-      return `<a class="${CARBON_SHARE_DOWNLOAD_CLASS}" href="${escapeAttr(mappedAsset.publicUrl)}" download${title ? ` title="${escapeAttr(title)}"` : ""}>${label}</a>`;
-    }
-
     if (mappedLink?.kind === "note-link" || isLikelyLocalMarkdownLink(href)) {
-      return mode === "pdf" ? renderStaticInternalLink(label) : renderMissingLink(label, mode);
+      return renderStaticInternalLink(label);
     }
 
     if (mappedLink?.kind === "file-link") {
       return renderStaticLink(label);
     }
 
-    if (mode === "pdf" && !/^https?:\/\//i.test(href) && !href.startsWith("mailto:")) {
+    if (!/^https?:\/\//i.test(href) && !href.startsWith("mailto:")) {
       return renderStaticLink(label);
     }
 
@@ -414,23 +337,17 @@ export function buildRenderedMarkdownHtml(input: BuildRenderedMarkdownHtmlInput)
   };
 
   renderer.image = ({ href, title, text }) => {
-    if (mode === "pdf" && (href.startsWith("carbon://asset/") || href.startsWith("blob:"))) {
+    if (href.startsWith("carbon://asset/") || href.startsWith("blob:")) {
       return "";
     }
     const asset = assetUrlBySource.get(href);
-    if (!asset && href.startsWith("carbon://asset/")) {
-      return renderFigure(title, renderMissingAsset("image", text || "Image unavailable"));
-    }
-    if (!asset && href.startsWith("blob:")) {
-      return renderFigure(title, renderMissingAsset("image", text || "Image unavailable"));
-    }
     const src = asset ? (asset.publicUrl ?? "") : href;
     if (!src) {
       return renderFigure(title, renderMissingAsset("image", text || "Image unavailable"));
     }
     const alt = escapeAttr(text);
     const caption = title ? `<figcaption>${escapeHtml(title)}</figcaption>` : "";
-    return `<figure class="${CARBON_SHARE_EMBED_CLASS}"><div class="${CARBON_IMAGE_NODE_CLASS}"><div class="${CARBON_IMAGE_FRAME_CLASS}"><img class="${CARBON_IMAGE_EMBED_CLASS}" src="${escapeAttr(src)}" alt="${alt}" loading="lazy" /></div></div>${caption}</figure>`;
+    return `<figure class="${CARBON_EMBED_CLASS}"><div class="${CARBON_IMAGE_NODE_CLASS}"><div class="${CARBON_IMAGE_FRAME_CLASS}"><img class="${CARBON_IMAGE_EMBED_CLASS}" src="${escapeAttr(src)}" alt="${alt}" loading="lazy" /></div></div>${caption}</figure>`;
   };
 
   const lexedTokens = marked.lexer(markdownWithDirectives, {

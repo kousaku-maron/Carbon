@@ -97,7 +97,6 @@ export function PlainTextEditor(props: PlainTextEditorProps) {
 
     try {
       const targetPath = await startNotePdfExport({
-        noteId: note.id,
         notePath: note.path,
         noteName: note.name,
         vaultPath,
@@ -111,7 +110,7 @@ export function PlainTextEditor(props: PlainTextEditorProps) {
     } finally {
       setPdfExportPending(false);
     }
-  }, [note.id, note.name, note.path, pdfExportPending, value, vaultPath]);
+  }, [note.name, note.path, pdfExportPending, value, vaultPath]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {

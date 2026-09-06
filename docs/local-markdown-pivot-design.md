@@ -206,4 +206,3 @@
 - ノート間リンク（実装済み: `CarbonLink` 拡張 + `[[` Suggestion）
 - 画像Storage機能（実装済み: `CarbonImage` 拡張 + Cloudflare R2）
 - GitHubレポジトリ連携
-- ページ公開機能

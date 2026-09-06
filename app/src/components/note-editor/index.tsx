@@ -5,7 +5,6 @@ import { Markdown } from "@tiptap/markdown";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import StarterKit from "@tiptap/starter-kit";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { createShare, listShares, republishShare, revokeShare } from "../../lib/api";
 import { CarbonCodeBlock } from "../../lib/tiptap/carbon-code-block-extension";
 import { CarbonImage } from "../../lib/tiptap/carbon-image-extension";
 import { CarbonLink, type NoteLinkSuggestionItem } from "../../lib/tiptap/carbon-link-extension";
@@ -20,10 +19,6 @@ import { useCopyFeedback } from "../../lib/hooks/use-copy-feedback";
 import { resolveRelativePath, validateLinkTarget } from "../../lib/link-utils";
 import { fetchPageTitle } from "../../lib/page-title";
 import { formatPdfExportError, startNotePdfExport } from "../../lib/pdf-export";
-import { analyzeShareInput } from "../../lib/share/analyze-share-input";
-import { buildShareFormData } from "../../lib/share/build-share-form-data";
-import { formatShareError } from "../../lib/share/format-share-error";
-import type { ShareSummary } from "../../lib/share/types";
 import { formatMarkdownForCopy } from "../../lib/tiptap/markdown";
 import type { NoteContent, NoteIndexEntry, NoteViewMode } from "../../lib/types";
 import { MediaPreviewHost } from "./MediaPreviewHost";
@@ -31,7 +26,6 @@ import { LinkPopover } from "./LinkPopover";
 import { NOTE_EDITOR_SLASH_COMMANDS } from "./note-editor-slash-commands";
 import { TableOverlayControls } from "./TableOverlayControls";
 import { buildNoteLinkSuggestions } from "./build-note-link-suggestions";
-import { ShareConfirmDialog } from "../share/ShareConfirmDialog";
 import { NoteViewHeader } from "../note-view-header";
 import { Toast } from "../Toast";
 import { useTableControls } from "./use-table-controls";
@@ -79,24 +73,11 @@ export function NoteEditor(props: NoteEditorProps) {
     updatePdfPreviewPage,
     closePreview,
   } = useMediaPreview();
-  const [shareSummary, setShareSummary] = useState<ShareSummary | null>(null);
-  const [shareLoading, setShareLoading] = useState(true);
-  const [sharePendingAction, setSharePendingAction] = useState<null | "publishing" | "republishing" | "revoking">(null);
-  const [shareMessage, setShareMessage] = useState("");
   const [pdfExportPending, setPdfExportPending] = useState(false);
   const [pdfExportNotice, setPdfExportNotice] = useState<null | {
     kind: "success" | "error";
     message: string;
   }>(null);
-  const [shareConfirmOpen, setShareConfirmOpen] = useState(false);
-  const shareBusy = sharePendingAction !== null;
-  const shareProgressMessage =
-    sharePendingAction === "revoking"
-      ? "Revoking..."
-      : sharePendingAction === "publishing" || sharePendingAction === "republishing"
-        ? "Publishing..."
-        : "";
-
   const debouncedSave = useMemo(
     () =>
       debounce((path: string, md: string) => {
@@ -127,43 +108,6 @@ export function NoteEditor(props: NoteEditorProps) {
     };
     return () => latestRef.current.debouncedSave.cancel();
   }, [onNavigateToNote, onLinkError, onBufferChange, onSave, debouncedSave, noteIndex]);
-
-  useEffect(() => {
-    let cancelled = false;
-    setShareSummary(null);
-    setShareLoading(true);
-    setShareMessage("");
-
-    void listShares({ status: "active", sourceVaultPath: vaultPath, sourceNotePath: note.id })
-      .then((items) => {
-        if (!cancelled) {
-          setShareSummary(items[0] ?? null);
-          setShareLoading(false);
-        }
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setShareSummary(null);
-          setShareLoading(false);
-        }
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [note.id, vaultPath]);
-
-  useEffect(() => {
-    if (!shareMessage) return;
-
-    const timeoutId = window.setTimeout(() => {
-      setShareMessage("");
-    }, 1800);
-
-    return () => {
-      window.clearTimeout(timeoutId);
-    };
-  }, [shareMessage]);
 
   useEffect(() => {
     if (!pdfExportNotice || pdfExportNotice.kind !== "success") return;
@@ -333,67 +277,6 @@ export function NoteEditor(props: NoteEditorProps) {
     editorContentRef,
   });
 
-  const buildCurrentShareFormData = useCallback(async () => {
-    const markdownBody = editor?.getMarkdown() ?? note.body;
-    const analysis = analyzeShareInput({
-      noteId: note.id,
-      notePath: note.path,
-      vaultPath,
-      markdownBody,
-      title: note.name,
-    });
-    return buildShareFormData(analysis);
-  }, [editor, note.body, note.id, note.name, note.path, vaultPath]);
-  const handleShare = useCallback(async () => {
-    setSharePendingAction("publishing");
-    try {
-      const formData = await buildCurrentShareFormData();
-      const result = await createShare(formData);
-      setShareSummary(result.share);
-      setShareMessage("Shared");
-      setShareConfirmOpen(false);
-    } catch (error) {
-      setShareMessage(formatShareError(error, "Failed to share"));
-    } finally {
-      setSharePendingAction(null);
-    }
-  }, [buildCurrentShareFormData]);
-
-  const handleRepublish = useCallback(async () => {
-    if (!shareSummary) return;
-    setSharePendingAction("republishing");
-    try {
-      const formData = await buildCurrentShareFormData();
-      const result = await republishShare(shareSummary.id, formData);
-      setShareSummary(result.share);
-      setShareMessage("Republished");
-    } catch (error) {
-      setShareMessage(formatShareError(error, "Failed to republish"));
-    } finally {
-      setSharePendingAction(null);
-    }
-  }, [buildCurrentShareFormData, shareSummary]);
-
-  const handleRevoke = useCallback(async () => {
-    if (!shareSummary) return;
-    setSharePendingAction("revoking");
-    try {
-      await revokeShare(shareSummary.id);
-      setShareSummary(null);
-      setShareMessage("Share revoked");
-    } catch (error) {
-      setShareMessage(error instanceof Error ? error.message : "Failed to revoke");
-    } finally {
-      setSharePendingAction(null);
-    }
-  }, [shareSummary]);
-
-  const handleCopyLink = useCallback(() => {
-    if (!shareSummary) return;
-    navigator.clipboard.writeText(shareSummary.publicUrl).then(() => {
-      setShareMessage("Public link copied");
-    });
-  }, [shareSummary]);
   const handleExportPdf = useCallback(async () => {
     if (pdfExportPending) return;
     setPdfExportPending(true);
@@ -401,7 +284,6 @@ export function NoteEditor(props: NoteEditorProps) {
 
     try {
       const targetPath = await startNotePdfExport({
-        noteId: note.id,
         notePath: note.path,
         noteName: note.name,
         vaultPath,
@@ -468,27 +350,6 @@ export function NoteEditor(props: NoteEditorProps) {
             void handleExportPdf();
           },
         }}
-        shareActions={
-          shareLoading
-            ? {
-                state: "loading",
-              }
-            : shareSummary
-            ? {
-                state: "published",
-                busy: shareBusy,
-                busyLabel: shareProgressMessage || "Publishing...",
-                onCopyLink: handleCopyLink,
-                onRepublish: handleRepublish,
-                onRevoke: handleRevoke,
-              }
-            : {
-                state: "unpublished",
-                busy: shareBusy,
-                busyLabel: shareProgressMessage || "Publishing...",
-                onShare: () => setShareConfirmOpen(true),
-              }
-        }
       />
       {isSearchOpen ? (
         <div className="note-editor-searchbar" role="search" aria-label="Find in note">
@@ -590,29 +451,13 @@ export function NoteEditor(props: NoteEditorProps) {
           onClose={dismissCopied}
         />
       )}
-      {shareProgressMessage ? (
-        <Toast message={shareProgressMessage} dismissible={false} loading />
-      ) : null}
       {pdfExportPending ? (
         <Toast message="Exporting PDF..." dismissible={false} loading />
-      ) : null}
-      {shareMessage ? (
-        <Toast message={shareMessage} onClose={() => setShareMessage("")} />
       ) : null}
       {pdfExportNotice ? (
         <Toast
           message={pdfExportNotice.message}
           onClose={() => setPdfExportNotice(null)}
-        />
-      ) : null}
-      {shareConfirmOpen ? (
-        <ShareConfirmDialog
-          noteName={note.name}
-          busy={shareBusy}
-          onConfirm={() => {
-            void handleShare();
-          }}
-          onClose={() => setShareConfirmOpen(false)}
         />
       ) : null}
       <MediaPreviewHost

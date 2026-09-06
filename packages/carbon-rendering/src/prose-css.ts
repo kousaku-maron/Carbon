@@ -9,21 +9,14 @@ import {
   CARBON_FILE_CARD_PREVIEW_CLASS,
   CARBON_FILE_CARD_PREVIEW_IMAGE_CLASS,
   CARBON_FILE_CARD_TITLE_CLASS,
+  CARBON_EMBED_CLASS,
   CARBON_INTERNAL_LINK_CLASS,
   CARBON_LINK_CLASS,
   CARBON_MISSING_ASSET_CLASS,
   CARBON_MISSING_IMAGE_ASSET_CLASS,
-  CARBON_MISSING_LINK_CLASS,
-  CARBON_MERMAID_FALLBACK_CLASS,
-  CARBON_MERMAID_NODE_CLASS,
-  CARBON_MERMAID_SOURCE_CLASS,
   CARBON_PDF_FRAME_CLASS,
   CARBON_PDF_NODE_CLASS,
   CARBON_PROSE_CLASS,
-  CARBON_SHARE_DOWNLOAD_CLASS,
-  CARBON_SHARE_EMBED_CLASS,
-  CARBON_SHARE_OPEN_CLASS,
-  CARBON_VIDEO_EMBED_CLASS,
   CARBON_VIDEO_FRAME_CLASS,
   CARBON_VIDEO_NODE_CLASS,
 } from "./class-names";
@@ -130,36 +123,6 @@ export const carbonProseCss = `
   padding: 0.15rem 0.35rem;
   border-radius: 4px;
   color: #eb5757;
-}
-
-.${CARBON_PROSE_CLASS} .${CARBON_MERMAID_NODE_CLASS} {
-  margin: 0.9rem 0;
-  padding: 1rem;
-  border: 1px solid #e3e2e0;
-  border-radius: 7px;
-  background: #ffffff;
-  overflow-x: auto;
-}
-
-.${CARBON_PROSE_CLASS} .${CARBON_MERMAID_NODE_CLASS} svg {
-  display: block;
-  max-width: 100%;
-  height: auto;
-  margin: 0 auto;
-}
-
-.${CARBON_PROSE_CLASS} .${CARBON_MERMAID_SOURCE_CLASS} {
-  display: none;
-}
-
-.${CARBON_PROSE_CLASS} .${CARBON_MERMAID_FALLBACK_CLASS} {
-  color: #9b3b36;
-  font-size: 0.84rem;
-  text-align: center;
-}
-
-.${CARBON_PROSE_CLASS} .${CARBON_MERMAID_NODE_CLASS}.is-rendered .${CARBON_MERMAID_FALLBACK_CLASS} {
-  display: none;
 }
 
 .${CARBON_PROSE_CLASS} hr {
@@ -319,50 +282,10 @@ export const carbonProseCss = `
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238f8f8b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z'/%3E%3Cpolyline points='14 2 14 8 20 8'/%3E%3C/svg%3E");
 }
 
-.${CARBON_PROSE_CLASS} .${CARBON_LINK_CLASS}.${CARBON_MISSING_LINK_CLASS} {
-  position: relative;
-  color: #37352f;
-  text-decoration-color: rgba(55, 53, 47, 0.45);
-  cursor: help;
-}
-
-.${CARBON_PROSE_CLASS} .${CARBON_LINK_CLASS}.${CARBON_MISSING_LINK_CLASS}:hover {
-  color: #2f2e2b;
-  text-decoration-color: rgba(47, 46, 43, 0.65);
-}
-
-.${CARBON_PROSE_CLASS} .${CARBON_LINK_CLASS}.${CARBON_MISSING_LINK_CLASS}::after {
-  content: attr(data-tooltip);
-  position: absolute;
-  left: 50%;
-  bottom: calc(100% + 8px);
-  transform: translateX(-50%) translateY(4px);
-  min-width: max-content;
-  max-width: min(240px, 80vw);
-  padding: 0.38rem 0.55rem;
-  border-radius: 0.45rem;
-  background: rgba(32, 32, 32, 0.92);
-  color: #ffffff;
-  font-size: 0.72rem;
-  line-height: 1.35;
-  text-align: center;
-  white-space: normal;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 120ms ease, transform 120ms ease;
-  z-index: 20;
-}
-
-.${CARBON_PROSE_CLASS} .${CARBON_LINK_CLASS}.${CARBON_MISSING_LINK_CLASS}:hover::after,
-.${CARBON_PROSE_CLASS} .${CARBON_LINK_CLASS}.${CARBON_MISSING_LINK_CLASS}:focus-visible::after {
-  opacity: 1;
-  transform: translateX(-50%) translateY(0);
-}
-
 .${CARBON_PROSE_CLASS} .${CARBON_IMAGE_NODE_CLASS},
 .${CARBON_PROSE_CLASS} .${CARBON_VIDEO_NODE_CLASS},
 .${CARBON_PROSE_CLASS} .${CARBON_PDF_NODE_CLASS},
-.${CARBON_PROSE_CLASS} .${CARBON_SHARE_EMBED_CLASS} {
+.${CARBON_PROSE_CLASS} .${CARBON_EMBED_CLASS} {
   margin: 0.75rem 0;
 }
 
@@ -373,7 +296,6 @@ export const carbonProseCss = `
 }
 
 .${CARBON_PROSE_CLASS} .${CARBON_IMAGE_EMBED_CLASS},
-.${CARBON_PROSE_CLASS} .${CARBON_VIDEO_EMBED_CLASS},
 .${CARBON_PROSE_CLASS} img,
 .${CARBON_PROSE_CLASS} video {
   width: 100%;
@@ -383,33 +305,9 @@ export const carbonProseCss = `
   margin: 0;
 }
 
-.${CARBON_PROSE_CLASS} .${CARBON_VIDEO_EMBED_CLASS},
 .${CARBON_PROSE_CLASS} video {
   max-height: 70vh;
   background: #111;
-}
-
-.${CARBON_PROSE_CLASS} .${CARBON_SHARE_DOWNLOAD_CLASS} {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-  color: #37352f;
-}
-
-.${CARBON_PROSE_CLASS} .${CARBON_SHARE_OPEN_CLASS} {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-  color: #37352f;
-}
-
-.${CARBON_PROSE_CLASS} .${CARBON_SHARE_DOWNLOAD_CLASS}::before {
-  content: "↧";
-  color: #787774;
-}
-
-.${CARBON_PROSE_CLASS} .${CARBON_SHARE_OPEN_CLASS}::before {
-  content: none;
 }
 
 .${CARBON_PROSE_CLASS} .${CARBON_FILE_CARD_CLASS} {
@@ -471,20 +369,9 @@ export const carbonProseCss = `
 
 .${CARBON_PROSE_CLASS} .${CARBON_FILE_CARD_ACTION_CLASS} {
   flex-shrink: 0;
-}
-
-.${CARBON_PROSE_CLASS} .${CARBON_FILE_CARD_ACTION_CLASS}.${CARBON_SHARE_DOWNLOAD_CLASS} {
   padding: 0.42rem 0.72rem;
   border-radius: 999px;
   background: #f7f6f3;
-  text-decoration: none;
-}
-
-.${CARBON_PROSE_CLASS} .${CARBON_FILE_CARD_ACTION_CLASS}.${CARBON_SHARE_OPEN_CLASS} {
-  padding: 0.42rem 0.72rem;
-  border-radius: 999px;
-  background: #f7f6f3;
-  text-decoration: none;
 }
 
 .${CARBON_PROSE_CLASS} .${CARBON_MISSING_ASSET_CLASS} {

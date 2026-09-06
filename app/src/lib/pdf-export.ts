@@ -7,7 +7,6 @@ import { invoke } from "@tauri-apps/api/core";
 import { buildPdfRenderDocument, type PdfRenderDocument } from "./pdf-render-document";
 
 export type NotePdfExportRequest = {
-  noteId: string;
   notePath: string;
   noteName: string;
   vaultPath: string;
@@ -208,7 +207,6 @@ function buildPdfHtmlDocument(renderDocument: PdfRenderDocument): string {
     markdownBody: renderDocument.markdownBody,
     assets: renderDocument.assets,
     links: renderDocument.links,
-    mode: "pdf",
   });
 
   return [

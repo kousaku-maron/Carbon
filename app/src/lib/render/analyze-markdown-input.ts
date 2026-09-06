@@ -1,11 +1,52 @@
-import { resolveShareTitle } from "@carbon/rendering";
-import { getImageMimeType, getVideoMimeType, isImagePath, isMarkdownPath, isPdfPath, isVideoPath } from "../file-kind";
+import { resolveDocumentTitle } from "@carbon/rendering";
+import {
+  getImageMimeType,
+  getVideoMimeType,
+  isImagePath,
+  isMarkdownPath,
+  isPdfPath,
+  isVideoPath,
+} from "../file-kind";
 import { resolveVaultLocalPath } from "../link-utils";
-import { getBaseName, isPathInside } from "../path-utils";
-import type { ShareAnalysis, ShareAssetManifestItem, ShareLinkManifestItem, ShareWarning } from "./types";
+import { isPathInside } from "../path-utils";
 
-type AnalyzeShareInputOptions = {
-  noteId: string;
+export type RenderWarning = {
+  code: string;
+  message: string;
+  sourceRef: string;
+  severity: "info" | "warning" | "error";
+};
+
+export type RenderLinkManifestItem = {
+  href: string;
+  kind: "note-link" | "file-link" | "external-link";
+  targetNotePath?: string | null;
+};
+
+export type RenderAssetManifestItem = {
+  clientAssetId: string;
+  kind: "image" | "video" | "pdf" | "file";
+  sourceType: "local-file" | "carbon-asset";
+  sourceRef: string;
+  mimeType: string;
+  title?: string | null;
+  uploadField?: string;
+};
+
+export type MarkdownAnalysis = {
+  title: string;
+  assetManifest: RenderAssetManifestItem[];
+  linkManifest: RenderLinkManifestItem[];
+  warnings: RenderWarning[];
+  localUploads: Array<{
+    fieldName: string;
+    absolutePath: string;
+    fileName: string;
+    mimeType: string;
+  }>;
+};
+
+type AnalyzeMarkdownInputOptions = {
   notePath: string;
   vaultPath: string;
   markdownBody: string;
@@ -14,9 +55,7 @@ type AnalyzeShareInputOptions = {
 
 function stripCodeLikeSegments(markdown: string): string {
   return markdown
-    // fenced code blocks
     .replace(/```[\s\S]*?```/g, "")
-    // inline code spans
     .replace(/`[^`\n]+`/g, "");
 }
 
@@ -48,16 +87,16 @@ function getMimeType(path: string): string {
   return "application/octet-stream";
 }
 
-function getAssetKind(path: string): ShareAssetManifestItem["kind"] {
+function getAssetKind(path: string): RenderAssetManifestItem["kind"] {
   if (isImagePath(path)) return "image";
   if (isVideoPath(path)) return "video";
   if (isPdfPath(path)) return "pdf";
   return "file";
 }
 
-const CURRENT_SUPPORTED_CARBON_ASSET_KINDS = new Set<ShareAssetManifestItem["kind"]>(["image"]);
+const CURRENT_SUPPORTED_CARBON_ASSET_KINDS = new Set<RenderAssetManifestItem["kind"]>(["image"]);
 
-function getDirectiveAssetKind(kind: string): ShareAssetManifestItem["kind"] {
+function getDirectiveAssetKind(kind: string): RenderAssetManifestItem["kind"] {
   if (kind === "video") return "video";
   if (kind === "pdf") return "pdf";
   if (kind === "image") return "image";
@@ -74,10 +113,10 @@ function parseDirectiveAttributes(raw: string): Record<string, string> {
   return result;
 }
 
-export function analyzeShareInput(options: AnalyzeShareInputOptions): ShareAnalysis {
+export function analyzeMarkdownInput(options: AnalyzeMarkdownInputOptions): MarkdownAnalysis {
   const markdownForScan = stripCodeLikeSegments(options.markdownBody);
-  const warnings: ShareWarning[] = [];
-  const assetManifest = new Map<string, ShareAssetManifestItem>();
+  const warnings: RenderWarning[] = [];
+  const assetManifest = new Map<string, RenderAssetManifestItem>();
   const localUploads = new Map<
     string,
     {
@@ -87,9 +126,9 @@ export function analyzeShareInput(options: AnalyzeShareInputOptions): ShareAnaly
       mimeType: string;
     }
   >();
-  const linkManifest = new Map<string, ShareLinkManifestItem>();
+  const linkManifest = new Map<string, RenderLinkManifestItem>();
 
-  function addWarning(warning: ShareWarning) {
+  function addWarning(warning: RenderWarning) {
     const key = `${warning.code}:${warning.sourceRef}`;
     if (warnings.some((item) => `${item.code}:${item.sourceRef}` === key)) return;
     warnings.push(warning);
@@ -100,7 +139,7 @@ export function analyzeShareInput(options: AnalyzeShareInputOptions): ShareAnaly
     if (!isPathInside(absolutePath, options.vaultPath)) {
       addWarning({
         code: "OUTSIDE_VAULT_ASSET",
-        message: "Vault 外のファイル参照があるため共有できません",
+        message: "Vault 外のファイル参照は扱えません",
         sourceRef,
         severity: "error",
       });
@@ -113,7 +152,7 @@ export function analyzeShareInput(options: AnalyzeShareInputOptions): ShareAnaly
     const clientAssetId = crypto.randomUUID();
     const uploadField = `file_${clientAssetId}`;
     const mimeType = getMimeType(absolutePath);
-    const manifest: ShareAssetManifestItem = {
+    const manifest: RenderAssetManifestItem = {
       clientAssetId,
       kind: getAssetKind(absolutePath),
       sourceType: "local-file",
@@ -126,7 +165,7 @@ export function analyzeShareInput(options: AnalyzeShareInputOptions): ShareAnaly
     localUploads.set(uploadField, {
       fieldName: uploadField,
       absolutePath,
-      fileName: getBaseName(absolutePath),
+      fileName: absolutePath.split(/[\\/]/).pop() ?? absolutePath,
       mimeType,
     });
     return manifest;
@@ -135,12 +174,12 @@ export function analyzeShareInput(options: AnalyzeShareInputOptions): ShareAnaly
   function addCarbonAsset(
     sourceRef: string,
     title: string | null | undefined,
-    kind: ShareAssetManifestItem["kind"],
+    kind: RenderAssetManifestItem["kind"],
   ) {
     if (!CURRENT_SUPPORTED_CARBON_ASSET_KINDS.has(kind)) {
       addWarning({
         code: "UNSUPPORTED_CARBON_ASSET_KIND",
-        message: "carbon://asset 共有は現在画像のみ対応しています",
+        message: "carbon://asset には現在画像のみ対応しています",
         sourceRef,
         severity: "error",
       });
@@ -148,7 +187,7 @@ export function analyzeShareInput(options: AnalyzeShareInputOptions): ShareAnaly
     }
 
     if (assetManifest.has(sourceRef)) return assetManifest.get(sourceRef)!;
-    const manifest: ShareAssetManifestItem = {
+    const manifest: RenderAssetManifestItem = {
       clientAssetId: crypto.randomUUID(),
       kind,
       sourceType: "carbon-asset",
@@ -202,7 +241,7 @@ export function analyzeShareInput(options: AnalyzeShareInputOptions): ShareAnaly
     if (!isPathInside(absolutePath, options.vaultPath)) {
       addWarning({
         code: "OUTSIDE_VAULT_LINK",
-        message: "Vault 外のファイル参照があるため共有できません",
+        message: "Vault 外のファイル参照は扱えません",
         sourceRef: href,
         severity: "error",
       });
@@ -213,8 +252,8 @@ export function analyzeShareInput(options: AnalyzeShareInputOptions): ShareAnaly
       const targetNotePath = absolutePath.slice(options.vaultPath.replace(/[\\/]+$/, "").length + 1).replace(/\\/g, "/");
       linkManifest.set(href, { href, kind: "note-link", targetNotePath });
       addWarning({
-        code: "UNSHARED_NOTE_LINK",
-        message: "リンク先ノートは未公開の可能性があります",
+        code: "UNRESOLVED_NOTE_LINK",
+        message: "リンク先ノートを解決できません",
         sourceRef: href,
         severity: "warning",
       });
@@ -226,16 +265,10 @@ export function analyzeShareInput(options: AnalyzeShareInputOptions): ShareAnaly
   }
 
   return {
-    metadata: {
-      title: resolveShareTitle(options.markdownBody, options.title?.trim() || "Untitled"),
-      sourceVaultPath: options.vaultPath,
-      sourceVaultName: getBaseName(options.vaultPath),
-      sourceNotePath: options.noteId,
-      markdownBody: options.markdownBody,
-      linkManifest: [...linkManifest.values()],
-      assetManifest: [...assetManifest.values()],
-      warnings,
-    },
+    title: resolveDocumentTitle(options.markdownBody, options.title?.trim() || "Untitled"),
+    assetManifest: [...assetManifest.values()],
+    linkManifest: [...linkManifest.values()],
+    warnings,
     localUploads: [...localUploads.values()],
   };
 }

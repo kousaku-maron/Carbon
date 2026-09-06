@@ -1,10 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { analyzeShareInput } from "./analyze-share-input";
+import { analyzeMarkdownInput } from "./analyze-markdown-input";
 
-describe("analyzeShareInput", () => {
-  it("captures vault metadata and ignores code-like markdown segments", () => {
-    const result = analyzeShareInput({
-      noteId: "docs/guide.md",
+describe("analyzeMarkdownInput", () => {
+  it("captures local assets and ignores code-like markdown segments", () => {
+    const result = analyzeMarkdownInput({
       notePath: "/vault/docs/guide.md",
       vaultPath: "/vault",
       title: "Guide",
@@ -21,58 +20,55 @@ describe("analyzeShareInput", () => {
       ].join("\n"),
     });
 
-    expect(result.metadata.sourceVaultPath).toBe("/vault");
-    expect(result.metadata.sourceVaultName).toBe("vault");
+    expect(result.title).toBe("Guide");
     expect(result.localUploads).toHaveLength(1);
     expect(result.localUploads[0]?.absolutePath).toBe("/vault/docs/image.png");
-    expect(result.metadata.linkManifest).toEqual([
+    expect(result.linkManifest).toEqual([
       {
         href: "./other.md",
         kind: "note-link",
         targetNotePath: "docs/other.md",
       },
     ]);
-    expect(result.metadata.warnings).toEqual([
+    expect(result.warnings).toEqual([
       {
-        code: "UNSHARED_NOTE_LINK",
-        message: "リンク先ノートは未公開の可能性があります",
+        code: "UNRESOLVED_NOTE_LINK",
+        message: "リンク先ノートを解決できません",
         sourceRef: "./other.md",
         severity: "warning",
       },
     ]);
   });
 
-  it("uses the first h1 as metadata.title when present", () => {
-    const result = analyzeShareInput({
-      noteId: "docs/guide.md",
+  it("uses the first h1 as the document title when present", () => {
+    const result = analyzeMarkdownInput({
       notePath: "/vault/docs/guide.md",
       vaultPath: "/vault",
       title: "guide.md",
-      markdownBody: "# 公開タイトル\n\n## セクション\n\n本文",
+      markdownBody: "# ドキュメントタイトル\n\n## セクション\n\n本文",
     });
 
-    expect(result.metadata.title).toBe("公開タイトル");
+    expect(result.title).toBe("ドキュメントタイトル");
   });
 
-  it("marks outside-vault local references as fatal errors", () => {
-    const result = analyzeShareInput({
-      noteId: "docs/guide.md",
+  it("marks outside-vault local references as errors", () => {
+    const result = analyzeMarkdownInput({
       notePath: "/vault/docs/guide.md",
       vaultPath: "/vault",
       markdownBody: "![bad](../../private/secret.png)\n[bad link](../../private/secret.pdf)",
     });
 
     expect(result.localUploads).toHaveLength(0);
-    expect(result.metadata.warnings).toEqual([
+    expect(result.warnings).toEqual([
       {
         code: "OUTSIDE_VAULT_ASSET",
-        message: "Vault 外のファイル参照があるため共有できません",
+        message: "Vault 外のファイル参照は扱えません",
         sourceRef: "../../private/secret.png",
         severity: "error",
       },
       {
         code: "OUTSIDE_VAULT_LINK",
-        message: "Vault 外のファイル参照があるため共有できません",
+        message: "Vault 外のファイル参照は扱えません",
         sourceRef: "../../private/secret.pdf",
         severity: "error",
       },
@@ -80,8 +76,7 @@ describe("analyzeShareInput", () => {
   });
 
   it("treats leading-slash references as vault-absolute paths", () => {
-    const result = analyzeShareInput({
-      noteId: "docs/guide.md",
+    const result = analyzeMarkdownInput({
       notePath: "/vault/docs/guide.md",
       vaultPath: "/vault",
       markdownBody: [
@@ -92,7 +87,7 @@ describe("analyzeShareInput", () => {
 
     expect(result.localUploads).toHaveLength(1);
     expect(result.localUploads[0]?.absolutePath).toBe("/vault/.carbon/assets/demo.png");
-    expect(result.metadata.linkManifest).toEqual([
+    expect(result.linkManifest).toEqual([
       {
         href: "/root.md",
         kind: "note-link",
@@ -101,29 +96,27 @@ describe("analyzeShareInput", () => {
     ]);
   });
 
-  it("keeps image carbon assets in the manifest without treating them as local uploads", () => {
-    const result = analyzeShareInput({
-      noteId: "docs/guide.md",
+  it("keeps image carbon assets in the manifest without local uploads", () => {
+    const result = analyzeMarkdownInput({
       notePath: "/vault/docs/guide.md",
       vaultPath: "/vault",
       markdownBody: "![cover](carbon://asset/as_123)",
     });
 
     expect(result.localUploads).toHaveLength(0);
-    expect(result.metadata.assetManifest).toEqual([
+    expect(result.assetManifest).toEqual([
       expect.objectContaining({
         kind: "image",
         sourceType: "carbon-asset",
         sourceRef: "carbon://asset/as_123",
       }),
     ]);
-    expect(result.metadata.linkManifest).toEqual([]);
-    expect(result.metadata.warnings).toEqual([]);
+    expect(result.linkManifest).toEqual([]);
+    expect(result.warnings).toEqual([]);
   });
 
   it("rejects non-image carbon assets while keeping the logic future-extensible", () => {
-    const result = analyzeShareInput({
-      noteId: "docs/guide.md",
+    const result = analyzeMarkdownInput({
       notePath: "/vault/docs/guide.md",
       vaultPath: "/vault",
       markdownBody: [
@@ -133,18 +126,18 @@ describe("analyzeShareInput", () => {
     });
 
     expect(result.localUploads).toHaveLength(0);
-    expect(result.metadata.assetManifest).toEqual([]);
-    expect(result.metadata.linkManifest).toEqual([]);
-    expect(result.metadata.warnings).toEqual([
+    expect(result.assetManifest).toEqual([]);
+    expect(result.linkManifest).toEqual([]);
+    expect(result.warnings).toEqual([
       {
         code: "UNSUPPORTED_CARBON_ASSET_KIND",
-        message: "carbon://asset 共有は現在画像のみ対応しています",
+        message: "carbon://asset には現在画像のみ対応しています",
         sourceRef: "carbon://asset/as_video",
         severity: "error",
       },
       {
         code: "UNSUPPORTED_CARBON_ASSET_KIND",
-        message: "carbon://asset 共有は現在画像のみ対応しています",
+        message: "carbon://asset には現在画像のみ対応しています",
         sourceRef: "carbon://asset/as_file",
         severity: "error",
       },

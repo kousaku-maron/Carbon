@@ -4,7 +4,6 @@ import { buildPdfRenderDocument } from "./pdf-render-document";
 describe("buildPdfRenderDocument", () => {
   it("converts vault-local images to file URLs for PDF rendering", () => {
     const document = buildPdfRenderDocument({
-      noteId: "notes/daily/today.md",
       notePath: "/vault/notes/daily/today.md",
       noteName: "today",
       vaultPath: "/vault",
@@ -19,7 +18,6 @@ describe("buildPdfRenderDocument", () => {
 
   it("keeps note links internal while mapping external links to public URLs", () => {
     const document = buildPdfRenderDocument({
-      noteId: "notes/daily/today.md",
       notePath: "/vault/notes/daily/today.md",
       noteName: "today",
       vaultPath: "/vault",
@@ -45,7 +43,6 @@ describe("buildPdfRenderDocument", () => {
 
   it("preserves embedded video and pdf directives as static-label assets", () => {
     const document = buildPdfRenderDocument({
-      noteId: "notes/daily/today.md",
       notePath: "/vault/notes/daily/today.md",
       noteName: "today",
       vaultPath: "/vault",

@@ -2,7 +2,6 @@ import { neon } from "@neondatabase/serverless";
 import { drizzle } from "drizzle-orm/neon-http";
 import * as authSchema from "../db/schema/auth";
 import * as appSchema from "../db/schema/app";
-import * as shareSchema from "../db/schema/share";
 
 function normalizeDatabaseUrl(databaseUrl: string): string {
   try {
@@ -21,7 +20,6 @@ export function createDb(databaseUrl: string) {
     schema: {
       ...authSchema,
       ...appSchema,
-      ...shareSchema,
     },
   });
 }

@@ -1,9 +1,8 @@
 import type { RenderedAssetItem, RenderedLinkItem } from "@carbon/rendering";
-import { analyzeShareInput } from "./share/analyze-share-input";
+import { analyzeMarkdownInput } from "./render/analyze-markdown-input";
 import { transformMarkdownForPdfExport } from "./tiptap/markdown";
 
 export type BuildPdfRenderDocumentInput = {
-  noteId: string;
   notePath: string;
   noteName: string;
   vaultPath: string;
@@ -23,8 +22,7 @@ export function buildPdfRenderDocument(input: BuildPdfRenderDocumentInput): PdfR
     currentNotePath: input.notePath,
     vaultPath: input.vaultPath,
   });
-  const analysis = analyzeShareInput({
-    noteId: input.noteId,
+  const analysis = analyzeMarkdownInput({
     notePath: input.notePath,
     vaultPath: input.vaultPath,
     markdownBody: transformedMarkdown,
@@ -34,7 +32,7 @@ export function buildPdfRenderDocument(input: BuildPdfRenderDocumentInput): PdfR
     analysis.localUploads.map((upload) => [upload.fieldName, upload] as const),
   );
 
-  const assets: RenderedAssetItem[] = analysis.metadata.assetManifest.map((asset) => {
+  const assets: RenderedAssetItem[] = analysis.assetManifest.map((asset) => {
     let publicUrl: string | null = null;
 
     if (asset.kind === "image" && asset.sourceType === "local-file" && asset.uploadField) {
@@ -58,14 +56,14 @@ export function buildPdfRenderDocument(input: BuildPdfRenderDocumentInput): PdfR
     };
   });
 
-  const links: RenderedLinkItem[] = analysis.metadata.linkManifest.map((link) => (
+  const links: RenderedLinkItem[] = analysis.linkManifest.map((link) => (
     link.kind === "external-link"
       ? { ...link, publicUrl: link.href }
       : link
   ));
 
   return {
-    title: analysis.metadata.title ?? input.noteName,
+    title: analysis.title,
     markdownBody: transformedMarkdown,
     assets,
     links,

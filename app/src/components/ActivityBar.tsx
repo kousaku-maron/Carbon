@@ -2,14 +2,12 @@ import { useRef, useState } from "react";
 import { ContextMenu } from "./ContextMenu";
 
 type ActivityBarProps = {
-  active: "explorer" | "shares";
-  onChange: (next: "explorer" | "shares") => void;
   onAbout: () => void;
   onSignOut: () => void;
 };
 
 export function ActivityBar(props: ActivityBarProps) {
-  const { active, onChange, onAbout, onSignOut } = props;
+  const { onAbout, onSignOut } = props;
   const settingsButtonRef = useRef<HTMLButtonElement>(null);
   const [settingsMenuOpen, setSettingsMenuOpen] = useState(false);
 
@@ -40,26 +38,12 @@ export function ActivityBar(props: ActivityBarProps) {
       <div className="activity-bar-nav">
         <button
           type="button"
-          className={`activity-bar-btn${active === "explorer" ? " is-active" : ""}`}
-          onClick={() => onChange("explorer")}
+          className="activity-bar-btn is-active"
           aria-label="Explorer"
           title="Explorer"
         >
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
             <path d="M3 7.5A1.5 1.5 0 0 1 4.5 6H9l2 2h8.5A1.5 1.5 0 0 1 21 9.5v8A1.5 1.5 0 0 1 19.5 19h-15A1.5 1.5 0 0 1 3 17.5v-10Z" />
-          </svg>
-        </button>
-        <button
-          type="button"
-          className={`activity-bar-btn${active === "shares" ? " is-active" : ""}`}
-          onClick={() => onChange("shares")}
-          aria-label="Published notes"
-          title="Published notes"
-        >
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
-            <circle cx="12" cy="12" r="8.25" />
-            <path d="M3.9 12h16.2" />
-            <path d="M12 3.75c2.4 2.2 3.75 5.13 3.75 8.25S14.4 18.05 12 20.25C9.6 18.05 8.25 15.12 8.25 12S9.6 5.95 12 3.75Z" />
           </svg>
         </button>
       </div>

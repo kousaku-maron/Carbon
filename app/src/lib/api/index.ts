@@ -8,4 +8,3 @@ export {
   fetchMe,
 } from "./auth";
 export type { User, SignInResult } from "./auth";
-export { createShare, getShare, listShares, republishShare, revokeShare } from "./shares";
