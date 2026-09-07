@@ -1,3 +1,6 @@
+import { flushSync } from "react-dom";
+import { createLinkIndex, type LinkIndex, type LinkIndexActivity } from "../modules/link-index";
+import { writeNote } from "../modules/note-persistence";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { NoteIndexEntry, OpenNoteTab, TreeNode } from "../../types";
 import { isMarkdownPath } from "../../file-kind";
@@ -55,6 +58,31 @@ export function useVault(options?: UseVaultOptions) {
   const openNoteTabsRef = useRef<OpenNoteTab[]>([]);
   const activeNoteTabKeyRef = useRef<number | null>(null);
   const noteTabKeyCounterRef = useRef(0);
+  const [indexActivity, setIndexActivity] = useState<{ vault: string; activity: LinkIndexActivity } | null>(null);
+  const linkIndexRef = useRef<{ vault: string; index: LinkIndex } | null>(null);
+  const [movingFiles, setMovingFiles] = useState(false);
+  const movingFilesRef = useRef(false);
+  const saveEpochRef = useRef(0);
+  const [saveEpoch, setSaveEpoch] = useState(0);
+  const pendingSavesRef = useRef(new Set<Promise<void>>());
+  const scheduleRepairRef = useRef<() => void>(() => {});
+  const deferredWatchRef = useRef<Array<() => void>>([]);
+
+  const getLinkIndex = useCallback((path: string) => {
+    if (linkIndexRef.current?.vault !== path) {
+      linkIndexRef.current = { vault: path, index: createLinkIndex(path, (msg) => options?.onError?.(msg),
+        (activity) => {
+          if (linkIndexRef.current?.vault === path) setIndexActivity({ vault: path, activity });
+        }) };
+    }
+    return linkIndexRef.current.index;
+  }, [options?.onError]);
+
+  const refreshLinks = useCallback((paths: string[]) => {
+    if (!vaultPath || !paths.length) return;
+    void getLinkIndex(vaultPath).refresh(paths).then(() => scheduleRepairRef.current()).catch((error) =>
+      options?.onError?.(`Failed to index links: ${String(error)}`));
+  }, [vaultPath, getLinkIndex, options?.onError]);
 
   const replaceOpenNoteTabs = useCallback((next: OpenNoteTab[]) => {
     openNoteTabsRef.current = next;
@@ -68,6 +96,7 @@ export function useVault(options?: UseVaultOptions) {
 
   const {
     activeNote,
+    canRepairLinks,
     getActiveNoteSnapshot,
     commitActiveNoteBufferToState,
     handleSelectNote: handleSelectMarkdownNote,
@@ -78,6 +107,7 @@ export function useVault(options?: UseVaultOptions) {
     onPathsAvailable: markActiveNoteAvailable,
     onPathsMoved: onActiveNoteMoved,
     handleSaveWithGuards,
+    flushForFileMove,
     clearActiveNote,
     resetNoteSession,
   } = useActiveNoteSync({
@@ -213,12 +243,15 @@ export function useVault(options?: UseVaultOptions) {
   }, []);
 
   const handleWatchedPathsRemoved = useCallback((removedPaths: string[]) => {
+    if (vaultPath) void getLinkIndex(vaultPath).remove(removedPaths).then(() => scheduleRepairRef.current());
+
     markActiveNoteMissing(removedPaths);
     replaceOpenNoteTabs(markOpenNoteTabsMissing(openNoteTabsRef.current, removedPaths));
     updateRemovedIndexesAndPreview(removedPaths);
-  }, [markActiveNoteMissing, replaceOpenNoteTabs, updateRemovedIndexesAndPreview]);
+  }, [markActiveNoteMissing, replaceOpenNoteTabs, updateRemovedIndexesAndPreview, vaultPath, getLinkIndex]);
 
   const handleDeletedPaths = useCallback((removedPaths: string[]) => {
+    if (vaultPath) void getLinkIndex(vaultPath).remove(removedPaths).then(() => scheduleRepairRef.current());
     // Block any editor cleanup save before removing the tabs, otherwise a deleted
     // file can be recreated by a pending Auto Save.
     markActiveNoteMissing(removedPaths);
@@ -245,6 +278,8 @@ export function useVault(options?: UseVaultOptions) {
     markActiveNoteMissing,
     replaceOpenNoteTabs,
     updateRemovedIndexesAndPreview,
+    vaultPath,
+    getLinkIndex,
   ]);
 
   const handlePathsMoved = useCallback((moves: Array<{ from: string; to: string }>) => {
@@ -285,6 +320,7 @@ export function useVault(options?: UseVaultOptions) {
   ]);
 
   const handlePathsAvailable = useCallback((availablePaths: string[]) => {
+    refreshLinks(availablePaths);
     markActiveNoteAvailable(availablePaths);
     const previousTabs = openNoteTabsRef.current;
     const activeKey = activeNoteTabKeyRef.current;
@@ -303,16 +339,18 @@ export function useVault(options?: UseVaultOptions) {
     getActiveNoteSnapshot,
     loadOpenNoteTab,
     markActiveNoteAvailable,
+    refreshLinks,
     replaceOpenNoteTabs,
   ]);
 
   const handleWatchedMarkdownChange = useCallback(async (changedPaths: string[]) => {
+    refreshLinks(changedPaths);
     if (vaultPath) {
       setNoteIndex((prev) =>
         changedPaths.reduce((acc, path) => upsertNoteIndex(acc, path, vaultPath), prev));
     }
     await onFileChange(changedPaths);
-  }, [onFileChange, vaultPath]);
+  }, [onFileChange, vaultPath, refreshLinks]);
 
   const handleSelectNote = useCallback(async (node: TreeNode) => {
     if (node.kind !== "file") return;
@@ -382,16 +420,93 @@ export function useVault(options?: UseVaultOptions) {
     [options?.onError, tree, vaultPath],
   );
 
+  const deferWatch = (callback: () => void) => {
+    if (movingFilesRef.current) deferredWatchRef.current.push(callback);
+    else callback();
+  };
   useFileWatcher({
     vaultPath,
     setTree,
-    onFileChange: handleWatchedMarkdownChange,
-    onPathsUnavailable: blockUnavailablePaths,
-    onPathsRemoved: handleWatchedPathsRemoved,
-    onPathsMoved: handlePathsMoved,
-    onPathsAvailable: handlePathsAvailable,
+    onFileChange: async (paths) => { deferWatch(() => { void handleWatchedMarkdownChange(paths); }); },
+    onPathsUnavailable: (paths) => { if (!movingFilesRef.current) blockUnavailablePaths(paths); },
+    onPathsRemoved: (paths) => deferWatch(() => handleWatchedPathsRemoved(paths)),
+    onPathsMoved: (moves) => deferWatch(() => {
+      handlePathsMoved(moves);
+      if (vaultPath) {
+        void getLinkIndex(vaultPath).remove(moves.map((move) => move.from));
+        refreshLinks(moves.map((move) => move.to));
+      }
+    }),
+    onPathsAvailable: (paths) => deferWatch(() => handlePathsAvailable(paths)),
+    onFoldersAvailable: (paths) => deferWatch(() => refreshLinks(paths)),
     onError: options?.onError,
   });
+
+  const moveWithLinks = useCallback(async (from: string, to: string, onMoved: () => void) => {
+    if (!vaultPath || movingFilesRef.current || pathsEqual(from, to)) return;
+    movingFilesRef.current = true;
+    // Invalidate callbacks held by old editor debounce timers before flushing the buffer.
+    saveEpochRef.current += 1;
+    flushSync(() => { setSaveEpoch(saveEpochRef.current); setMovingFiles(true); });
+    try {
+      await Promise.all([...pendingSavesRef.current]);
+      await flushForFileMove(writeNote);
+      const snapshot = getActiveNoteSnapshot();
+      if (snapshot) await getLinkIndex(vaultPath).refresh([snapshot.path]);
+      await getLinkIndex(vaultPath).move(from, to, onMoved);
+    } finally {
+      // Reload repaired content while old editor callbacks are still invalidated.
+      const current = getActiveNoteSnapshot();
+      if (current) await onFileChange([current.path]);
+      movingFilesRef.current = false;
+      setMovingFiles(false);
+      const deferred = deferredWatchRef.current.splice(0);
+      for (const callback of deferred) callback();
+    }
+  }, [vaultPath, getLinkIndex, getActiveNoteSnapshot, flushForFileMove, onFileChange]);
+
+  useEffect(() => {
+    if (!vaultPath) return;
+    const index = getLinkIndex(vaultPath);
+    let disposed = false;
+    let running = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const reconcile = async (scan: boolean) => {
+      if (disposed || running || movingFilesRef.current) return;
+      running = true;
+      try {
+        await index.reconcile(scan, async (write) => {
+          if (disposed || movingFilesRef.current || pendingSavesRef.current.size || !canRepairLinks()) return false;
+          movingFilesRef.current = true;
+          saveEpochRef.current += 1;
+          flushSync(() => { setSaveEpoch(saveEpochRef.current); setMovingFiles(true); });
+          try { await write(); }
+          finally {
+            const current = getActiveNoteSnapshot();
+            if (current) await onFileChange([current.path]);
+            movingFilesRef.current = false;
+            setMovingFiles(false);
+            for (const callback of deferredWatchRef.current.splice(0)) callback();
+          }
+          return true;
+        });
+      } catch (error) {
+        if (!disposed) options?.onError?.(`Failed to repair links: ${String(error)}`);
+      } finally { running = false; }
+    };
+    const schedule = () => {
+      clearTimeout(timer);
+      timer = setTimeout(() => { void reconcile(false); }, 1000);
+    };
+    scheduleRepairRef.current = schedule;
+    // Reconcile offline changes once at startup; subsequent runs follow file events.
+    timer = setTimeout(() => { void reconcile(true); }, 1000);
+    return () => {
+      disposed = true;
+      clearTimeout(timer);
+      if (scheduleRepairRef.current === schedule) scheduleRepairRef.current = () => {};
+    };
+  }, [vaultPath, getLinkIndex, canRepairLinks, getActiveNoteSnapshot, onFileChange, options?.onError]);
 
   const {
     handleSaveNote: handleSaveNoteFromOps,
@@ -410,14 +525,20 @@ export function useVault(options?: UseVaultOptions) {
     onSelectNote: handleSelectNote,
     onPathsRemoved: handleDeletedPaths,
     onPathsMoved: handlePathsMoved,
+    moveWithLinks,
     onError: options?.onError,
   });
 
-  const handleSaveNote = useCallback(
-    async (path: string, content: string) =>
-      handleSaveWithGuards(path, content, handleSaveNoteFromOps),
-    [handleSaveWithGuards, handleSaveNoteFromOps],
-  );
+  const handleSaveNote = useCallback(async (path: string, content: string) => {
+    if (movingFilesRef.current || saveEpoch !== saveEpochRef.current) return;
+    const pending = handleSaveWithGuards(path, content, async (target, body) => {
+      await handleSaveNoteFromOps(target, body);
+      if (vaultPath) await getLinkIndex(vaultPath).refresh([target]).catch((error) =>
+        options?.onError?.(`Note saved, but link indexing failed: ${String(error)}`));
+    });
+    pendingSavesRef.current.add(pending);
+    try { await pending; } finally { pendingSavesRef.current.delete(pending); }
+  }, [handleSaveWithGuards, handleSaveNoteFromOps, vaultPath, getLinkIndex, saveEpoch, options?.onError]);
 
   const loadVault = useCallback(
     async (path: string) => {
@@ -425,11 +546,12 @@ export function useVault(options?: UseVaultOptions) {
         setTree(await scanVault(path));
         setNoteIndex([]);
         void refreshNoteIndex(path);
+        void getLinkIndex(path).start().catch((error) => options?.onError?.(`Failed to index links: ${String(error)}`));
       } catch (err) {
         options?.onError?.(`Failed to scan vault: ${formatError(err, "unknown error")}`);
       }
     },
-    [options?.onError, refreshNoteIndex],
+    [options?.onError, refreshNoteIndex, getLinkIndex],
   );
 
   useEffect(() => {
@@ -491,6 +613,8 @@ export function useVault(options?: UseVaultOptions) {
     commitActiveNoteBufferToState,
     activeNonMarkdownFile,
     loading,
+    movingFiles,
+    linkIndexActivity: indexActivity?.vault === vaultPath ? indexActivity.activity : null,
     switchVault,
     handleRemoveFromHistory,
     handleSelectNote,

@@ -507,6 +507,20 @@ export function useActiveNoteSync({
     [isSaveBlocked, onFileChange, recordSelfSave, resolveCurrentPath],
   );
 
+  const flushForFileMove = useCallback(async (save: (path: string, body: string) => Promise<void>) => {
+    const current = runtimeRef.current.activeNote;
+    if (!current) return;
+    const editor = runtimeRef.current.editor;
+    if (!editor.dirty) {
+      await onFileChange([current.path]);
+      return;
+    }
+    if (await readNote(current.path) !== editor.savedBody) {
+      throw new Error("File changed externally. Resolve unsaved edits before moving files.");
+    }
+    await handleSaveWithGuards(current.path, editor.buffer, save);
+  }, [handleSaveWithGuards, onFileChange]);
+
   const clearActiveNote = useCallback(() => {
     selectionSeqRef.current += 1;
     runtimeRef.current.activeNote = null;
@@ -561,7 +575,10 @@ export function useActiveNoteSync({
     setActiveNote(next);
   }, []);
 
+  const canRepairLinks = useCallback(() => !runtimeRef.current.editor.dirty && !runtimeRef.current.save.saving, []);
+
   return {
+    canRepairLinks,
     activeNote,
     getActiveNoteSnapshot,
     commitActiveNoteBufferToState,
@@ -573,6 +590,7 @@ export function useActiveNoteSync({
     onPathsAvailable,
     onPathsMoved,
     handleSaveWithGuards,
+    flushForFileMove,
     clearActiveNote,
     resetNoteSession,
   } as const;

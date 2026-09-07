@@ -1,3 +1,4 @@
+import { LinkIndexStatus } from "../components/LinkIndexStatus";
 import { useNavigate } from "@tanstack/react-router";
 import { getVersion } from "@tauri-apps/api/app";
 import { useCallback, useEffect, useState } from "react";
@@ -44,6 +45,8 @@ export function WorkspaceRoute() {
     commitActiveNoteBufferToState,
     activeNonMarkdownFile,
     loading,
+    movingFiles,
+    linkIndexActivity,
     switchVault,
     handleRemoveFromHistory,
     handleSelectNote,
@@ -144,145 +147,154 @@ export function WorkspaceRoute() {
     ? null
     : openNoteTabs.find((tab) => tab.tabKey === activeNoteTabKey) ?? null;
 
+  const activity = linkIndexActivity ?? (movingFiles ? "repairing" : null);
+  const indexStatus = <LinkIndexStatus activity={activity} sidebarOpen={sidebarOpen && !loading} />;
+
   if (loading) {
     return (
-      <div className="app-layout">
-        <main className="main-content">
-          <p style={{ padding: "2rem", color: "#666" }}>Loading...</p>
-        </main>
-      </div>
+      <>
+        <div className="app-layout" {...(movingFiles ? { inert: "" } : {})} aria-busy={movingFiles}>
+          <main className="main-content">
+            <p style={{ padding: "2rem", color: "#666" }}>Loading...</p>
+          </main>
+        </div>
+        {indexStatus}
+      </>
     );
   }
 
   return (
-    <div className="app-layout">
-      <ActivityBar
-        onAbout={() => setAboutOpen(true)}
-        onSignOut={() => void handleSignOut()}
-      />
+    <>
+      <div className="app-layout" {...(movingFiles ? { inert: "" } : {})} aria-busy={movingFiles}>
+        <ActivityBar
+          onAbout={() => setAboutOpen(true)}
+          onSignOut={() => void handleSignOut()}
+        />
 
-      {/* ---- Sidebar ---- */}
-      <aside className={`sidebar ${sidebarOpen ? "" : "sidebar--closed"}`}>
-        <div className="sidebar-top">
-          <div className="sidebar-toolbar">
-            <VaultSelector
-              currentPath={vaultPath}
-              history={vaultHistory}
-              onSelect={handleVaultSwitch}
-              onBrowse={handleBrowse}
-              onRemove={handleRemoveFromHistory}
-            />
+        {/* ---- Sidebar ---- */}
+        <aside className={`sidebar ${sidebarOpen ? "" : "sidebar--closed"} ${activity ? "sidebar--index-active" : ""}`}>
+          <div className="sidebar-top">
+            <div className="sidebar-toolbar">
+              <VaultSelector
+                currentPath={vaultPath}
+                history={vaultHistory}
+                onSelect={handleVaultSwitch}
+                onBrowse={handleBrowse}
+                onRemove={handleRemoveFromHistory}
+              />
+              <button
+                className="sidebar-toggle-btn"
+                onClick={() => setSidebarOpen(false)}
+                aria-label="Close sidebar"
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="3" y="3" width="18" height="18" rx="2" />
+                  <line x1="9" y1="3" x2="9" y2="21" />
+                </svg>
+              </button>
+            </div>
+
+            {vaultPath ? (
+              <nav className="file-tree-container">
+                <FileTree
+                  nodes={tree}
+                  activeNoteId={activeNoteTab?.id ?? activeNonMarkdownFile?.id ?? null}
+                  vaultPath={vaultPath}
+                  onSelect={handleSelectNote}
+                  onExpandFolder={handleLoadFolder}
+                  onCreateFile={handleCreateFile}
+                  onCreateFolder={handleCreateFolder}
+                  onRename={handleRename}
+                  onDelete={handleDelete}
+                  onMove={handleMove}
+                />
+              </nav>
+            ) : null}
+          </div>
+        </aside>
+
+        {/* ---- Main Content ---- */}
+        <main className="main-content">
+          {!sidebarOpen && (
             <button
-              className="sidebar-toggle-btn"
-              onClick={() => setSidebarOpen(false)}
-              aria-label="Close sidebar"
+              className="sidebar-open-btn"
+              onClick={() => setSidebarOpen(true)}
+              aria-label="Open sidebar"
             >
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <rect x="3" y="3" width="18" height="18" rx="2" />
                 <line x1="9" y1="3" x2="9" y2="21" />
               </svg>
             </button>
-          </div>
-
-          {vaultPath ? (
-            <nav className="file-tree-container">
-              <FileTree
-                nodes={tree}
-                activeNoteId={activeNoteTab?.id ?? activeNonMarkdownFile?.id ?? null}
-                vaultPath={vaultPath}
-                onSelect={handleSelectNote}
-                onExpandFolder={handleLoadFolder}
-                onCreateFile={handleCreateFile}
-                onCreateFolder={handleCreateFolder}
-                onRename={handleRename}
-                onDelete={handleDelete}
-                onMove={handleMove}
-              />
-            </nav>
-          ) : null}
-        </div>
-      </aside>
-
-      {/* ---- Main Content ---- */}
-      <main className="main-content">
-        {!sidebarOpen && (
-          <button
-            className="sidebar-open-btn"
-            onClick={() => setSidebarOpen(true)}
-            aria-label="Open sidebar"
-          >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <rect x="3" y="3" width="18" height="18" rx="2" />
-              <line x1="9" y1="3" x2="9" y2="21" />
-            </svg>
-          </button>
-        )}
-        {openNoteTabs.length ? (
-          <NoteTabs
-            tabs={openNoteTabs}
-            activeTabKey={activeNoteTabKey}
-            sidebarOpen={sidebarOpen}
-            onActivate={(tabKey) => void handleActivateNoteTab(tabKey)}
-            onClose={handleCloseNoteTab}
-            onReorder={handleReorderNoteTab}
-          />
-        ) : null}
-        <div className="workspace-view">
-          {activeNoteTab?.status === "missing" ? (
-            <MissingNoteView tab={activeNoteTab} />
-          ) : activeNote && vaultPath ? (
-            activeNoteViewMode === "plaintext" ? (
-              <PlainTextEditor
-                key={`plaintext-${activeNote.docKey}`}
-                note={activeNoteSnapshot ?? activeNote}
-                onSave={handleSaveNote}
-                onBufferChange={handleEditorBufferChange}
-                vaultPath={vaultPath}
-                viewMode={activeNoteViewMode}
-                onViewModeChange={handleViewModeChange}
-                menuOpen={noteMenuOpen}
-                onMenuOpenChange={setNoteMenuOpen}
-              />
-            ) : (
-              <NoteEditor
-                key={`visual-${activeNote.docKey}`}
-                note={activeNote}
-                onSave={handleSaveNote}
-                onBufferChange={handleEditorBufferChange}
-                vaultPath={vaultPath}
-                noteIndex={noteIndex}
-                onNavigateToNote={handleNavigateToNote}
-                onLinkError={handleError}
-                viewMode={activeNoteViewMode}
-                onViewModeChange={handleViewModeChange}
-                menuOpen={noteMenuOpen}
-                onMenuOpenChange={setNoteMenuOpen}
-              />
-            )
-          ) : activeNonMarkdownFile && isImagePath(activeNonMarkdownFile.path) ? (
-            <ImageViewer file={activeNonMarkdownFile} />
-          ) : activeNonMarkdownFile && isVideoPath(activeNonMarkdownFile.path) ? (
-            <VideoViewer file={activeNonMarkdownFile} />
-          ) : activeNonMarkdownFile && isPdfPath(activeNonMarkdownFile.path) ? (
-            <PdfViewer file={activeNonMarkdownFile} />
-          ) : activeNonMarkdownFile ? (
-            <UnsupportedFileViewer file={activeNonMarkdownFile} />
-          ) : (
-            <div className="workspace-empty">
-              <p>
-                {vaultPath
-                  ? "Select a note from the sidebar"
-                  : "Select a vault to get started"}
-              </p>
-            </div>
           )}
-        </div>
-      </main>
+          {openNoteTabs.length ? (
+            <NoteTabs
+              tabs={openNoteTabs}
+              activeTabKey={activeNoteTabKey}
+              sidebarOpen={sidebarOpen}
+              onActivate={(tabKey) => void handleActivateNoteTab(tabKey)}
+              onClose={handleCloseNoteTab}
+              onReorder={handleReorderNoteTab}
+            />
+          ) : null}
+          <div className="workspace-view">
+            {activeNoteTab?.status === "missing" ? (
+              <MissingNoteView tab={activeNoteTab} />
+            ) : activeNote && vaultPath ? (
+              activeNoteViewMode === "plaintext" ? (
+                <PlainTextEditor
+                  key={`plaintext-${activeNote.docKey}`}
+                  note={activeNoteSnapshot ?? activeNote}
+                  onSave={handleSaveNote}
+                  onBufferChange={handleEditorBufferChange}
+                  vaultPath={vaultPath}
+                  viewMode={activeNoteViewMode}
+                  onViewModeChange={handleViewModeChange}
+                  menuOpen={noteMenuOpen}
+                  onMenuOpenChange={setNoteMenuOpen}
+                />
+              ) : (
+                <NoteEditor
+                  key={`visual-${activeNote.docKey}`}
+                  note={activeNote}
+                  onSave={handleSaveNote}
+                  onBufferChange={handleEditorBufferChange}
+                  vaultPath={vaultPath}
+                  noteIndex={noteIndex}
+                  onNavigateToNote={handleNavigateToNote}
+                  onLinkError={handleError}
+                  viewMode={activeNoteViewMode}
+                  onViewModeChange={handleViewModeChange}
+                  menuOpen={noteMenuOpen}
+                  onMenuOpenChange={setNoteMenuOpen}
+                />
+              )
+            ) : activeNonMarkdownFile && isImagePath(activeNonMarkdownFile.path) ? (
+              <ImageViewer file={activeNonMarkdownFile} />
+            ) : activeNonMarkdownFile && isVideoPath(activeNonMarkdownFile.path) ? (
+              <VideoViewer file={activeNonMarkdownFile} />
+            ) : activeNonMarkdownFile && isPdfPath(activeNonMarkdownFile.path) ? (
+              <PdfViewer file={activeNonMarkdownFile} />
+            ) : activeNonMarkdownFile ? (
+              <UnsupportedFileViewer file={activeNonMarkdownFile} />
+            ) : (
+              <div className="workspace-empty">
+                <p>
+                  {vaultPath
+                    ? "Select a note from the sidebar"
+                    : "Select a vault to get started"}
+                </p>
+              </div>
+            )}
+          </div>
+        </main>
 
-      {message && <Toast message={message} onClose={() => setMessage("")} />}
-      {aboutOpen ? (
-        <AboutCarbonDialog version={appVersion} onClose={() => setAboutOpen(false)} />
-      ) : null}
-    </div>
+        {message && <Toast message={message} onClose={() => setMessage("")} />}
+        {aboutOpen ? (
+          <AboutCarbonDialog version={appVersion} onClose={() => setAboutOpen(false)} />
+        ) : null}
+      </div>
+      {indexStatus}
+    </>
   );
 }

@@ -16,7 +16,7 @@ import { CarbonVideo } from "../../lib/tiptap/carbon-video-extension";
 import { API_BASE_URL } from "../../lib/api";
 import { debounce } from "../../lib/debounce";
 import { useCopyFeedback } from "../../lib/hooks/use-copy-feedback";
-import { resolveRelativePath, validateLinkTarget } from "../../lib/link-utils";
+import { resolveVaultLocalPath, validateLinkTarget } from "../../lib/link-utils";
 import { fetchPageTitle } from "../../lib/page-title";
 import { formatPdfExportError, startNotePdfExport } from "../../lib/pdf-export";
 import { formatMarkdownForCopy } from "../../lib/tiptap/markdown";
@@ -143,7 +143,7 @@ export function NoteEditor(props: NoteEditorProps) {
             rel: null,
           },
           onOpenInternal: (href) => {
-            const resolved = resolveRelativePath(note.path, href);
+            const resolved = resolveVaultLocalPath(note.path, href, vaultPath);
             const result = validateLinkTarget(resolved, vaultPath);
             if (!result.valid) {
               latestRef.current.onLinkError?.(

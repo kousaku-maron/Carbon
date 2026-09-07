@@ -1,8 +1,12 @@
 import { getParentPath, isPathInside, joinPath, pathsEqual, toPosix } from "./path-utils";
 import type { TreeNode } from "./types";
 
+function decodePath(path: string): string {
+  try { return decodeURIComponent(path); } catch { return path; }
+}
+
 function splitHashFromHref(href: string): { pathPart: string; hash: string } {
-  const hashIndex = href.indexOf("#");
+  const hashIndex = href.search(/[?#]/);
   if (hashIndex < 0) {
     return { pathPart: href, hash: "" };
   }
@@ -102,7 +106,7 @@ export function resolveRelativePath(
   const dir = getParentPath(currentNotePath);
   const { root, segments } = splitAbsolutePath(dir);
   const { pathPart } = splitHashFromHref(relativeHref);
-  const hrefParts = pathPart.split("/");
+  const hrefParts = decodePath(pathPart).split("/");
 
   for (const segment of hrefParts) {
     if (segment === "..") {
@@ -129,10 +133,7 @@ export function resolveVaultLocalPath(
   const { pathPart } = splitHashFromHref(href);
 
   if (pathPart.startsWith("/") && !pathPart.startsWith("//")) {
-    return pathPart
-      .split("/")
-      .filter(Boolean)
-      .reduce((parent, segment) => joinPath(parent, segment), vaultPath);
+    return resolveRelativePath(joinPath(vaultPath, "__root__.md"), pathPart.slice(1));
   }
 
   return resolveRelativePath(currentNotePath, href);
@@ -145,7 +146,7 @@ export function validateLinkTarget(
   resolvedPath: string,
   vaultPath: string,
 ): { valid: boolean; reason?: string } {
-  const { pathPart } = splitHashFromHref(resolvedPath);
+  const pathPart = resolvedPath;
   if (!isPathInside(pathPart, vaultPath)) {
     return { valid: false, reason: "Link target is outside the vault" };
   }

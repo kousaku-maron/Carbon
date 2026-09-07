@@ -47,6 +47,7 @@ interface UseFileOpsOptions {
   onSelectNote?: (node: TreeNode) => Promise<void>;
   onPathsRemoved?: (removedPaths: string[]) => void;
   onPathsMoved?: (moves: Array<{ from: string; to: string }>) => void;
+  moveWithLinks?: (from: string, to: string, onMoved: () => void) => Promise<void>;
   onError?: (msg: string) => void;
 }
 
@@ -60,6 +61,7 @@ export function useFileOps({
   onPathsRemoved,
   onPathsMoved,
   onError,
+  moveWithLinks,
 }: UseFileOpsOptions) {
   const handleSaveNote = useCallback(
     async (path: string, content: string) => {
@@ -136,16 +138,19 @@ export function useFileOps({
           parentDir,
           `${stripped}${isMarkdown ? ".md" : ""}`,
         );
-        await rename(oldPath, newPath);
-        if (vaultPath) {
-          setTree((prev) => relocateInTree(prev, oldPath, newPath, vaultPath));
-        }
-        onPathsMoved?.([{ from: oldPath, to: newPath }]);
+        const onMoved = () => {
+          if (vaultPath) {
+            setTree((prev) => relocateInTree(prev, oldPath, newPath, vaultPath));
+          }
+          onPathsMoved?.([{ from: oldPath, to: newPath }]);
+        };
+        if (moveWithLinks) await moveWithLinks(oldPath, newPath, onMoved);
+        else { await rename(oldPath, newPath); onMoved(); }
       } catch (e) {
         onError?.(e instanceof Error ? e.message : "Failed to rename");
       }
     },
-    [vaultPath, onError, onPathsMoved, setTree],
+    [vaultPath, onError, onPathsMoved, setTree, moveWithLinks],
   );
 
   const handleDelete = useCallback(
@@ -175,16 +180,19 @@ export function useFileOps({
         const fileName = getBaseName(sourcePath);
         const newPath = joinPath(targetFolderPath, fileName);
         if (sourcePath === newPath) return;
-        await rename(sourcePath, newPath);
-        if (vaultPath) {
-          setTree((prev) => relocateInTree(prev, sourcePath, newPath, vaultPath));
-        }
-        onPathsMoved?.([{ from: sourcePath, to: newPath }]);
+        const onMoved = () => {
+          if (vaultPath) {
+            setTree((prev) => relocateInTree(prev, sourcePath, newPath, vaultPath));
+          }
+          onPathsMoved?.([{ from: sourcePath, to: newPath }]);
+        };
+        if (moveWithLinks) await moveWithLinks(sourcePath, newPath, onMoved);
+        else { await rename(sourcePath, newPath); onMoved(); }
       } catch (e) {
         onError?.(e instanceof Error ? e.message : "Failed to move");
       }
     },
-    [onError, onPathsMoved, setTree, vaultPath],
+    [onError, onPathsMoved, setTree, vaultPath, moveWithLinks],
   );
 
   const handleNavigateToNote = useCallback(

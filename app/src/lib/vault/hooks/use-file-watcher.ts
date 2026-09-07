@@ -27,6 +27,7 @@ interface UseFileWatcherOptions {
   onPathsRemoved?: (removedPaths: string[]) => void;
   onPathsMoved?: (moves: Array<{ from: string; to: string }>) => void;
   onPathsAvailable?: (availablePaths: string[]) => void;
+  onFoldersAvailable?: (paths: string[]) => void;
   onError?: (msg: string) => void;
 }
 
@@ -475,6 +476,7 @@ export function useFileWatcher({
   onPathsRemoved,
   onPathsMoved,
   onPathsAvailable,
+  onFoldersAvailable,
   onError,
 }: UseFileWatcherOptions) {
   const latestRef = useRef({
@@ -483,6 +485,7 @@ export function useFileWatcher({
     onPathsRemoved,
     onPathsMoved,
     onPathsAvailable,
+    onFoldersAvailable,
     onError,
   });
   const eventSeqRef = useRef(0);
@@ -494,6 +497,7 @@ export function useFileWatcher({
       onPathsRemoved,
       onPathsMoved,
       onPathsAvailable,
+      onFoldersAvailable,
       onError,
     };
   }, [
@@ -502,6 +506,7 @@ export function useFileWatcher({
     onPathsRemoved,
     onPathsMoved,
     onPathsAvailable,
+    onFoldersAvailable,
     onError,
   ]);
 
@@ -636,6 +641,9 @@ export function useFileWatcher({
         logWatchDev("moved-paths", { eventId, movedPaths });
         latestRef.current.onPathsMoved?.(movedPaths);
       }
+
+      const folders = ops.flatMap((op) => op.kind === "upsert" && op.nodeKind === "folder" ? [op.path] : []);
+      if (folders.length) latestRef.current.onFoldersAvailable?.(folders);
 
       const availablePaths = collectAvailableMarkdownPaths(ops);
       if (availablePaths.length) {
