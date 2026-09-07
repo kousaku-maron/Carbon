@@ -23,6 +23,22 @@ export type NoteIndexEntry = {
 
 export type NoteViewMode = "visual" | "plaintext";
 
+export type NoteTabStatus = "ready" | "missing";
+
+/** A Markdown note kept open in the workspace tab strip. */
+export type OpenNoteTab = {
+  /** Stable only for the lifetime of this tab. */
+  tabKey: number;
+  /** Current vault-relative path. Changes on move/rename. */
+  id: string;
+  /** Current absolute path on disk. Changes on move/rename. */
+  path: string;
+  /** File name without .md extension. */
+  name: string;
+  /** Missing tabs keep their place while external file operations settle. */
+  status: NoteTabStatus;
+};
+
 /** Represents the currently active note. */
 export type NoteContent = {
   /** Vault-relative path. */

@@ -1,9 +1,20 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { NoteIndexEntry, TreeNode } from "../../types";
+import type { NoteIndexEntry, OpenNoteTab, TreeNode } from "../../types";
 import { isMarkdownPath } from "../../file-kind";
 import { getBaseName, isPathInside, pathsEqual, toVaultRelative } from "../../path-utils";
 import { relocateInNoteIndex, removeFromNoteIndex, scanNoteIndex, upsertNoteIndex } from "../modules/note-catalog";
 import { findTreeNode, replaceFolderChildren, scanFolderChildren, scanVault } from "../modules/note-index";
+import {
+  applyPathMoves,
+  chooseActiveTabAfterRemoval,
+  createOpenNoteTab,
+  findOpenNoteTabByPath,
+  markOpenNoteTabsAvailable,
+  markOpenNoteTabsMissing,
+  relocateOpenNoteTabs,
+  removeOpenNoteTabs,
+  reorderOpenNoteTabs,
+} from "../modules/note-tabs";
 import {
   getVaultHistory,
   getVaultPath,
@@ -35,10 +46,25 @@ export function useVault(options?: UseVaultOptions) {
   const [vaultHistory, setVaultHistory] = useState<string[]>([]);
   const [tree, setTree] = useState<TreeNode[]>([]);
   const [noteIndex, setNoteIndex] = useState<NoteIndexEntry[]>([]);
+  const [openNoteTabs, setOpenNoteTabsState] = useState<OpenNoteTab[]>([]);
+  const [activeNoteTabKey, setActiveNoteTabKeyState] = useState<number | null>(null);
   const [activeNonMarkdownFile, setActiveNonMarkdownFile] = useState<TreeNode | null>(null);
   const [loading, setLoading] = useState(true);
   const loadingFoldersRef = useRef(new Set<string>());
   const noteIndexScanSeqRef = useRef(0);
+  const openNoteTabsRef = useRef<OpenNoteTab[]>([]);
+  const activeNoteTabKeyRef = useRef<number | null>(null);
+  const noteTabKeyCounterRef = useRef(0);
+
+  const replaceOpenNoteTabs = useCallback((next: OpenNoteTab[]) => {
+    openNoteTabsRef.current = next;
+    setOpenNoteTabsState(next);
+  }, []);
+
+  const replaceActiveNoteTabKey = useCallback((next: number | null) => {
+    activeNoteTabKeyRef.current = next;
+    setActiveNoteTabKeyState(next);
+  }, []);
 
   const {
     activeNote,
@@ -47,10 +73,13 @@ export function useVault(options?: UseVaultOptions) {
     handleSelectNote: handleSelectMarkdownNote,
     handleEditorBufferChange,
     onFileChange,
-    onPathsRemoved: onActiveNoteRemoved,
+    onPathsUnavailable: blockUnavailablePaths,
+    onPathsRemoved: markActiveNoteMissing,
+    onPathsAvailable: markActiveNoteAvailable,
     onPathsMoved: onActiveNoteMoved,
     handleSaveWithGuards,
     clearActiveNote,
+    resetNoteSession,
   } = useActiveNoteSync({
     vaultPath,
     onError: options?.onError,
@@ -72,8 +101,108 @@ export function useVault(options?: UseVaultOptions) {
     [options?.onError],
   );
 
-  const handlePathsRemoved = useCallback((removedPaths: string[]) => {
-    onActiveNoteRemoved(removedPaths);
+  const loadOpenNoteTab = useCallback(async (tab: OpenNoteTab): Promise<boolean> => {
+    if (tab.status === "missing") return false;
+    const loaded = await handleSelectMarkdownNote({
+      id: tab.id,
+      path: tab.path,
+      name: tab.name,
+      kind: "file",
+    });
+    if (!loaded) return false;
+
+    const nextTabs = openNoteTabsRef.current.map((item) =>
+      item.tabKey === tab.tabKey
+        ? {
+            ...item,
+            id: loaded.id,
+            path: loaded.path,
+            name: loaded.name,
+            status: "ready" as const,
+          }
+        : item,
+    );
+    replaceOpenNoteTabs(nextTabs);
+    return true;
+  }, [handleSelectMarkdownNote, replaceOpenNoteTabs]);
+
+  const handleActivateNoteTab = useCallback(async (tabKey: number) => {
+    const tab = openNoteTabsRef.current.find((item) => item.tabKey === tabKey);
+    if (!tab) return;
+
+    const current = getActiveNoteSnapshot();
+    if (
+      activeNoteTabKeyRef.current === tabKey &&
+      (tab.status === "missing" || (current && pathsEqual(current.path, tab.path)))
+    ) {
+      return;
+    }
+
+    commitActiveNoteBufferToState();
+    clearActiveNote();
+    setActiveNonMarkdownFile(null);
+    replaceActiveNoteTabKey(tabKey);
+    if (tab.status === "ready") {
+      await loadOpenNoteTab(tab);
+    }
+  }, [
+    clearActiveNote,
+    commitActiveNoteBufferToState,
+    getActiveNoteSnapshot,
+    loadOpenNoteTab,
+    replaceActiveNoteTabKey,
+  ]);
+
+  const activateAdjacentTab = useCallback((tabKey: number | null) => {
+    replaceActiveNoteTabKey(tabKey);
+    if (tabKey === null) return;
+    const nextTab = openNoteTabsRef.current.find((tab) => tab.tabKey === tabKey);
+    if (nextTab?.status === "ready") {
+      void loadOpenNoteTab(nextTab);
+    }
+  }, [loadOpenNoteTab, replaceActiveNoteTabKey]);
+
+  const handleCloseNoteTab = useCallback((tabKey: number) => {
+    const previousTabs = openNoteTabsRef.current;
+    const closing = previousTabs.find((tab) => tab.tabKey === tabKey);
+    if (!closing) return;
+
+    const nextTabs = previousTabs.filter((tab) => tab.tabKey !== tabKey);
+    const previousActiveKey = activeNoteTabKeyRef.current;
+    const nextActiveKey = chooseActiveTabAfterRemoval(
+      previousTabs,
+      nextTabs,
+      previousActiveKey,
+    );
+    replaceOpenNoteTabs(nextTabs);
+
+    if (previousActiveKey !== tabKey) return;
+    commitActiveNoteBufferToState();
+    clearActiveNote();
+    activateAdjacentTab(nextActiveKey);
+  }, [
+    activateAdjacentTab,
+    clearActiveNote,
+    commitActiveNoteBufferToState,
+    replaceOpenNoteTabs,
+  ]);
+
+  const handleReorderNoteTab = useCallback((
+    sourceTabKey: number,
+    targetTabKey: number,
+    placement: "before" | "after",
+  ) => {
+    replaceOpenNoteTabs(
+      reorderOpenNoteTabs(
+        openNoteTabsRef.current,
+        sourceTabKey,
+        targetTabKey,
+        placement,
+      ),
+    );
+  }, [replaceOpenNoteTabs]);
+
+  const updateRemovedIndexesAndPreview = useCallback((removedPaths: string[]) => {
     setNoteIndex((prev) =>
       removedPaths.reduce((acc, path) => removeFromNoteIndex(acc, path), prev));
     setActiveNonMarkdownFile((prev) => {
@@ -81,10 +210,48 @@ export function useVault(options?: UseVaultOptions) {
       const removed = removedPaths.some((removedPath) => isPathInside(prev.path, removedPath));
       return removed ? null : prev;
     });
-  }, [onActiveNoteRemoved]);
+  }, []);
+
+  const handleWatchedPathsRemoved = useCallback((removedPaths: string[]) => {
+    markActiveNoteMissing(removedPaths);
+    replaceOpenNoteTabs(markOpenNoteTabsMissing(openNoteTabsRef.current, removedPaths));
+    updateRemovedIndexesAndPreview(removedPaths);
+  }, [markActiveNoteMissing, replaceOpenNoteTabs, updateRemovedIndexesAndPreview]);
+
+  const handleDeletedPaths = useCallback((removedPaths: string[]) => {
+    // Block any editor cleanup save before removing the tabs, otherwise a deleted
+    // file can be recreated by a pending Auto Save.
+    markActiveNoteMissing(removedPaths);
+    updateRemovedIndexesAndPreview(removedPaths);
+
+    const previousTabs = openNoteTabsRef.current;
+    const nextTabs = removeOpenNoteTabs(previousTabs, removedPaths);
+    const previousActiveKey = activeNoteTabKeyRef.current;
+    const nextActiveKey = chooseActiveTabAfterRemoval(
+      previousTabs,
+      nextTabs,
+      previousActiveKey,
+    );
+    replaceOpenNoteTabs(nextTabs);
+
+    if (nextActiveKey === previousActiveKey) return;
+    commitActiveNoteBufferToState();
+    clearActiveNote();
+    activateAdjacentTab(nextActiveKey);
+  }, [
+    activateAdjacentTab,
+    clearActiveNote,
+    commitActiveNoteBufferToState,
+    markActiveNoteMissing,
+    replaceOpenNoteTabs,
+    updateRemovedIndexesAndPreview,
+  ]);
 
   const handlePathsMoved = useCallback((moves: Array<{ from: string; to: string }>) => {
     onActiveNoteMoved(moves);
+    if (vaultPath) {
+      replaceOpenNoteTabs(relocateOpenNoteTabs(openNoteTabsRef.current, moves, vaultPath));
+    }
     setNoteIndex((prev) =>
       moves.reduce(
         (acc, move) => vaultPath ? relocateInNoteIndex(acc, move.from, move.to, vaultPath) : acc,
@@ -92,16 +259,52 @@ export function useVault(options?: UseVaultOptions) {
       ));
     setActiveNonMarkdownFile((prev) => {
       if (!prev) return prev;
-      const moved = moves.find((move) => pathsEqual(prev.path, move.from));
-      if (!moved) return prev;
+      const nextPath = applyPathMoves(prev.path, moves);
+      if (pathsEqual(nextPath, prev.path)) return prev;
       return {
         ...prev,
-        path: moved.to,
-        id: vaultPath ? toVaultRelative(moved.to, vaultPath) : prev.id,
-        name: getBaseName(moved.to).replace(/\.md$/i, ""),
+        path: nextPath,
+        id: vaultPath ? toVaultRelative(nextPath, vaultPath) : prev.id,
+        name: getBaseName(nextPath).replace(/\.md$/i, ""),
       };
     });
-  }, [onActiveNoteMoved, vaultPath]);
+
+    const activeKey = activeNoteTabKeyRef.current;
+    const activeTab = activeKey === null
+      ? null
+      : openNoteTabsRef.current.find((tab) => tab.tabKey === activeKey) ?? null;
+    if (activeTab?.status === "ready" && !getActiveNoteSnapshot()) {
+      void loadOpenNoteTab(activeTab);
+    }
+  }, [
+    getActiveNoteSnapshot,
+    loadOpenNoteTab,
+    onActiveNoteMoved,
+    replaceOpenNoteTabs,
+    vaultPath,
+  ]);
+
+  const handlePathsAvailable = useCallback((availablePaths: string[]) => {
+    markActiveNoteAvailable(availablePaths);
+    const previousTabs = openNoteTabsRef.current;
+    const activeKey = activeNoteTabKeyRef.current;
+    const activeWasMissing = activeKey !== null && previousTabs.some(
+      (tab) => tab.tabKey === activeKey && tab.status === "missing" &&
+        availablePaths.some((path) => pathsEqual(tab.path, path)),
+    );
+    const nextTabs = markOpenNoteTabsAvailable(previousTabs, availablePaths);
+    replaceOpenNoteTabs(nextTabs);
+
+    if (activeWasMissing && activeKey !== null && !getActiveNoteSnapshot()) {
+      const activeTab = nextTabs.find((tab) => tab.tabKey === activeKey);
+      if (activeTab) void loadOpenNoteTab(activeTab);
+    }
+  }, [
+    getActiveNoteSnapshot,
+    loadOpenNoteTab,
+    markActiveNoteAvailable,
+    replaceOpenNoteTabs,
+  ]);
 
   const handleWatchedMarkdownChange = useCallback(async (changedPaths: string[]) => {
     if (vaultPath) {
@@ -114,14 +317,46 @@ export function useVault(options?: UseVaultOptions) {
   const handleSelectNote = useCallback(async (node: TreeNode) => {
     if (node.kind !== "file") return;
     if (!isMarkdownPath(node.path)) {
+      commitActiveNoteBufferToState();
       clearActiveNote();
+      replaceActiveNoteTabKey(null);
       setActiveNonMarkdownFile(node);
       return;
     }
 
     setActiveNonMarkdownFile(null);
-    await handleSelectMarkdownNote(node);
-  }, [clearActiveNote, handleSelectMarkdownNote]);
+    const existing = findOpenNoteTabByPath(openNoteTabsRef.current, node.path);
+    if (existing) {
+      await handleActivateNoteTab(existing.tabKey);
+      return;
+    }
+
+    commitActiveNoteBufferToState();
+    clearActiveNote();
+    replaceActiveNoteTabKey(null);
+    const loaded = await handleSelectMarkdownNote(node);
+    if (!loaded) return;
+
+    noteTabKeyCounterRef.current += 1;
+    const tab = createOpenNoteTab(
+      {
+        id: loaded.id,
+        path: loaded.path,
+        name: loaded.name,
+        kind: "file",
+      },
+      noteTabKeyCounterRef.current,
+    );
+    replaceOpenNoteTabs([...openNoteTabsRef.current, tab]);
+    replaceActiveNoteTabKey(tab.tabKey);
+  }, [
+    clearActiveNote,
+    commitActiveNoteBufferToState,
+    handleActivateNoteTab,
+    handleSelectMarkdownNote,
+    replaceActiveNoteTabKey,
+    replaceOpenNoteTabs,
+  ]);
 
   const handleLoadFolder = useCallback(
     async (folderPath: string) => {
@@ -151,8 +386,10 @@ export function useVault(options?: UseVaultOptions) {
     vaultPath,
     setTree,
     onFileChange: handleWatchedMarkdownChange,
-    onPathsRemoved: handlePathsRemoved,
+    onPathsUnavailable: blockUnavailablePaths,
+    onPathsRemoved: handleWatchedPathsRemoved,
     onPathsMoved: handlePathsMoved,
+    onPathsAvailable: handlePathsAvailable,
     onError: options?.onError,
   });
 
@@ -171,7 +408,7 @@ export function useVault(options?: UseVaultOptions) {
     setTree,
     setNoteIndex,
     onSelectNote: handleSelectNote,
-    onPathsRemoved: handlePathsRemoved,
+    onPathsRemoved: handleDeletedPaths,
     onPathsMoved: handlePathsMoved,
     onError: options?.onError,
   });
@@ -217,7 +454,10 @@ export function useVault(options?: UseVaultOptions) {
 
   const switchVault = useCallback(
     async (path: string) => {
-      clearActiveNote();
+      commitActiveNoteBufferToState();
+      resetNoteSession();
+      replaceOpenNoteTabs([]);
+      replaceActiveNoteTabKey(null);
       setActiveNonMarkdownFile(null);
       noteIndexScanSeqRef.current += 1;
       await setVaultPath(path);
@@ -225,7 +465,13 @@ export function useVault(options?: UseVaultOptions) {
       setVaultHistory(await getVaultHistory());
       await loadVault(path);
     },
-    [clearActiveNote, loadVault],
+    [
+      commitActiveNoteBufferToState,
+      loadVault,
+      replaceActiveNoteTabKey,
+      replaceOpenNoteTabs,
+      resetNoteSession,
+    ],
   );
 
   const handleRemoveFromHistory = useCallback(async (path: string) => {
@@ -238,6 +484,8 @@ export function useVault(options?: UseVaultOptions) {
     vaultHistory,
     tree,
     noteIndex,
+    openNoteTabs,
+    activeNoteTabKey,
     activeNote,
     getActiveNoteSnapshot,
     commitActiveNoteBufferToState,
@@ -246,6 +494,9 @@ export function useVault(options?: UseVaultOptions) {
     switchVault,
     handleRemoveFromHistory,
     handleSelectNote,
+    handleActivateNoteTab,
+    handleCloseNoteTab,
+    handleReorderNoteTab,
     handleLoadFolder,
     handleEditorBufferChange,
     handleSaveNote,

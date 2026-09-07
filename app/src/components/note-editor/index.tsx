@@ -106,8 +106,14 @@ export function NoteEditor(props: NoteEditorProps) {
       debouncedSave,
       noteIndex,
     };
-    return () => latestRef.current.debouncedSave.cancel();
   }, [onNavigateToNote, onLinkError, onBufferChange, onSave, debouncedSave, noteIndex]);
+
+  useEffect(() => {
+    return () => {
+      debouncedSave.flush();
+      debouncedSave.cancel();
+    };
+  }, [debouncedSave]);
 
   useEffect(() => {
     if (!pdfExportNotice || pdfExportNotice.kind !== "success") return;

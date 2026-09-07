@@ -5,7 +5,9 @@ import { AboutCarbonDialog } from "../components/AboutCarbonDialog";
 import { ActivityBar } from "../components/ActivityBar";
 import { FileTree } from "../components/FileTree";
 import { ImageViewer } from "../components/ImageViewer";
+import { MissingNoteView } from "../components/MissingNoteView";
 import { NoteEditor } from "../components/note-editor";
+import { NoteTabs } from "../components/NoteTabs";
 import { PlainTextEditor } from "../components/plaintext-editor";
 import { PdfViewer } from "../components/PdfViewer";
 import { Toast } from "../components/Toast";
@@ -35,6 +37,8 @@ export function WorkspaceRoute() {
     vaultHistory,
     tree,
     noteIndex,
+    openNoteTabs,
+    activeNoteTabKey,
     activeNote,
     getActiveNoteSnapshot,
     commitActiveNoteBufferToState,
@@ -43,6 +47,9 @@ export function WorkspaceRoute() {
     switchVault,
     handleRemoveFromHistory,
     handleSelectNote,
+    handleActivateNoteTab,
+    handleCloseNoteTab,
+    handleReorderNoteTab,
     handleLoadFolder,
     handleEditorBufferChange,
     handleSaveNote,
@@ -133,6 +140,9 @@ export function WorkspaceRoute() {
   }, [commitActiveNoteBufferToState]);
 
   const activeNoteSnapshot = getActiveNoteSnapshot();
+  const activeNoteTab = activeNoteTabKey === null
+    ? null
+    : openNoteTabs.find((tab) => tab.tabKey === activeNoteTabKey) ?? null;
 
   if (loading) {
     return (
@@ -178,7 +188,7 @@ export function WorkspaceRoute() {
             <nav className="file-tree-container">
               <FileTree
                 nodes={tree}
-                activeNoteId={activeNote?.id ?? activeNonMarkdownFile?.id ?? null}
+                activeNoteId={activeNoteTab?.id ?? activeNonMarkdownFile?.id ?? null}
                 vaultPath={vaultPath}
                 onSelect={handleSelectNote}
                 onExpandFolder={handleLoadFolder}
@@ -207,52 +217,66 @@ export function WorkspaceRoute() {
             </svg>
           </button>
         )}
-        {activeNote && vaultPath ? (
-          activeNoteViewMode === "plaintext" ? (
-            <PlainTextEditor
-              key={`plaintext-${activeNote.docKey}`}
-              note={activeNoteSnapshot ?? activeNote}
-              onSave={handleSaveNote}
-              onBufferChange={handleEditorBufferChange}
-              vaultPath={vaultPath}
-              viewMode={activeNoteViewMode}
-              onViewModeChange={handleViewModeChange}
-              menuOpen={noteMenuOpen}
-              onMenuOpenChange={setNoteMenuOpen}
-            />
+        {openNoteTabs.length ? (
+          <NoteTabs
+            tabs={openNoteTabs}
+            activeTabKey={activeNoteTabKey}
+            sidebarOpen={sidebarOpen}
+            onActivate={(tabKey) => void handleActivateNoteTab(tabKey)}
+            onClose={handleCloseNoteTab}
+            onReorder={handleReorderNoteTab}
+          />
+        ) : null}
+        <div className="workspace-view">
+          {activeNoteTab?.status === "missing" ? (
+            <MissingNoteView tab={activeNoteTab} />
+          ) : activeNote && vaultPath ? (
+            activeNoteViewMode === "plaintext" ? (
+              <PlainTextEditor
+                key={`plaintext-${activeNote.docKey}`}
+                note={activeNoteSnapshot ?? activeNote}
+                onSave={handleSaveNote}
+                onBufferChange={handleEditorBufferChange}
+                vaultPath={vaultPath}
+                viewMode={activeNoteViewMode}
+                onViewModeChange={handleViewModeChange}
+                menuOpen={noteMenuOpen}
+                onMenuOpenChange={setNoteMenuOpen}
+              />
+            ) : (
+              <NoteEditor
+                key={`visual-${activeNote.docKey}`}
+                note={activeNote}
+                onSave={handleSaveNote}
+                onBufferChange={handleEditorBufferChange}
+                vaultPath={vaultPath}
+                noteIndex={noteIndex}
+                onNavigateToNote={handleNavigateToNote}
+                onLinkError={handleError}
+                viewMode={activeNoteViewMode}
+                onViewModeChange={handleViewModeChange}
+                menuOpen={noteMenuOpen}
+                onMenuOpenChange={setNoteMenuOpen}
+              />
+            )
+          ) : activeNonMarkdownFile && isImagePath(activeNonMarkdownFile.path) ? (
+            <ImageViewer file={activeNonMarkdownFile} />
+          ) : activeNonMarkdownFile && isVideoPath(activeNonMarkdownFile.path) ? (
+            <VideoViewer file={activeNonMarkdownFile} />
+          ) : activeNonMarkdownFile && isPdfPath(activeNonMarkdownFile.path) ? (
+            <PdfViewer file={activeNonMarkdownFile} />
+          ) : activeNonMarkdownFile ? (
+            <UnsupportedFileViewer file={activeNonMarkdownFile} />
           ) : (
-            <NoteEditor
-              key={`visual-${activeNote.docKey}`}
-              note={activeNote}
-              onSave={handleSaveNote}
-              onBufferChange={handleEditorBufferChange}
-              vaultPath={vaultPath}
-              noteIndex={noteIndex}
-              onNavigateToNote={handleNavigateToNote}
-              onLinkError={handleError}
-              viewMode={activeNoteViewMode}
-              onViewModeChange={handleViewModeChange}
-              menuOpen={noteMenuOpen}
-              onMenuOpenChange={setNoteMenuOpen}
-            />
-          )
-        ) : activeNonMarkdownFile && isImagePath(activeNonMarkdownFile.path) ? (
-          <ImageViewer file={activeNonMarkdownFile} />
-        ) : activeNonMarkdownFile && isVideoPath(activeNonMarkdownFile.path) ? (
-          <VideoViewer file={activeNonMarkdownFile} />
-        ) : activeNonMarkdownFile && isPdfPath(activeNonMarkdownFile.path) ? (
-          <PdfViewer file={activeNonMarkdownFile} />
-        ) : activeNonMarkdownFile ? (
-          <UnsupportedFileViewer file={activeNonMarkdownFile} />
-        ) : (
-          <div className="workspace-empty">
-            <p>
-              {vaultPath
-                ? "Select a note from the sidebar"
-                : "Select a vault to get started"}
-            </p>
-          </div>
-        )}
+            <div className="workspace-empty">
+              <p>
+                {vaultPath
+                  ? "Select a note from the sidebar"
+                  : "Select a vault to get started"}
+              </p>
+            </div>
+          )}
+        </div>
       </main>
 
       {message && <Toast message={message} onClose={() => setMessage("")} />}

@@ -315,6 +315,104 @@ describe("use-file-watcher hook integration", () => {
     expect(tree.map((n) => n.path)).toContain("/vault/new.md");
   });
 
+  it("pairs split rename.from and rename.to events before reporting removal", async () => {
+    vi.useFakeTimers();
+    try {
+      let callback: ((event: WatchEvent) => Promise<void>) | null = null;
+      watchMock.mockImplementationOnce(async (_path, cb) => {
+        callback = cb as (event: WatchEvent) => Promise<void>;
+        return vi.fn();
+      });
+
+      let tree: TreeNode[] = [createFileNode("/vault/old.md")];
+      const setTree: Dispatch<SetStateAction<TreeNode[]>> = (next) => {
+        tree = typeof next === "function" ? next(tree) : next;
+      };
+      const onPathsRemoved = vi.fn();
+      const onPathsUnavailable = vi.fn();
+      const onPathsMoved = vi.fn();
+      const onPathsAvailable = vi.fn();
+
+      const renderer = await mountHook({
+        vaultPath: "/vault",
+        setTree,
+        onPathsUnavailable,
+        onPathsRemoved,
+        onPathsMoved,
+        onPathsAvailable,
+      });
+
+      await act(async () => {
+        await callback?.(
+          makeEvent({ modify: { kind: "rename", mode: "from" } }, ["/vault/old.md"]),
+        );
+        await callback?.(
+          makeEvent({ modify: { kind: "rename", mode: "to" } }, ["/vault/new.md"]),
+        );
+      });
+
+      expect(onPathsRemoved).not.toHaveBeenCalled();
+      expect(onPathsUnavailable).toHaveBeenCalledWith(["/vault/old.md"]);
+      expect(onPathsMoved).toHaveBeenCalledWith([
+        { from: "/vault/old.md", to: "/vault/new.md" },
+      ]);
+      expect(onPathsAvailable).toHaveBeenCalledWith(["/vault/new.md"]);
+      expect(tree.map((node) => node.path)).toEqual(["/vault/new.md"]);
+
+      await act(async () => {
+        renderer.unmount();
+      });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("reports a split rename.from as removal when no destination arrives", async () => {
+    vi.useFakeTimers();
+    try {
+      let callback: ((event: WatchEvent) => Promise<void>) | null = null;
+      watchMock.mockImplementationOnce(async (_path, cb) => {
+        callback = cb as (event: WatchEvent) => Promise<void>;
+        return vi.fn();
+      });
+
+      let tree: TreeNode[] = [createFileNode("/vault/old.md")];
+      const setTree: Dispatch<SetStateAction<TreeNode[]>> = (next) => {
+        tree = typeof next === "function" ? next(tree) : next;
+      };
+      const onPathsRemoved = vi.fn();
+      const onPathsMoved = vi.fn();
+
+      const renderer = await mountHook({
+        vaultPath: "/vault",
+        setTree,
+        onPathsRemoved,
+        onPathsMoved,
+      });
+
+      await act(async () => {
+        await callback?.(
+          makeEvent({ modify: { kind: "rename", mode: "from" } }, ["/vault/old.md"]),
+        );
+      });
+      expect(onPathsRemoved).not.toHaveBeenCalled();
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(500);
+      });
+
+      expect(onPathsRemoved).toHaveBeenCalledWith(["/vault/old.md"]);
+      expect(onPathsMoved).not.toHaveBeenCalled();
+      expect(tree).toEqual([]);
+
+      await act(async () => {
+        renderer.unmount();
+      });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("reports callback failures via onError", async () => {
     let callback: ((event: WatchEvent) => Promise<void>) | null = null;
     watchMock.mockImplementationOnce(async (_path, cb) => {

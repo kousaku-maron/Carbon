@@ -217,6 +217,221 @@ select {
   position: relative;
 }
 
+.workspace-view {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* ===== Note Tabs ===== */
+
+.note-tabs {
+  display: flex;
+  align-items: stretch;
+  height: 40px;
+  min-height: 40px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  border-bottom: 1px dashed #e0ddd8;
+  background: #fafaf9;
+  scrollbar-width: none;
+  transition: padding-left 0.2s ease;
+}
+
+.note-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.note-tabs--sidebar-closed {
+  padding-left: 44px;
+}
+
+.note-tab {
+  position: relative;
+  display: flex;
+  align-items: center;
+  min-width: 110px;
+  max-width: 220px;
+  height: 40px;
+  border-right: 1px solid #e8e6e1;
+  background: #f6f6f4;
+  color: #787774;
+  user-select: none;
+  flex: 0 1 180px;
+  transition: background-color 0.15s, color 0.15s;
+}
+
+.note-tab::before,
+.note-tab::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  z-index: 3;
+  width: 2px;
+  background: transparent;
+  pointer-events: none;
+}
+
+.note-tab::before {
+  left: -1px;
+}
+
+.note-tab::after {
+  right: -1px;
+}
+
+.note-tab.is-drop-before::before,
+.note-tab.is-drop-after::after {
+  background: var(--tint-color);
+}
+
+.note-tab.is-active {
+  background: #ffffff;
+  color: #37352f;
+}
+
+.note-tab:hover {
+  background: #e8e7e4;
+  color: #37352f;
+}
+
+.note-tab.is-dragging {
+  opacity: 0.5;
+}
+
+.note-tab-main {
+  min-width: 0;
+  height: 100%;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0 0.35rem 0 0.75rem;
+  border: none;
+  background: transparent;
+  color: inherit;
+  cursor: default;
+  text-align: left;
+}
+
+.note-tab-main:hover {
+  background: transparent;
+}
+
+.note-tab-main:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--tint-color) 48%, transparent);
+  outline-offset: -3px;
+}
+
+.note-tab-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.8rem;
+}
+
+.note-tab.is-missing {
+  color: #9b5d55;
+}
+
+.note-tab.is-missing .note-tab-label {
+  text-decoration: line-through;
+  text-decoration-thickness: 1px;
+}
+
+.note-tab-missing-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  border: 1px solid currentColor;
+  border-radius: 50%;
+  flex-shrink: 0;
+  font-size: 0.62rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.note-tab-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  margin-right: 0.35rem;
+  padding: 0;
+  border: none;
+  border-radius: 5px;
+  background: transparent;
+  color: #aaa7a1;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.note-tab-close:hover {
+  background: transparent;
+  color: #37352f;
+}
+
+.note-tab-close:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--tint-color) 48%, transparent);
+  outline-offset: 1px;
+}
+
+.missing-note-view {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  color: #6f6b62;
+  text-align: center;
+}
+
+.missing-note-icon {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  margin-bottom: 0.9rem;
+  border-radius: 12px;
+  background: #f5efed;
+  color: #9b5d55;
+}
+
+.missing-note-title {
+  color: #37352f;
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.missing-note-description {
+  max-width: 440px;
+  margin-top: 0.45rem;
+  color: #8b887f;
+  font-size: 0.82rem;
+  line-height: 1.55;
+}
+
+.missing-note-path {
+  max-width: min(560px, 100%);
+  margin-top: 0.9rem;
+  overflow: hidden;
+  color: #aaa7a1;
+  font-family: "SF Mono", "Menlo", "Monaco", "Courier New", monospace;
+  font-size: 0.72rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* ===== Auth ===== */
 
 .auth-shell {

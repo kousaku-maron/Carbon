@@ -23,8 +23,10 @@ interface UseFileWatcherOptions {
   vaultPath: string | null;
   setTree: Dispatch<SetStateAction<TreeNode[]>>;
   onFileChange?: (changedPaths: string[]) => Promise<void>;
+  onPathsUnavailable?: (unavailablePaths: string[]) => void;
   onPathsRemoved?: (removedPaths: string[]) => void;
   onPathsMoved?: (moves: Array<{ from: string; to: string }>) => void;
+  onPathsAvailable?: (availablePaths: string[]) => void;
   onError?: (msg: string) => void;
 }
 
@@ -38,6 +40,7 @@ type SnapshotEntry = TreeNode;
 
 const RESYNC_DEBOUNCE_MS = 350;
 const RESYNC_FAILURE_FALLBACK_THRESHOLD = 3;
+const RENAME_PAIR_WINDOW_MS = 500;
 
 function logWatchDev(label: string, payload: Record<string, unknown>): void {
   if (!import.meta.env.DEV) return;
@@ -58,6 +61,12 @@ function formatError(err: unknown, fallback: string): string {
 
 function isMarkdownFile(path: string): boolean {
   return path.toLowerCase().endsWith(".md");
+}
+
+function getRenameMode(event: WatchEvent): "from" | "to" | "both" | "any" | "other" | null {
+  if (typeof event.type === "string" || !("modify" in event.type)) return null;
+  if (event.type.modify.kind !== "rename") return null;
+  return event.type.modify.mode;
 }
 
 function isMissingPathError(err: unknown): boolean {
@@ -266,6 +275,16 @@ function collectMovedPaths(ops: CanonicalOp[]): Array<{ from: string; to: string
   return moves;
 }
 
+function collectAvailableMarkdownPaths(ops: CanonicalOp[]): string[] {
+  const available = new Set<string>();
+  for (const op of ops) {
+    if (op.kind === "upsert" && op.nodeKind === "file" && isMarkdownFile(op.path)) {
+      available.add(op.path);
+    }
+  }
+  return [...available];
+}
+
 function normalizePathKey(path: string): string {
   return path.replace(/\\/g, "/").replace(/\/+/g, "/").replace(/\/+$/, "").toLowerCase();
 }
@@ -360,7 +379,7 @@ function reconcileTreeWithSnapshot(
   }
   for (const entry of snapshot) {
     if (entry.kind !== "file" || !isMarkdownFile(entry.path)) continue;
-      if (!existingSet.has(normalizePath(entry.path))) changedMarkdownPaths.add(entry.path);
+    if (!existingSet.has(normalizePath(entry.path))) changedMarkdownPaths.add(entry.path);
   }
 
   const mergedSnapshot = mergeSnapshot(existingChildren, snapshot);
@@ -438,6 +457,8 @@ export const __fileWatcherTestUtils = {
   collectChangedMarkdownPaths,
   collectRemovedPaths,
   collectMovedPaths,
+  collectAvailableMarkdownPaths,
+  getRenameMode,
   normalizePath,
   normalizePathKey,
   shouldIgnoreResyncPath,
@@ -450,16 +471,39 @@ export function useFileWatcher({
   vaultPath,
   setTree,
   onFileChange,
+  onPathsUnavailable,
   onPathsRemoved,
   onPathsMoved,
+  onPathsAvailable,
   onError,
 }: UseFileWatcherOptions) {
-  const latestRef = useRef({ onFileChange, onPathsRemoved, onPathsMoved, onError });
+  const latestRef = useRef({
+    onFileChange,
+    onPathsUnavailable,
+    onPathsRemoved,
+    onPathsMoved,
+    onPathsAvailable,
+    onError,
+  });
   const eventSeqRef = useRef(0);
 
   useEffect(() => {
-    latestRef.current = { onFileChange, onPathsRemoved, onPathsMoved, onError };
-  }, [onFileChange, onPathsRemoved, onPathsMoved, onError]);
+    latestRef.current = {
+      onFileChange,
+      onPathsUnavailable,
+      onPathsRemoved,
+      onPathsMoved,
+      onPathsAvailable,
+      onError,
+    };
+  }, [
+    onFileChange,
+    onPathsUnavailable,
+    onPathsRemoved,
+    onPathsMoved,
+    onPathsAvailable,
+    onError,
+  ]);
 
   useEffect(() => {
     if (!vaultPath) return;
@@ -469,6 +513,10 @@ export function useFileWatcher({
     const latestSeqByDir = new Map<string, number>();
     const timerByDir = new Map<string, ReturnType<typeof setTimeout>>();
     const resyncFailureByDir = new Map<string, number>();
+    const pendingRenameFrom: Array<{
+      path: string;
+      timer: ReturnType<typeof setTimeout>;
+    }> = [];
 
     const reportError = (err: unknown, fallback: string) => {
       const msg = formatError(err, fallback);
@@ -515,6 +563,13 @@ export function useFileWatcher({
           latestRef.current.onPathsRemoved?.(removedPaths);
         }
 
+        const availablePaths = snapshot
+          .filter((entry) => entry.kind === "file" && isMarkdownFile(entry.path))
+          .map((entry) => entry.path);
+        if (availablePaths.length) {
+          latestRef.current.onPathsAvailable?.(availablePaths);
+        }
+
         if (changedMarkdownPaths.length) {
           await latestRef.current.onFileChange?.(changedMarkdownPaths);
         }
@@ -557,6 +612,68 @@ export function useFileWatcher({
       timerByDir.set(key, timer);
     };
 
+    const applyWatchOps = async (
+      event: WatchEvent,
+      eventId: number,
+      ops: CanonicalOp[],
+    ): Promise<void> => {
+      if (disposed || !ops.length) return;
+      logWatchDev("normalized", {
+        eventId,
+        opCount: ops.length,
+        opKinds: ops.map((op) => op.kind),
+      });
+      setTree((prev) => applyTreeOps(prev, ops, vaultPath));
+
+      const removedPaths = collectRemovedPaths(ops);
+      if (removedPaths.length) {
+        logWatchDev("removed-paths", { eventId, removedPaths });
+        latestRef.current.onPathsRemoved?.(removedPaths);
+      }
+
+      const movedPaths = collectMovedPaths(ops);
+      if (movedPaths.length) {
+        logWatchDev("moved-paths", { eventId, movedPaths });
+        latestRef.current.onPathsMoved?.(movedPaths);
+      }
+
+      const availablePaths = collectAvailableMarkdownPaths(ops);
+      if (availablePaths.length) {
+        logWatchDev("available-paths", { eventId, availablePaths });
+        latestRef.current.onPathsAvailable?.(availablePaths);
+      }
+
+      const changed = collectChangedMarkdownPaths(ops);
+      if (changed.length) {
+        logWatchDev("changed-markdown", { eventId, changed });
+        await latestRef.current.onFileChange?.(changed);
+      }
+
+      const suspiciousDirs = collectSuspiciousResyncDirs(event, ops, vaultPath);
+      if (suspiciousDirs.length) {
+        for (const dirPath of suspiciousDirs) {
+          scheduleResync(dirPath);
+        }
+      }
+    };
+
+    const queueRenameFrom = (event: WatchEvent, eventId: number, path: string) => {
+      const singlePathEvent: WatchEvent = { ...event, paths: [path] };
+      let pending: (typeof pendingRenameFrom)[number];
+      const timer = setTimeout(() => {
+        const index = pendingRenameFrom.indexOf(pending);
+        if (index < 0) return;
+        pendingRenameFrom.splice(index, 1);
+        void normalizeWatchEvent(singlePathEvent)
+          .then((ops) => applyWatchOps(singlePathEvent, eventId, ops))
+          .catch((err) => reportError(err, "Failed to handle pending rename event"));
+      }, RENAME_PAIR_WINDOW_MS);
+      pending = { path, timer };
+      pendingRenameFrom.push(pending);
+      latestRef.current.onPathsUnavailable?.([path]);
+      logWatchDev("rename-from-pending", { eventId, path });
+    };
+
     (async () => {
       try {
         unwatch = await watch(
@@ -576,40 +693,39 @@ export function useFileWatcher({
                 paths: event.paths ?? [],
               });
 
-              const ops = await normalizeWatchEvent(event);
-              if (disposed) return;
-              if (!ops.length) return;
-              logWatchDev("normalized", {
-                eventId,
-                opCount: ops.length,
-                opKinds: ops.map((op) => op.kind),
-              });
-              setTree((prev) => applyTreeOps(prev, ops, vaultPath));
-
-              const removedPaths = collectRemovedPaths(ops);
-              if (removedPaths.length) {
-                logWatchDev("removed-paths", { eventId, removedPaths });
-                latestRef.current.onPathsRemoved?.(removedPaths);
-              }
-
-              const movedPaths = collectMovedPaths(ops);
-              if (movedPaths.length) {
-                logWatchDev("moved-paths", { eventId, movedPaths });
-                latestRef.current.onPathsMoved?.(movedPaths);
-              }
-
-              const changed = collectChangedMarkdownPaths(ops);
-              if (changed.length) {
-                logWatchDev("changed-markdown", { eventId, changed });
-                await latestRef.current.onFileChange?.(changed);
-              }
-
-              const suspiciousDirs = collectSuspiciousResyncDirs(event, ops, vaultPath);
-              if (suspiciousDirs.length) {
-                for (const dirPath of suspiciousDirs) {
-                  scheduleResync(dirPath);
+              const renameMode = getRenameMode(event);
+              if (renameMode === "from") {
+                for (const path of event.paths ?? []) {
+                  queueRenameFrom(event, eventId, path);
                 }
+                return;
               }
+
+              if (renameMode === "to" && pendingRenameFrom.length) {
+                const targetPaths = event.paths ?? [];
+                const pairCount = Math.min(targetPaths.length, pendingRenameFrom.length);
+                const pairedOps: CanonicalOp[] = [];
+                for (let index = 0; index < pairCount; index += 1) {
+                  const pending = pendingRenameFrom.shift()!;
+                  clearTimeout(pending.timer);
+                  const targetPath = targetPaths[index];
+                  pairedOps.push({ kind: "move", from: pending.path, to: targetPath });
+                  pairedOps.push(await probePath(targetPath));
+                  pairedOps.push({ kind: "touch", path: pending.path });
+                  pairedOps.push({ kind: "touch", path: targetPath });
+                }
+                if (pairCount < targetPaths.length) {
+                  pairedOps.push(...await normalizeWatchEvent({
+                    ...event,
+                    paths: targetPaths.slice(pairCount),
+                  }));
+                }
+                await applyWatchOps(event, eventId, pairedOps);
+                return;
+              }
+
+              const ops = await normalizeWatchEvent(event);
+              await applyWatchOps(event, eventId, ops);
             } catch (err) {
               reportError(err, "Failed to handle file watch event");
             }
@@ -632,6 +748,10 @@ export function useFileWatcher({
         clearTimeout(timer);
       }
       timerByDir.clear();
+      for (const pending of pendingRenameFrom) {
+        clearTimeout(pending.timer);
+      }
+      pendingRenameFrom.length = 0;
       unwatch?.();
     };
   }, [vaultPath, setTree]);

@@ -196,6 +196,11 @@ describe("use-file-watcher internals", () => {
     expect(__fileWatcherTestUtils.collectMovedPaths(ops)).toEqual([
       { from: "/vault/b.md", to: "/vault/c.md" },
     ]);
+    expect(__fileWatcherTestUtils.collectAvailableMarkdownPaths([
+      { kind: "upsert", path: "/vault/c.md", nodeKind: "file" },
+      { kind: "upsert", path: "/vault/docs", nodeKind: "folder" },
+      { kind: "upsert", path: "/vault/c.txt", nodeKind: "file" },
+    ])).toEqual(["/vault/c.md"]);
   });
 
   it("ignores excluded and out-of-vault directories for suspicious resync targets", () => {

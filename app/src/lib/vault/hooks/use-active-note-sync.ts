@@ -7,6 +7,7 @@ import {
   toVaultRelative,
 } from "../../path-utils";
 import { readNote } from "../modules/note-persistence";
+import { applyPathMoves, rebasePath, type PathMove } from "../modules/note-tabs";
 
 interface UseActiveNoteSyncOptions {
   vaultPath: string | null;
@@ -15,6 +16,8 @@ interface UseActiveNoteSyncOptions {
 
 interface RuntimeRefState {
   activeNote: NoteContent | null;
+  missingPaths: string[];
+  pathRedirects: PathMove[];
   save: {
     saving: boolean;
     path: string | null;
@@ -51,6 +54,8 @@ export function useActiveNoteSync({
   const docKeyCounter = useRef(0);
   const runtimeRef = useRef<RuntimeRefState>({
     activeNote: null,
+    missingPaths: [],
+    pathRedirects: [],
     save: {
       saving: false,
       path: null,
@@ -66,6 +71,25 @@ export function useActiveNoteSync({
     selfSaveJournal: [],
   });
   const eventSeqRef = useRef(0);
+  const selectionSeqRef = useRef(0);
+
+  const resolveCurrentPath = useCallback((path: string): string => {
+    return applyPathMoves(path, runtimeRef.current.pathRedirects);
+  }, []);
+
+  const clearAvailablePath = useCallback((availablePath: string) => {
+    runtimeRef.current.missingPaths = runtimeRef.current.missingPaths.filter(
+      (missingPath) => !isPathInside(availablePath, missingPath),
+    );
+    runtimeRef.current.pathRedirects = runtimeRef.current.pathRedirects.filter(
+      (redirect) => !isPathInside(availablePath, redirect.from),
+    );
+  }, []);
+
+  const isSaveBlocked = useCallback((path: string): boolean => {
+    return runtimeRef.current.missingPaths.some((missingPath) =>
+      isPathInside(path, missingPath));
+  }, []);
 
   const sweepSelfSaveJournal = useCallback(() => {
     const now = Date.now();
@@ -120,21 +144,38 @@ export function useActiveNoteSync({
   }, [activeNote]);
 
   const handleSelectNote = useCallback(
-    async (node: TreeNode) => {
-      if (node.kind !== "file") return;
+    async (node: TreeNode): Promise<NoteContent | null> => {
+      if (node.kind !== "file") return null;
+      const selectionSeq = ++selectionSeqRef.current;
       try {
-        const body = await readNote(node.path);
+        let readPath = resolveCurrentPath(node.path);
+        const unavailableAtStart = isSaveBlocked(readPath);
+        let body: string;
+        try {
+          body = await readNote(readPath);
+        } catch (initialError) {
+          const redirectedPath = resolveCurrentPath(node.path);
+          if (pathsEqual(redirectedPath, readPath)) throw initialError;
+          readPath = redirectedPath;
+          body = await readNote(redirectedPath);
+        }
+        if (selectionSeq !== selectionSeqRef.current) return null;
+        const currentPath = resolveCurrentPath(node.path);
+        if (!unavailableAtStart && isSaveBlocked(currentPath)) return null;
+        clearAvailablePath(currentPath);
         docKeyCounter.current += 1;
         const nextNote: NoteContent = {
-          id: node.id,
-          path: node.path,
-          name: node.name,
+          id: vaultPath ? toVaultRelative(currentPath, vaultPath) : node.id,
+          path: currentPath,
+          name: pathsEqual(currentPath, node.path)
+            ? node.name
+            : getBaseName(currentPath).replace(/\.md$/i, ""),
           body,
           docKey: docKeyCounter.current,
         };
         runtimeRef.current.activeNote = nextNote;
         setActiveNote(nextNote);
-        runtimeRef.current.editor.path = node.path;
+        runtimeRef.current.editor.path = currentPath;
         runtimeRef.current.editor.buffer = body;
         runtimeRef.current.editor.savedBody = body;
         runtimeRef.current.editor.dirty = false;
@@ -143,14 +184,16 @@ export function useActiveNoteSync({
         runtimeRef.current.save.path = null;
         runtimeRef.current.save.pendingExternalChange = false;
         logActiveSyncDev("select-note", {
-          path: node.path,
+          path: currentPath,
           docKey: docKeyCounter.current,
         });
+        return nextNote;
       } catch (e) {
         onError?.(e instanceof Error ? e.message : "Failed to read note");
+        return null;
       }
     },
-    [onError],
+    [clearAvailablePath, isSaveBlocked, onError, resolveCurrentPath, vaultPath],
   );
 
   const onFileChange = useCallback(
@@ -162,7 +205,8 @@ export function useActiveNoteSync({
         logActiveSyncDev("skip-no-active-note", { eventId, changedPaths });
         return;
       }
-      const match = changedPaths.some((p) => pathsEqual(p, current.path));
+      const match = changedPaths.some((p) =>
+        pathsEqual(resolveCurrentPath(p), current.path));
       if (!match) {
         logActiveSyncDev("skip-non-target", {
           eventId,
@@ -185,6 +229,7 @@ export function useActiveNoteSync({
 
       try {
         const body = await readNote(current.path);
+        clearAvailablePath(current.path);
         const latest = runtimeRef.current.activeNote;
         if (!latest || !pathsEqual(latest.path, current.path)) return;
 
@@ -262,17 +307,18 @@ export function useActiveNoteSync({
         logActiveSyncDev("read-failed", { eventId, path: current.path });
       }
     },
-    [consumeSelfSaveIfMatched, onError],
+    [clearAvailablePath, consumeSelfSaveIfMatched, onError, resolveCurrentPath],
   );
 
   const handleEditorBufferChange = useCallback((path: string, content: string) => {
     const current = runtimeRef.current.activeNote;
-    if (!current || !pathsEqual(current.path, path)) return;
+    const resolvedPath = resolveCurrentPath(path);
+    if (!current || !pathsEqual(current.path, resolvedPath)) return;
 
     const editor = runtimeRef.current.editor;
     const saveState = runtimeRef.current.save;
     const prevDirty = editor.dirty;
-    editor.path = current.path;
+    editor.path = resolvedPath;
     editor.buffer = content;
     editor.dirty = content !== editor.savedBody;
     if (prevDirty !== editor.dirty) {
@@ -286,34 +332,70 @@ export function useActiveNoteSync({
       if (saveState.pendingExternalChange && !saveState.saving) {
         saveState.pendingExternalChange = false;
         logActiveSyncDev("consume-pending-external-change", { path: current.path });
-        void onFileChange([path]);
+        void onFileChange([resolvedPath]);
       }
     }
-  }, [onFileChange]);
+  }, [onFileChange, resolveCurrentPath]);
+
+  const onPathsUnavailable = useCallback((unavailablePaths: string[]) => {
+    if (!unavailablePaths.length) return;
+    runtimeRef.current.missingPaths = [
+      ...runtimeRef.current.missingPaths,
+      ...unavailablePaths.filter(
+        (path) => !runtimeRef.current.missingPaths.some((existing) => pathsEqual(existing, path)),
+      ),
+    ];
+  }, []);
 
   const onPathsRemoved = useCallback((removedPaths: string[]) => {
     if (!removedPaths.length) return;
+    onPathsUnavailable(removedPaths);
+
     const current = runtimeRef.current.activeNote;
     if (!current) return;
     const deleted = removedPaths.some((p) => isPathInside(current.path, p));
     if (!deleted) return;
 
-    runtimeRef.current.activeNote = null;
-    runtimeRef.current.save.saving = false;
-    runtimeRef.current.save.path = null;
-    runtimeRef.current.save.pendingExternalChange = false;
-    runtimeRef.current.editor.path = null;
-    runtimeRef.current.editor.buffer = "";
-    runtimeRef.current.editor.savedBody = "";
-    runtimeRef.current.editor.dirty = false;
-    runtimeRef.current.editor.externalChangeNotified = false;
-    logActiveSyncDev("active-note-removed", { removedPaths });
-    setActiveNote(null);
-  }, []);
+    const editor = runtimeRef.current.editor;
+    const next = editor.path && pathsEqual(editor.path, current.path)
+      ? { ...current, body: editor.buffer }
+      : current;
+    runtimeRef.current.activeNote = next;
+    setActiveNote(next);
+    logActiveSyncDev("active-note-missing", { removedPaths });
+  }, [onPathsUnavailable]);
+
+  const onPathsAvailable = useCallback((availablePaths: string[]) => {
+    if (!availablePaths.length) return;
+    for (const path of availablePaths) {
+      clearAvailablePath(path);
+    }
+  }, [clearAvailablePath]);
 
   const onPathsMoved = useCallback(
     (moves: Array<{ from: string; to: string }>) => {
       if (!moves.length) return;
+
+      for (const move of moves) {
+        runtimeRef.current.pathRedirects = runtimeRef.current.pathRedirects.map(
+          (redirect) => ({
+            ...redirect,
+            to: rebasePath(redirect.to, move) ?? redirect.to,
+          }),
+        );
+        runtimeRef.current.pathRedirects = runtimeRef.current.pathRedirects.filter(
+          (redirect) => !pathsEqual(redirect.from, move.from),
+        );
+        runtimeRef.current.pathRedirects.push(move);
+        runtimeRef.current.missingPaths = runtimeRef.current.missingPaths.filter(
+          (missingPath) => !isPathInside(missingPath, move.from),
+        );
+      }
+
+      runtimeRef.current.selfSaveJournal = runtimeRef.current.selfSaveJournal.map((entry) => ({
+        ...entry,
+        path: applyPathMoves(entry.path, moves),
+      }));
 
       const editor = runtimeRef.current.editor;
       const saveState = runtimeRef.current.save;
@@ -335,20 +417,18 @@ export function useActiveNoteSync({
       const current = runtimeRef.current.activeNote;
       if (!current) return;
 
-      let next = current;
-      for (const move of moves) {
-        if (!isPathInside(next.path, move.from)) continue;
-        const suffix = next.path.substring(move.from.length);
-        const updatedPath = `${move.to}${suffix}`;
-        next = {
-          ...next,
-          path: updatedPath,
-          id: vaultPath ? toVaultRelative(updatedPath, vaultPath) : next.id,
-          name: pathsEqual(next.path, move.from)
-            ? getBaseName(updatedPath).replace(/\.md$/i, "")
-            : next.name,
-        };
-      }
+      const updatedPath = applyPathMoves(current.path, moves);
+      const next = pathsEqual(updatedPath, current.path)
+        ? current
+        : {
+            ...current,
+            path: updatedPath,
+            id: vaultPath ? toVaultRelative(updatedPath, vaultPath) : current.id,
+            name: getBaseName(updatedPath).replace(/\.md$/i, ""),
+            body: editor.path && pathsEqual(editor.path, updatedPath)
+              ? editor.buffer
+              : current.body,
+          };
       if (next === current) return;
       runtimeRef.current.activeNote = next;
       setActiveNote(next);
@@ -366,31 +446,37 @@ export function useActiveNoteSync({
       content: string,
       save: (pathArg: string, contentArg: string) => Promise<void>,
     ) => {
+      const targetPath = resolveCurrentPath(path);
+      if (isSaveBlocked(targetPath)) {
+        logActiveSyncDev("save-paused-missing", { path, targetPath });
+        return;
+      }
+
       const current = runtimeRef.current.activeNote;
       const saveState = runtimeRef.current.save;
-      const isActiveTarget = Boolean(current && pathsEqual(path, current.path));
+      const isActiveTarget = Boolean(current && pathsEqual(targetPath, current.path));
 
       if (isActiveTarget) {
         saveState.saving = true;
-        saveState.path = path;
+        saveState.path = targetPath;
         saveState.pendingExternalChange = false;
-        runtimeRef.current.editor.path = path;
+        runtimeRef.current.editor.path = targetPath;
         runtimeRef.current.editor.buffer = content;
         runtimeRef.current.editor.dirty = content !== runtimeRef.current.editor.savedBody;
         logActiveSyncDev("save-started", {
-          path,
+          path: targetPath,
           dirty: runtimeRef.current.editor.dirty,
         });
       }
 
       try {
-        await save(path, content);
+        await save(targetPath, content);
       } catch (err) {
         if (isActiveTarget) {
           saveState.saving = false;
           saveState.path = null;
           saveState.pendingExternalChange = false;
-          logActiveSyncDev("save-failed", { path });
+          logActiveSyncDev("save-failed", { path: targetPath });
         }
         throw err;
       }
@@ -403,25 +489,26 @@ export function useActiveNoteSync({
       if (!editor.dirty) {
         editor.externalChangeNotified = false;
       }
-      recordSelfSave(path, content);
+      recordSelfSave(targetPath, content);
 
       const pending = saveState.pendingExternalChange;
       saveState.saving = false;
       saveState.path = null;
       saveState.pendingExternalChange = pending && editor.dirty;
       logActiveSyncDev("save-completed", {
-        path,
+        path: targetPath,
         pendingExternalChange: pending,
         dirty: editor.dirty,
       });
 
       if (!pending || editor.dirty) return;
-      await onFileChange([path]);
+      await onFileChange([targetPath]);
     },
-    [onFileChange, recordSelfSave],
+    [isSaveBlocked, onFileChange, recordSelfSave, resolveCurrentPath],
   );
 
   const clearActiveNote = useCallback(() => {
+    selectionSeqRef.current += 1;
     runtimeRef.current.activeNote = null;
     setActiveNote(null);
     runtimeRef.current.save.saving = false;
@@ -434,6 +521,14 @@ export function useActiveNoteSync({
     runtimeRef.current.editor.externalChangeNotified = false;
     logActiveSyncDev("active-note-cleared", {});
   }, []);
+
+  const resetNoteSession = useCallback(() => {
+    clearActiveNote();
+    runtimeRef.current.missingPaths = [];
+    runtimeRef.current.pathRedirects = [];
+    runtimeRef.current.selfSaveJournal = [];
+    logActiveSyncDev("note-session-reset", {});
+  }, [clearActiveNote]);
 
   const getActiveNoteSnapshot = useCallback((): NoteContent | null => {
     const current = runtimeRef.current.activeNote;
@@ -473,9 +568,12 @@ export function useActiveNoteSync({
     handleSelectNote,
     handleEditorBufferChange,
     onFileChange,
+    onPathsUnavailable,
     onPathsRemoved,
+    onPathsAvailable,
     onPathsMoved,
     handleSaveWithGuards,
     clearActiveNote,
+    resetNoteSession,
   } as const;
 }
