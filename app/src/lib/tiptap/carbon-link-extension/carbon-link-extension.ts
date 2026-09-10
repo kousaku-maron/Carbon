@@ -4,6 +4,7 @@ import { Plugin, PluginKey } from "@tiptap/pm/state";
 import Suggestion from "@tiptap/suggestion";
 import { isImagePath, isPdfPath, isVideoPath } from "../../file-kind";
 import { getRelativePath } from "../../link-utils";
+import { createMissingLinksPlugin } from "./missing-links";
 import {
   buildSuggestionConfig,
   type CarbonLinkSuggestionConfig,
@@ -40,6 +41,7 @@ export function isRelativePath(href: string): boolean {
 
 export interface CarbonLinkOptions extends LinkOptions {
   isInternal: (href: string) => boolean;
+  isMissingInternal: ((href: string) => boolean) | null;
   onOpenInternal: ((href: string) => void) | null;
   onOpenExternal: ((href: string) => void) | null;
   /** When set, enables `[[` suggestion for internal note links. */
@@ -67,6 +69,7 @@ export const CarbonLink = Link.extend<CarbonLinkOptions>({
     const opts: CarbonLinkOptions = {
       ...this.parent!(),
       isInternal: isRelativePath,
+      isMissingInternal: null,
       onOpenInternal: null,
       onOpenExternal: null,
       suggestion: null,
@@ -99,6 +102,12 @@ export const CarbonLink = Link.extend<CarbonLinkOptions>({
     const plugins = this.parent!().filter(
       (p) => (p as unknown as { key: string }).key !== "handleClickLink$",
     );
+
+    if (this.options.isMissingInternal) {
+      plugins.push(createMissingLinksPlugin((href) =>
+        this.options.isInternal(href) && !!this.options.isMissingInternal?.(href),
+      ));
+    }
 
     if (this.options.resolveExternalTitle) {
       plugins.unshift(

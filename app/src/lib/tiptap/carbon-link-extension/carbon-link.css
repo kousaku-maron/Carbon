@@ -1,3 +1,15 @@
+/* Missing targets are a display-only decoration inside the link mark. */
+.carbon-prose .carbon-link.carbon-link--internal:has(.carbon-link--missing),
+.carbon-prose .carbon-link.carbon-link--internal:has(.carbon-link--missing):hover {
+  color: #9b9a97;
+  text-decoration: none;
+}
+
+.carbon-prose .carbon-link--missing {
+  text-decoration: line-through;
+  text-decoration-color: currentColor;
+}
+
 /* Note link suggestion popup */
 .note-link-suggestion {
   min-width: 240px;

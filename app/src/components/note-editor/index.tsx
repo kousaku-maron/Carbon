@@ -17,6 +17,8 @@ import { API_BASE_URL } from "../../lib/api";
 import { debounce } from "../../lib/debounce";
 import { useCopyFeedback } from "../../lib/hooks/use-copy-feedback";
 import { resolveVaultLocalPath, validateLinkTarget } from "../../lib/link-utils";
+import { normalizeForCompare } from "../../lib/path-utils";
+import { missingLinksKey } from "../../lib/tiptap/carbon-link-extension/missing-links";
 import { fetchPageTitle } from "../../lib/page-title";
 import { formatPdfExportError, startNotePdfExport } from "../../lib/pdf-export";
 import { formatMarkdownForCopy } from "../../lib/tiptap/markdown";
@@ -89,6 +91,10 @@ export function NoteEditor(props: NoteEditorProps) {
   );
 
   // Stable ref to avoid unnecessary useEditor re-initialization.
+  const notePaths = useMemo(
+    () => new Set(noteIndex.map((entry) => normalizeForCompare(entry.path))),
+    [noteIndex],
+  );
   const latestRef = useRef({
     onNavigateToNote,
     onLinkError,
@@ -96,6 +102,7 @@ export function NoteEditor(props: NoteEditorProps) {
     onSave,
     debouncedSave,
     noteIndex,
+    notePaths,
   });
   useEffect(() => {
     latestRef.current = {
@@ -105,8 +112,9 @@ export function NoteEditor(props: NoteEditorProps) {
       onSave,
       debouncedSave,
       noteIndex,
+      notePaths,
     };
-  }, [onNavigateToNote, onLinkError, onBufferChange, onSave, debouncedSave, noteIndex]);
+  }, [onNavigateToNote, onLinkError, onBufferChange, onSave, debouncedSave, noteIndex, notePaths]);
 
   useEffect(() => {
     return () => {
@@ -138,6 +146,13 @@ export function NoteEditor(props: NoteEditorProps) {
           linkOnPaste: true,
           resolveExternalTitle: fetchPageTitle,
           currentNotePath: note.path,
+          isMissingInternal: (href) => {
+            // Fragment-only links refer to the current note.
+            if (/^[?#]/.test(href)) return false;
+            const resolved = resolveVaultLocalPath(note.path, href, vaultPath);
+            return !validateLinkTarget(resolved, vaultPath).valid ||
+              !latestRef.current.notePaths.has(normalizeForCompare(resolved));
+          },
           HTMLAttributes: {
             target: null,
             rel: null,
@@ -249,6 +264,11 @@ export function NoteEditor(props: NoteEditorProps) {
     },
     [note.body, note.path, vaultPath],
   );
+
+  useEffect(() => {
+    if (!editor || editor.isDestroyed) return;
+    editor.view.dispatch(editor.state.tr.setMeta(missingLinksKey, true));
+  }, [editor, notePaths]);
 
   const {
     editorContentRef,
